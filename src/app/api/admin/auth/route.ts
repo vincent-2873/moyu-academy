@@ -1,10 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 const ADMIN_PASSWORD = 'moyu2024admin';
 const ALLOWED_ROLES = ['super_admin', 'brand_manager', 'team_leader', 'trainer'];
@@ -27,7 +23,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: user, error } = await supabaseAdmin
+    const { data: user, error } = await getSupabaseAdmin()
       .from('users')
       .select('*')
       .eq('email', email)

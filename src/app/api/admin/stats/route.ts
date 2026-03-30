@@ -1,10 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export async function GET(_req: NextRequest) {
   try {
@@ -20,23 +16,23 @@ export async function GET(_req: NextRequest) {
       activeUsersResult,
     ] = await Promise.all([
       // Total users grouped by brand
-      supabaseAdmin
+      getSupabaseAdmin()
         .from('users')
         .select('brand')
         .order('brand'),
 
       // Total sparring records
-      supabaseAdmin
+      getSupabaseAdmin()
         .from('sparring_records')
         .select('id', { count: 'exact', head: true }),
 
       // Average scores from sparring records
-      supabaseAdmin
+      getSupabaseAdmin()
         .from('sparring_records')
         .select('score'),
 
       // Active users this week (users with sparring activity in last 7 days)
-      supabaseAdmin
+      getSupabaseAdmin()
         .from('sparring_records')
         .select('user_id')
         .gte('created_at', oneWeekAgoISO),
