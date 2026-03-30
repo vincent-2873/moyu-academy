@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #08080c;
+  --bg2: #101018;
+  --card: #15151f;
+  --card2: #1c1c2a;
+  --accent: #7c6cf0;
+  --accent-light: #a29bfe;
+  --teal: #00d2d3;
+  --gold: #feca57;
+  --orange: #ff9f43;
+  --red: #ee5a52;
+  --green: #10ac84;
+  --text: #eeeef4;
+  --text2: #9898b0;
+  --text3: #606078;
+  --border: #28283a;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "SF Pro Display", "PingFang TC", "Microsoft JhengHei", sans-serif;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-fade-in { animation: fadeIn 0.4s ease-out; }
+.animate-slide-in { animation: slideIn 0.3s ease-out; }
+
+/* Chat bubbles */
+.chat-user {
+  background: linear-gradient(135deg, var(--accent), var(--teal));
+  color: #fff;
+  border-radius: 18px 18px 4px 18px;
+}
+.chat-ai {
+  background: var(--card2);
+  color: var(--text);
+  border-radius: 18px 18px 18px 4px;
+}
+
+/* Score ring */
+.score-ring {
+  transform: rotate(-90deg);
+}
