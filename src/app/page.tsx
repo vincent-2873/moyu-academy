@@ -1063,6 +1063,10 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transcriptRef = useRef("");
+  const sendingRef = useRef(false);
+  sendingRef.current = sending;
 
   const brandPersonas = getPersonasByBrand(user.brand);
   const persona = personas.find((p) => p.id === selectedPersona);
@@ -1096,13 +1100,12 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
     synthRef.current.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "zh-TW";
-    utterance.rate = 1.05;
+    utterance.rate = 1.1;
     utterance.pitch = 1.0;
 
-    // Try to find a Chinese voice
     const voices = synthRef.current.getVoices();
     const zhVoice = voices.find(
-      (v) => v.lang.startsWith("zh") && v.name.includes("Mei") // Prefer female voice
+      (v) => v.lang.startsWith("zh") && v.name.includes("Mei")
     ) || voices.find((v) => v.lang.startsWith("zh-TW"))
       || voices.find((v) => v.lang.startsWith("zh"));
     if (zhVoice) utterance.voice = zhVoice;
@@ -1110,64 +1113,86 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => {
       setIsSpeaking(false);
-      // Auto-start listening after AI finishes speaking
-      if (voiceEnabled) {
-        // Small delay to let state settle
+      // Auto-start listening after AI finishes speaking (phone-call flow)
+      if (voiceEnabled && sessionActive) {
         setTimeout(() => {
-          const recognition = recognitionRef.current;
-          if (recognition && !wantListeningRef.current) {
-            wantListeningRef.current = true;
-            setIsListening(true);
-            try { recognition.start(); } catch { /* */ }
-          }
-        }, 300);
+          if (!sendingRef.current) startListening();
+        }, 200);
       }
     };
     synthRef.current.speak(utterance);
-  }, [voiceEnabled]);
+  }, [voiceEnabled, sessionActive]);
 
-  // Track whether we want to keep listening (user hasn't pressed stop)
+  // Track whether we want to keep listening
   const wantListeningRef = useRef(false);
 
-  // Start voice recognition
+  // Auto-send: called when silence detected
+  const autoSendVoice = useCallback(() => {
+    const text = transcriptRef.current.trim();
+    if (!text || sendingRef.current) return;
+    // Stop listening, clear state, then send
+    wantListeningRef.current = false;
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      try { recognition.stop(); } catch { /* */ }
+    }
+    setIsListening(false);
+    setInterimText("");
+    setInput("");
+    transcriptRef.current = "";
+    sendMessage(text);
+  }, []);
+
+  // Start voice recognition — fresh transcript each time
   const startListening = useCallback(() => {
     const recognition = recognitionRef.current;
-    if (!recognition || sending || isSpeaking) return;
-
-    // If already listening, don't restart
+    if (!recognition || sendingRef.current || isSpeaking) return;
     if (wantListeningRef.current) return;
 
-    wantListeningRef.current = true;
+    // Clear all previous transcript state
+    transcriptRef.current = "";
     setInterimText("");
+    setInput("");
+    wantListeningRef.current = true;
     setIsListening(true);
 
-    let finalTranscript = "";
-
     recognition.onresult = (event: { resultIndex: number; results: { length: number; [key: number]: { isFinal: boolean; [key: number]: { transcript: string } } } }) => {
+      let fullFinal = "";
       let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
-          finalTranscript += result[0].transcript;
+          fullFinal += result[0].transcript;
         } else {
           interim += result[0].transcript;
         }
       }
-      setInterimText(finalTranscript + interim);
-      setInput(finalTranscript + interim);
+      const display = fullFinal + interim;
+      transcriptRef.current = display;
+      setInterimText(display);
+      setInput(display);
+
+      // Reset silence timer — auto-send after 1.5s of silence
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      if (display.trim()) {
+        silenceTimerRef.current = setTimeout(() => {
+          if (wantListeningRef.current && transcriptRef.current.trim()) {
+            autoSendVoice();
+          }
+        }, 1500);
+      }
     };
 
     recognition.onerror = (e: { error: string }) => {
-      // Only stop on fatal errors, not on "no-speech"
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
         wantListeningRef.current = false;
         setIsListening(false);
       }
+      // On "no-speech", just keep going
     };
 
     recognition.onend = () => {
-      // Auto-restart if user hasn't pressed stop
-      if (wantListeningRef.current) {
+      if (wantListeningRef.current && !sendingRef.current) {
         try {
           recognition.start();
         } catch {
@@ -1185,10 +1210,11 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
       wantListeningRef.current = false;
       setIsListening(false);
     }
-  }, [sending, isSpeaking]);
+  }, [isSpeaking, autoSendVoice]);
 
   // Stop voice recognition
   const stopListening = useCallback(() => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     wantListeningRef.current = false;
     const recognition = recognitionRef.current;
     if (recognition) {
@@ -1196,6 +1222,7 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
     }
     setIsListening(false);
     setInterimText("");
+    transcriptRef.current = "";
   }, []);
 
   // Fetch coaching tip after each exchange
@@ -1228,9 +1255,17 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
   // Send message (voice or text)
   const sendMessage = async (textOverride?: string) => {
     const text = textOverride || input;
-    if (!text.trim() || !persona || sending) return;
+    if (!text.trim() || !persona || sendingRef.current) return;
 
-    stopListening();
+    // Clear all voice state
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    wantListeningRef.current = false;
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      try { recognition.stop(); } catch { /* */ }
+    }
+    setIsListening(false);
+    transcriptRef.current = "";
 
     const userMsg = { role: "user" as const, content: text.trim() };
     const newMessages = [...messages, userMsg];
@@ -1255,9 +1290,13 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
       const updatedMessages = [...newMessages, aiMsg];
       setMessages(updatedMessages);
 
-      // Speak AI response
+      setSending(false);
+
+      // Speak AI response — speakText.onend will auto-start listening
       if (voiceEnabled) {
         speakText(data.reply);
+      } else {
+        // Text mode: no auto-listen
       }
 
       // Fetch coaching tip in background
@@ -1267,15 +1306,15 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
         ...newMessages,
         { role: "assistant", content: "（系統錯誤，請稍後再試）" },
       ]);
+      setSending(false);
     }
-    setSending(false);
   };
 
   // Handle voice send: stop listening, then send what we have
   const handleVoiceSend = () => {
-    if (input.trim()) {
-      stopListening();
-      sendMessage(input.trim());
+    const text = transcriptRef.current.trim() || input.trim();
+    if (text) {
+      sendMessage(text);
     }
   };
 
@@ -1509,12 +1548,12 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
           <div className="flex-1 overflow-y-auto space-y-3 pb-4">
             {messages.length === 0 && (
               <div className="text-center py-16 text-[var(--text3)]">
-                <p className="text-5xl mb-4">🎤</p>
-                <p className="text-lg">語音對練模式</p>
+                <p className="text-5xl mb-4">📞</p>
+                <p className="text-lg">電話對練模式</p>
                 <p className="text-sm mt-2">你是 {brand.fullName} 的業務顧問</p>
                 <p className="text-sm">客戶「{persona.name}」已接聽電話</p>
                 <p className="text-sm mt-4 text-[var(--accent)]">
-                  {voiceSupported ? "按下麥克風按鈕開始說話，或直接打字" : "你的瀏覽器不支援語音，請使用打字模式"}
+                  {voiceSupported ? "按麥克風開始 — 說完自動發送，像講電話一樣" : "你的瀏覽器不支援語音，請使用打字模式"}
                 </p>
               </div>
             )}
@@ -1610,7 +1649,9 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
             {isListening && (
               <div className="flex items-center gap-2 mt-2 px-2">
                 <span className="w-2 h-2 bg-[var(--red)] rounded-full animate-pulse" />
-                <span className="text-xs text-[var(--red)]">錄音中 — 說完後按停止鍵發送</span>
+                <span className="text-xs text-[var(--red)]">
+                  {interimText ? "聽到了，停頓後自動發送..." : "正在聽你說話..."}
+                </span>
                 <div className="flex-1 flex justify-end gap-1">
                   {[...Array(12)].map((_, i) => (
                     <div
@@ -1623,6 +1664,12 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
                     />
                   ))}
                 </div>
+              </div>
+            )}
+            {isSpeaking && (
+              <div className="flex items-center gap-2 mt-2 px-2">
+                <span className="w-2 h-2 bg-[var(--green)] rounded-full animate-pulse" />
+                <span className="text-xs text-[var(--green)]">對方說話中，說完後自動輪到你...</span>
               </div>
             )}
           </div>
