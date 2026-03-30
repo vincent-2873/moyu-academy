@@ -1805,45 +1805,6 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
         })}
       </div>
 
-      {/* Other brands */}
-      {Object.keys(brands)
-        .filter((b) => b !== user.brand)
-        .map((bId) => {
-          const otherBrand = brands[bId];
-          const otherPersonas = getPersonasByBrand(bId);
-          return (
-            <div key={bId} className="mt-8">
-              <h3 className="text-lg font-bold mb-3" style={{ color: otherBrand.color }}>
-                {otherBrand.fullName}（跨品牌練習）
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 opacity-80">
-                {otherPersonas.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => {
-                      setSelectedPersona(p.id);
-                      setMessages([]);
-                      setCoachingTips([]);
-                      setLatestTip(null);
-                      setSessionActive(true);
-                      setStartTime(Date.now());
-                      setFeedback(null);
-                    }}
-                    className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-left hover:border-[var(--accent)] transition-all"
-                  >
-                    <p className="font-bold text-sm">{p.name}</p>
-                    <p className="text-xs text-[var(--text3)]">{p.description}</p>
-                    <div className="flex gap-1 mt-2">
-                      {[1, 2, 3].map((d) => (
-                        <span key={d} className={`text-xs ${d <= p.difficulty ? "text-[var(--gold)]" : "text-[var(--border)]"}`}>★</span>
-                      ))}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
     </div>
   );
 }

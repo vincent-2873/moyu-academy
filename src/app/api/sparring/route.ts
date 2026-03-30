@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 8. 不要透露你是 AI，保持角色扮演到底。`;
 
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 500,
       system: fullSystem,
       messages: messages.map((m: { role: string; content: string }) => ({

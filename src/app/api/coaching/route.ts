@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const userMsgCount = messages.filter((m: { role: string }) => m.role === "user").length;
 
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 300,
       system: `你是一位即時銷售教練，正在旁聽一位業務（${brandName}）和客戶「${personaName}」的對話。
 

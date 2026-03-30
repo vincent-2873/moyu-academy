@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     .join("\n");
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6",
     max_tokens: 1500,
     system: `你是一個專業的銷售教練，正在評估一位業務顧問與客戶「${personaName}」（${brandName}）的對練表現。
 
