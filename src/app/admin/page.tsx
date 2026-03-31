@@ -404,7 +404,7 @@ function DashboardTab({ token }: { token: string }) {
 // ─── Users Tab ─────────────────────────────────────────────────────────────
 
 function UsersTab({ token }: { token: string }) {
-  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; status: string; created_at: string }>>([]);
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; is_active: boolean; created_at: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [brandFilter, setBrandFilter] = useState("all");
 
@@ -425,9 +425,8 @@ function UsersTab({ token }: { token: string }) {
     fetchUsers();
   };
 
-  const toggleStatus = async (userId: string, currentStatus: string) => {
-    const newStatus = currentStatus === "active" ? "inactive" : "active";
-    await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, status: newStatus }) });
+  const toggleStatus = async (userId: string, currentActive: boolean) => {
+    await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, is_active: !currentActive }) });
     fetchUsers();
   };
 
@@ -464,14 +463,14 @@ function UsersTab({ token }: { token: string }) {
                     </select>
                   </td>
                   <td style={{ padding: "12px 14px" }}>
-                    <span style={{ background: u.status === "active" ? "#22c55e22" : "#f8717122", color: u.status === "active" ? "var(--green)" : "var(--red)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
-                      {u.status === "active" ? "啟用" : "停用"}
+                    <span style={{ background: u.is_active ? "#22c55e22" : "#f8717122", color: u.is_active ? "var(--green)" : "var(--red)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+                      {u.is_active ? "啟用" : "停用"}
                     </span>
                   </td>
                   <td style={{ padding: "12px 14px", fontSize: 12, color: "var(--text3)" }}>{new Date(u.created_at).toLocaleDateString("zh-TW")}</td>
                   <td style={{ padding: "12px 14px" }}>
-                    <button onClick={() => toggleStatus(u.id, u.status)} style={{ background: "var(--border)", border: "none", borderRadius: 6, padding: "4px 10px", color: "var(--text2)", cursor: "pointer", fontSize: 12 }}>
-                      {u.status === "active" ? "停用" : "啟用"}
+                    <button onClick={() => toggleStatus(u.id, u.is_active)} style={{ background: "var(--border)", border: "none", borderRadius: 6, padding: "4px 10px", color: "var(--text2)", cursor: "pointer", fontSize: 12 }}>
+                      {u.is_active ? "停用" : "啟用"}
                     </button>
                   </td>
                 </tr>

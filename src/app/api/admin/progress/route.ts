@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   // Get all users with their progress
   let usersQuery = supabase
     .from("users")
-    .select("id, name, email, brand, role, status, created_at")
+    .select("id, name, email, brand, role, is_active, created_at")
     .order("created_at", { ascending: false });
 
   if (brand && brand !== "all") {
