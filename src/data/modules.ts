@@ -4,240 +4,462 @@ export interface QuizQuestion {
   answer: number;
 }
 
+export interface TrainingResource {
+  title: string;
+  type: 'video' | 'notion' | 'recording' | 'document';
+  driveFileId?: string;
+  url?: string;
+  description?: string;
+}
+
+export interface KpiTargets {
+  calls?: string;
+  talkTime?: string;
+  invites?: string;
+}
+
+export interface DailyScheduleItem {
+  time: string;
+  task: string;
+  description?: string;
+}
+
 export interface TrainingModule {
   id: number;
   day: number;
   title: string;
   subtitle: string;
+  /** 前言：告訴新人今天要做什麼、為什麼做 */
   description: string;
+  /** 每日行程表 */
+  schedule?: DailyScheduleItem[];
   content: string[];
   keyPoints: string[];
-  videos?: string[];
+  resources?: TrainingResource[];
+  trainerTips?: string[];
+  kpiTargets?: KpiTargets;
+  practiceTask?: string;
+  callRecordingIds?: string[];
   hasSparring: boolean;
   sparringType?: string;
   quiz: QuizQuestion[];
 }
 
 export const modules: TrainingModule[] = [
+  // ===================== DAY 1 =====================
   {
     id: 1,
     day: 1,
-    title: "新人報到",
-    subtitle: "品牌認識、系統操作、目標設定",
-    description: "認識你即將服務的品牌，了解我們的教育理念、產品體系，並設定你的學習目標。",
+    title: "新人報到｜開發學習",
+    subtitle: "合約導讀、品牌認識、聽 Call、逐字稿對練",
+    description:
+      "歡迎加入 nSchool！今天是你的第一天，我們會先帶你認識公司環境和集團介紹，然後進入最重要的部分——聽 8 段真實的開發 Call 錄音。這些錄音是你未來打電話的範本，請仔細聽語氣口吻、語調和受眾差異。下午會進行線上 Review 會議，討論你聽到的內容，之後開始兩人一組的逐字稿對練。今天的目標：熟悉開發架構，開始練習表達。",
+    schedule: [
+      { time: "10:00-11:00", task: "新人合約導讀", description: "了解合約內容與公司規範" },
+      { time: "11:00-11:30", task: "公司環境、集團介紹", description: "認識墨宇集團三大品牌：nSchool 財經、XUEMI 學米、OOschool 無限" },
+      { time: "12:00-13:00", task: "午休" },
+      { time: "13:00-16:00", task: "【業訓】開發學習", description: "聽 8 段真實開發 Call 錄音逐字稿，邊聽邊筆記受眾特徵" },
+      { time: "16:00-18:00", task: "【業訓】聽 Call Review", description: "線上會議，分享聽 Call 心得、教學制度說明（線上+實體課程優劣勢、理論→實作→實戰教學核心）" },
+      { time: "18:00-19:00", task: "【業訓】逐字稿對練", description: "兩人一組，對練 1-1 到 1-4 逐字稿，裝話機互 Call" },
+    ],
     content: [
-      "品牌介紹：了解你所屬品牌的故事、願景與核心價值",
-      "產品體系：熟悉所有課程方案、價格與目標受眾",
-      "系統操作：學會使用培訓系統的各項功能",
-      "目標設定：制定你的第一週學習計畫與 KPI 目標",
+      "13:00 開始聽開發 Call 錄音（8段），邊聽邊記錄受眾分類筆記",
+      "聽 Call 重點：語氣口吻、語調、受眾辨識（學生/在職/待業）",
+      "14:30 回報目前進度，聽到第幾段",
+      "15:00 分析受眾：學生可以聊什麼？在職可以聊什麼？列越多越好",
+      "16:00 線上 Review 會議：分享聽 Call 心得、教學制度（理論→實作→實戰）",
+      "17:30 開始逐字稿對練，一人扮客戶、一人扮業務，照逐字稿念",
+      "18:30 聽自己的對練錄音，標記卡住、不熟的地方",
     ],
     keyPoints: [
-      "每個品牌有不同的客群和銷售策略",
-      "了解產品是銷售的第一步",
-      "設定具體可衡量的目標",
+      "架構是固定的，在穩定架構上展現個人風格",
+      "練習核心三要素：①有無順暢（表達、溝通）②有條理邏輯（照架構順序走）③別人聽不聽得懂（語氣、語速、語調）",
+      "一通 Call 大約落在 12-15 分鐘，多或少都要去找原因",
+      "教學核心：理論（影片學習）→ 實作（財經教練解題）→ 實戰（模擬交易APP）",
     ],
-    videos: ["v-backend-tutorial", "v-company-org"],
-    hasSparring: false,
+    resources: [
+      { title: "nSchool 財經訓練中心", type: "notion", url: "https://rattle-notify-a6d.notion.site/nSchool-v-2-2b5b581c6726801cb7d5f4f57f4b97fc", description: "所有訓練資源的入口" },
+      { title: "開發 Call 逐字稿（8段）", type: "notion", url: "https://rattle-notify-a6d.notion.site/nschool-2025-c-03", description: "聽 Call 和對練用的逐字稿" },
+      { title: "公司組織說明影片", type: "video", driveFileId: "1mFY5_pCtsuvDV0KiO2Ferh0SCJIflsZx", description: "墨宇集團組織架構與各部門介紹" },
+    ],
+    trainerTips: [
+      "開發 Call 記得仔細去聽，語氣口吻和語調是關鍵",
+      "有些夥伴可能不知道怎麼筆記，建議按受眾分類：學生可以聊什麼？在職可以聊什麼？",
+      "電話行銷跟實體銷售不一樣，實體見面三分情，電話一分情都不到，透過聲音的起伏來調整",
+      "如果學習快，有機會這周就學到 Demo，開始獨立作業和成交。但不逼，一步一步原則來走最重要",
+    ],
+    practiceTask: "逐字稿對練 1-1 到 1-4，兩人一組對練。對練完聽自己的錄音，標記卡住不熟的地方，心裡默念幾次",
+    hasSparring: true,
+    sparringType: "transcript_practice",
     quiz: [
       {
-        question: "墨宇集團旗下有幾個主要教育品牌？",
-        options: ["2 個", "3 個", "4 個", "5 個"],
+        question: "練習核心三要素不包括下列哪項？",
+        options: ["有無順暢（表達、溝通）", "有條理邏輯（照架構順序走）", "別人聽不聽得懂（語氣語速語調）", "話術完整背誦"],
+        answer: 3,
+      },
+      {
+        question: "nSchool 的教學核心是什麼？",
+        options: ["理論→考試→畢業", "理論→實作→實戰", "看影片→背話術→打電話", "聽課→交報告→結業"],
         answer: 1,
       },
       {
-        question: "新人第一週最重要的目標是什麼？",
-        options: ["立刻成交", "熟悉產品與流程", "打最多電話", "背話術"],
+        question: "一通開發 Call 正常應落在多少分鐘？",
+        options: ["5-8 分鐘", "12-15 分鐘", "20-25 分鐘", "30 分鐘以上"],
         answer: 1,
       },
       {
-        question: "KPI 追蹤應該多久記錄一次？",
-        options: ["每週", "每天", "每月", "有空再記"],
+        question: "聽 Call 時最重要的是聽什麼？",
+        options: ["產品價格", "語氣口吻、語調、受眾辨識", "客戶的收入水平", "通話時長"],
         answer: 1,
       },
     ],
   },
+
+  // ===================== DAY 2 =====================
   {
     id: 2,
     day: 2,
-    title: "GROW 銷售模型",
-    subtitle: "Goal → Reality → Options → Will",
-    description: "掌握 GROW 教練式銷售模型，學會用提問引導客戶發現需求並做出決定。",
+    title: "架構對練｜後台學習",
+    subtitle: "逐字稿對練、架構對練、據點主管考試、後台操作",
+    description:
+      "今天的重點是從「念逐字稿」升級到「架構對練」。早上先完成逐字稿對練，接著學習打卡系統。下午進入架構對練——不再照著念，而是用自己的話走完整個開發架構（受眾分上班族/學生/待業）。練完後會調你的 Call 出來一起 Review，找出 3 個優化點和 2 個可維持的地方。傍晚進行據點主管考試，通過後學習後台（CRM）操作。今天的目標：架構流程內化，通過考試。",
+    schedule: [
+      { time: "上午", task: "【業訓】逐字稿對練（續）", description: "完成 Day 1 未完成的逐字稿對練" },
+      { time: "13:00-13:30", task: "【業訓】確認打卡信件", description: "打卡 APP 安裝、操作說明（12:30 準時打卡，12:31 算遲到）" },
+      { time: "13:30-17:15", task: "【業訓】架構對練 + 聽 Call Review", description: "用自己的話走架構，受眾分上班族/學生/待業。對練完聽錄音寫 3 優化 + 2 維持" },
+      { time: "17:15-18:15", task: "【業訓】據點主管考試", description: "撥打據點主管分機進行考試，通過才能學後台" },
+      { time: "18:15-19:00", task: "【業訓】後台學習、加入經辦", description: "後台操作影片（看到 48 分），登入 CRM 系統，加入經辦 LINE" },
+    ],
     content: [
-      "G - Goal（目標）：幫助客戶釐清他們想達成的目標",
-      "R - Reality（現實）：了解客戶目前的處境與挑戰",
-      "O - Options（選項）：一起探索可能的解決方案",
-      "W - Will（意願）：確認行動計畫與承諾",
+      "架構對練 TA 受眾：上班族 / 學生 / 待業，客戶方自行設定輪廓",
+      "對練記得受眾的個性和內容，不用特別跟對方說，當作真正上機一樣",
+      "STEP2-STEP3 可以多聊天，講不出技術內容沒關係，聊客戶本身的狀況",
+      "對練完後聽自己每通 Call，列出 3 個優化 + 2 個可維持的地方",
+      "據點主管考試通過後，觀看後台操作影片（看到 48 分即可，後面會另外教學）",
+      "用個人信箱註冊官網 nschool.tw，後續會掛權限",
     ],
     keyPoints: [
-      "GROW 是教練式對話，不是推銷",
-      "多問開放式問題，少做陳述",
-      "讓客戶自己說出需求",
+      "架構對練三大核心：①順暢表達 ②有條理邏輯（照架構走）③別人聽得懂",
+      "試著在 STEP2-STEP3 多聊天，了解客戶背景和需求",
+      "不用特別刁鑽，主要是循序著架構去跑和執行",
+      "後台操作影片看到 48 分就好，後面不要看，後續會教學",
     ],
+    resources: [
+      { title: "架構對練參考稿", type: "notion", url: "https://rattle-notify-a6d.notion.site/XPL_AI_dev-ver_cinv-1-23eb581c6726818b8916f9977edcba1f", description: "開發架構完整對練參考" },
+      { title: "後台操作教學影片（Notion版，看到48分）", type: "video", driveFileId: "1879B7t_dR4_f94tkX8Nv1EYMULYFltmU", description: "CRM 後台操作教學（看到 48 分即可）" },
+      { title: "後台操作完整教學", type: "video", driveFileId: "1kn-z8VXrTFhc0J5mPTlSj6IhtUBovT2r", description: "完整系統後台操作教學，新人必看" },
+      { title: "開發 Call 逐字稿", type: "notion", url: "https://rattle-notify-a6d.notion.site/nschool-2025-c-03", description: "逐字稿對練和架構對練用" },
+    ],
+    trainerTips: [
+      "在開發階段，無須去說服，重點在引導",
+      "引導是幫他戴帽子，讓他覺得「我行、我可以、這就是我要的路」",
+      "大家聲音偏緊繃的話，放輕鬆。語氣語調都很重要，越緊張會越卡。太沉悶就站起來念",
+      "STEP2 偶爾會卡住或趕快進入 STEP3，記得學會開話題→延伸→引導",
+      "架構考試一次過就會讓你們上機了，基底訓練好很多新人業務都能做到",
+    ],
+    practiceTask: "架構對練（上班族/學生），兩人一組。練完聽 Call 寫 3 優化 + 2 維持。然後準備據點主管考試",
     hasSparring: true,
-    sparringType: "grow",
+    sparringType: "structure_practice",
     quiz: [
       {
-        question: "GROW 模型中的 R 代表什麼？",
-        options: ["Result 結果", "Reality 現實", "Reason 原因", "Review 回顧"],
+        question: "架構對練和逐字稿對練的差別是？",
+        options: ["完全一樣", "架構對練用自己的話走架構，不照念逐字稿", "架構對練不需要練習", "逐字稿對練比較難"],
         answer: 1,
       },
       {
-        question: "在 GROW 的哪個階段，我們幫客戶釐清目標？",
-        options: ["Reality", "Options", "Goal", "Will"],
-        answer: 2,
+        question: "對練完聽自己的 Call 後，應該列出什麼？",
+        options: ["5 個優化點", "3 個優化 + 2 個可維持的地方", "只寫做得好的", "不需要分析"],
+        answer: 1,
       },
       {
-        question: "教練式銷售最重要的技巧是？",
-        options: ["說服力", "提問力", "話術背誦", "價格優惠"],
+        question: "後台操作影片要看到第幾分鐘？",
+        options: ["全部看完", "48 分", "30 分", "20 分"],
+        answer: 1,
+      },
+      {
+        question: "架構對練時 STEP2-STEP3 應該怎麼做？",
+        options: ["快速帶過進入 STEP4", "多聊天了解客戶，不急著進入銷售", "直接介紹產品", "跳過不練"],
         answer: 1,
       },
     ],
   },
+
+  // ===================== DAY 3 =====================
   {
     id: 3,
     day: 3,
-    title: "OKR 目標管理",
-    subtitle: "Objective → Key Results",
-    description: "學會用 OKR 框架設定銷售目標，並拆解成可執行的每日行動。",
+    title: "正式上機｜開發實戰",
+    subtitle: "上機前會議、名單制度、CRM 操作、正式撥打",
+    description:
+      "今天你要正式上機打電話了！早上先完成上機前會議，了解名單制度（結案單/新單）、CRM 操作方式、名單管理原則。這些是你日後每天都會用到的工作習慣。下午開始正式撥打，今天目標是 150 通次、120 分鐘通時、3-5 個邀約。遇到任何問題都直接群組提問——你們遇過的問題我們都遇過了。邀約到客戶但不會做 Demo 沒關係，先 Pass 給學長姐協助。",
+    schedule: [
+      { time: "10:00-12:00", task: "【業訓】上機前會議、強心針", description: "名單制度、CRM操作、KPI標準、成交率說明" },
+      { time: "12:00-13:00", task: "午休" },
+      { time: "13:00-19:00", task: "【業訓_財經】上機開發", description: "正式撥打！用 CRM 管理名單，邀約後操作 4 步驟" },
+    ],
     content: [
-      "O - Objective：設定一個有挑戰性的質化目標",
-      "KR - Key Results：定義 3-5 個可量化的關鍵結果",
-      "如何從月目標拆解到週目標再到日行動",
-      "用 OKR 管理你的銷售漏斗",
+      "上機前須知——名單制度：",
+      "　• 新單：一天 3 筆新單。開發量足夠+邀約穩定(3-5個/天) → 加碼到 3-5 筆",
+      "　• 結案單：過去被隱性拒絕的名單，按新單方式打，不要預設立場",
+      "　• 新單不要亂打！亂打 = 開頭沒有引導直接下拒絕紀錄。名單 1000 元/筆",
+      "撥打原則：",
+      "　• 建立日期從近到遠開始打",
+      "　• 撥打次數從少到多開始打",
+      "　• 一筆單打 6-7 次就不用打了，按拒絕回結案池",
+      "　• 客戶明確拒絕一次 → 直接丟拒絕，不浪費時間",
+      "邀約後 4 步驟：",
+      "　STEP1. 下 CRM 聯絡紀錄（學習目標/身分/動機/經驗/時間/裝置）",
+      "　STEP2. 建立待辦清單，預約 Demo",
+      "　STEP3. 官方 LINE 客戶名字改為：預約時間/客戶姓名/顧問英文",
+      "　STEP4. 官方 LINE 記事本新增客戶 CRM 資訊",
     ],
     keyPoints: [
-      "好的 O 是鼓舞人心的方向",
-      "好的 KR 是具體可衡量的數字",
-      "每天追蹤進度才能及時調整",
+      "KPI 循環：通次 → 通時 → 邀約 → 出席 → 成交",
+      "遇到問題直接群組提出：「今天客戶說 ○○，怎麼回應？」",
+      "一開始邀約到不會做沒關係，會協助先 Pass 給學長姐（1-3 次，之後學完 Demo 就自己做）",
+      "新人成交率：5-6 個 Demo 出席 = 1 成交",
     ],
-    hasSparring: false,
+    resources: [
+      { title: "開發 Call 逐字稿", type: "notion", url: "https://rattle-notify-a6d.notion.site/nschool-2025-c-03", description: "上機開發時架構參考" },
+      { title: "銷售小工具（一鍵複製客戶資訊）", type: "notion", url: "https://nschool-gif.github.io/notion-interactive/", description: "傳送給客戶的資訊工具" },
+    ],
+    trainerTips: [
+      "遇到問題直接群組提出，你們遇過的問題我們都遇過了",
+      "不管是操作、客戶對應不知道怎麼說，直接提問就好。用最快方式解決才會成長",
+      "不要預設立場！CRM 上面寫拒絕的都稱之為狗屁判斷，沒有親自打過都不算",
+      "業務不是天生就會，是可學習的技能。不要怕被拒絕，要怕沒有策略",
+      "第一週最快第二天、第三天就會有邀約，一開始邀約到先 Pass 給學長姐",
+    ],
+    kpiTargets: {
+      calls: "150",
+      talkTime: "120 分鐘",
+      invites: "3-5",
+    },
+    practiceTask: "正式上機撥打，目標 150 通次 / 120 分鐘通時 / 3-5 個邀約。下班時把有約到 Demo 的客戶資訊貼給業訓",
+    hasSparring: true,
+    sparringType: "live_call",
     quiz: [
       {
-        question: "OKR 中的 KR 必須符合什麼條件？",
-        options: ["主觀判斷", "可量化衡量", "越多越好", "老闆決定"],
+        question: "一筆名單打幾次後就不用再打了？",
+        options: ["3 次", "4-5 次", "6-7 次", "10 次"],
+        answer: 2,
+      },
+      {
+        question: "客戶明確拒絕一次，應該怎麼做？",
+        options: ["再打三次試試", "直接丟拒絕，不浪費時間", "放到暫緩區等一週", "轉給同事"],
         answer: 1,
       },
       {
-        question: "一個好的 Objective 應該是？",
-        options: ["容易達成的", "有挑戰性且鼓舞人心的", "純數字的", "模糊的"],
+        question: "撥打名單的正確順序是？",
+        options: ["隨機撥打", "建立日期從近到遠、撥打次數從少到多", "從老名單開始", "只打新名單"],
         answer: 1,
       },
       {
-        question: "每個 Objective 建議配幾個 Key Results？",
-        options: ["1 個", "3-5 個", "10 個以上", "不限"],
+        question: "邀約後的第一步是？",
+        options: ["通知主管", "下 CRM 聯絡紀錄", "傳 LINE 給客戶", "安排 Demo"],
         answer: 1,
       },
     ],
   },
+
+  // ===================== DAY 4 =====================
   {
     id: 4,
     day: 4,
-    title: "SPIN 電話行銷",
-    subtitle: "Situation → Problem → Implication → Need-Payoff",
-    description: "掌握 SPIN 銷售提問法，學會在電話中挖掘客戶痛點並引導成交。",
+    title: "學習 Demo",
+    subtitle: "業訓日會、Demo 影片觀看、成交錄音分析",
+    description:
+      "今天開始學習 Demo（產品說明會）。Demo 是透過 Google Meet 螢幕分享，1 對 1 帶客戶了解課程內容。你會先觀看 Demo 訓練影片，學習 Demo 的架構和流程，然後聽 3 段過往成交錄音來理解實戰怎麼做。Demo 要看三大重點：①架構——每個環節該說什麼話 ②信任感——如何搭建起來 ③反對問題——客戶提出的問題如何化解。看完後思考：如果你做 Demo，該怎麼做會更好？",
+    schedule: [
+      { time: "10:45-12:00", task: "【業訓】業訓日會/據點日會", description: "收斂昨日開發狀況、問題交流" },
+      { time: "12:00-13:00", task: "午休" },
+      { time: "13:00-17:00", task: "【業訓】學習 Demo", description: "觀看 Demo 影片、逐字稿、成交錄音（3段），分析三大重點" },
+      { time: "17:00-19:00", task: "【業訓】學習 Demo（續）", description: "繼續消化 Demo 內容，做筆記" },
+    ],
     content: [
-      "S - Situation（情境）：開場確認客戶背景資訊",
-      "P - Problem（問題）：發現客戶面臨的問題與困擾",
-      "I - Implication（暗示）：讓客戶意識到問題不解決的後果",
-      "N - Need-Payoff（需求回報）：引導客戶看到解決方案的好處",
+      "Demo 訓練影片觀看——認識完整 Demo 流程",
+      "Demo 逐字稿學習——了解每個環節的說法",
+      "過往成交錄音分析（3段）：",
+      "　• 譚睦懷（17歲學生，爸媽最後刷卡）— 看信心建立",
+      "　• 楊燿銓（學生）— 看信心建立",
+      "　• Terry Li（怕學不好）— 看反對問題處理",
+      "Demo 三大重點筆記：",
+      "　①架構：每個環節該說什麼話",
+      "　②信任感：如何搭建起來，如何每次破冰",
+      "　③反對問題處理：提出的問題總是表面，如何化解",
     ],
     keyPoints: [
-      "S 階段不要問太多，快速進入 P",
-      "I 是最關鍵的階段，讓客戶自己感受緊迫性",
-      "N 階段讓客戶說出解決方案的好處",
+      "Demo 流程：P1-P3 引言破冰 → P4-P5 放大市場環境 → P6-P9 學習服務價值 → P9-P12 客製化規劃與收尾",
+      "Demo 教學核心：理論（影片由淺入深）→ 實作（財經教練帶市場實況）→ 實戰（APP 模擬交易）",
+      "務必給客戶看兩個課程影片，不是只單獨給他要什麼——要讓他感受 1+1 > 2 的學習效果",
+      "收尾三次確認：複利觀念、為什麼投資、什麼時候開始→帶入個人學習計畫",
     ],
-    hasSparring: true,
-    sparringType: "spin",
+    resources: [
+      { title: "Demo 訓練影片", type: "video", driveFileId: "1L4hmylxNv5j6BR9pAFH6L0EnEkGl6u7h", description: "完整 Demo 流程錄影" },
+      { title: "Demo 逐字稿", type: "notion", url: "https://rattle-notify-a6d.notion.site/230b581c6726800b8684c2098c604735", description: "Demo 每個環節的完整說法" },
+      { title: "譚睦懷成交錄音（17歲，信心建立）", type: "recording", driveFileId: "1DeG0MKBjhrjPG7e33BtaB5twCtno3x-6", description: "17歲學生，爸媽最後刷卡" },
+      { title: "楊燿銓成交錄音（學生，信心建立）", type: "recording", driveFileId: "1XX2xB0Z4bsp9I-a1UeMnuXNAd6dM078D", description: "學生客戶成交過程" },
+      { title: "Terry Li 成交錄音（反對問題處理）", type: "recording", driveFileId: "11jlteuLlhODzJFsD811oATACDmtS_MrF", description: "客戶怕學不好，如何化解" },
+      { title: "K 棒組合白話版", type: "document", url: "https://docs.google.com/document/d/1uecWnU7cHNWNJsaVMyFIxosX_oq140vc7tw0Oyw_4wM/edit", description: "技術面教學輔助，Demo 時可帶客戶看" },
+    ],
+    trainerTips: [
+      "先把 Demo 資訊記得去把每個銷售點和問題給記錄",
+      "筆記很重要，你自己能吸收不能吸收會是重點",
+      "Demo 要去看：①架構每個環節該說什麼 ②信任感如何搭建 ③反對問題如何化解",
+      "看完後思考：如果我做 Demo，該怎麼做會更好",
+      "不是在賣課程，是在幫客戶規劃學習路徑——從他的現況出發，找到適合的學習方式",
+    ],
+    practiceTask: "觀看 Demo 影片和 3 段成交錄音，針對三大重點（架構、信任感、反對問題）做筆記。每段錄音各寫出 1 個學到的技巧",
+    hasSparring: false,
     quiz: [
       {
-        question: "SPIN 中哪個階段最容易被新手跳過？",
-        options: ["Situation", "Problem", "Implication", "Need-Payoff"],
-        answer: 2,
+        question: "Demo 的三大重點不包括哪項？",
+        options: ["架構每個環節該說什麼", "信任感如何搭建", "反對問題如何化解", "快速報價成交"],
+        answer: 3,
       },
       {
-        question: "Implication 問題的目的是什麼？",
-        options: ["收集資訊", "讓客戶感受問題嚴重性", "推薦產品", "談價格"],
+        question: "Demo 時為什麼要給客戶看兩個課程影片？",
+        options: ["影片越多越好", "讓客戶感受 1+1 > 2 的學習效果", "湊時間", "公司規定"],
         answer: 1,
       },
       {
-        question: "Need-Payoff 問題應該由誰來回答好處？",
-        options: ["業務自己說", "讓客戶自己說", "主管說", "不用回答"],
+        question: "Demo 教學核心「理論→實作→實戰」中，「實作」指的是？",
+        options: ["看更多影片", "財經教練帶你到市場看現況、解決問題", "自己上網查資料", "背誦筆記"],
+        answer: 1,
+      },
+      {
+        question: "Demo 收尾時的三次確認順序是？",
+        options: ["價格→付款→簽約", "複利觀念→為什麼投資→什麼時候開始", "介紹課程→報價→成交", "提問→回答→結束"],
         answer: 1,
       },
     ],
   },
+
+  // ===================== DAY 5 =====================
   {
     id: 5,
     day: 5,
-    title: "黃金圈理論",
-    subtitle: "Why → How → What (Simon Sinek)",
-    description: "學會用黃金圈理論建構有說服力的銷售敘事，從「為什麼」開始打動客戶。",
+    title: "持續開發｜流程整合",
+    subtitle: "業訓日會、成交後流程、銷售方案、持續上機",
+    description:
+      "今天早上的業訓日會會收斂昨天 Demo 學習中看到的問題，然後教學成交後流程、銷售方案、課程結構和金流申辦——這些是你成交後需要操作的完整流程。學完之後繼續上機開發，把這幾天學到的全部整合起來。你現在已經具備了開發架構 + Demo 知識，目標是穩定出邀約，有 Demo 就開始自己做！",
+    schedule: [
+      { time: "09:45-11:00", task: "【業訓】業訓日會", description: "收斂 Demo 問題、教學成交後流程/銷售方案/課程結構/金流申辦" },
+      { time: "11:00-12:00", task: "【業訓】上機開發" },
+      { time: "12:00-13:00", task: "午休" },
+      { time: "13:00-16:00", task: "【業訓_財經】上機", description: "持續撥打，整合開發架構 + Demo 知識" },
+    ],
     content: [
-      "Why（為什麼）：你/品牌為什麼做這件事？核心信念是什麼？",
-      "How（怎麼做）：你們用什麼獨特方法實現這個信念？",
-      "What（做什麼）：具體的產品和服務是什麼？",
-      "從 Why 開始說，客戶買的是你的「為什麼」",
+      "業訓日會內容：",
+      "　• 收斂昨日 Demo 影片學到的問題",
+      "　• 成交後流程教學（簽約、後續服務）",
+      "　• 銷售方案說明（方案內容、價格邏輯）",
+      "　• 課程結構（理財核心/基本面/技術面/籌碼面/ETF 五大領域）",
+      "　• 金流申辦（簽約後金流處理）",
+      "持續上機開發：",
+      "　• 整合這幾天學到的開發架構，穩定通時通次",
+      "　• 有邀約就開始嘗試自己做 Demo（學長姐旁聽輔助）",
+      "　• 下班前回報今日邀約和 Demo 狀況",
     ],
     keyPoints: [
-      "人們不買你做什麼，而是買你為什麼做",
-      "先建立情感連結，再談產品",
-      "用黃金圈來做自我介紹和品牌介紹",
+      "第一週 → 訓練開發、練熟架構 → 第三天或第四天開始有邀約 → Pass 給學長 → 出單 → 學習 Demo",
+      "課程五大領域：理財投資核心、基本面、技術面、籌碼面、ETF",
+      "新人成交率：5-6 個 Demo 出席 = 1 成交；正式業務 4-5 個；資深業務 3-4 個",
+      "業績好的不一定很聰明，但一定自律、努力、正面、積極、抗壓性強",
     ],
+    resources: [
+      { title: "成交後流程", type: "notion", url: "https://rattle-notify-a6d.notion.site/230b581c672680ddb1bee3d18728f630", description: "簽約後的完整操作流程" },
+      { title: "銷售方案", type: "notion", url: "https://rattle-notify-a6d.notion.site/230b581c672680468487d038103613a7", description: "各方案內容與價格" },
+      { title: "課程結構", type: "notion", url: "https://rattle-notify-a6d.notion.site/230b581c672680abb6d3e407f152b50c", description: "五大領域課程大綱" },
+      { title: "金流申辦", type: "notion", url: "https://rattle-notify-a6d.notion.site/230b581c6726805b920ee0cd49a01954", description: "簽約後金流處理方式" },
+      { title: "銷售小工具", type: "notion", url: "https://nschool-gif.github.io/notion-interactive/", description: "一鍵複製客戶資訊，傳送給客戶用" },
+    ],
+    trainerTips: [
+      "學完 Demo 之後就可以自己做了，1-3 次 Pass 之後就要自己來",
+      "持續穩定通時通次，這是一切成交的基礎",
+      "Demo 時記得前後呼應：開頭問他為什麼來、中間帶學習方式、收尾拉回他的初衷",
+      "強者則強，弱者恆弱。未來你們學完一定可以的，加油！",
+    ],
+    kpiTargets: {
+      calls: "130-160",
+      talkTime: "100-150 分鐘",
+      invites: "4-5",
+    },
+    practiceTask: "持續上機開發。有 Demo 出席就嘗試自己做，旁邊有學長姐輔助。下班前回報今日通次/通時/邀約/Demo 狀況",
     hasSparring: true,
-    sparringType: "golden_circle",
+    sparringType: "live_call",
     quiz: [
       {
-        question: "黃金圈理論建議從哪裡開始溝通？",
-        options: ["What 產品", "How 方法", "Why 為什麼", "Price 價格"],
-        answer: 2,
+        question: "nSchool 課程的五大領域不包括？",
+        options: ["理財投資核心", "基本面", "技術面", "房地產分析"],
+        answer: 3,
       },
       {
-        question: "「人們買的不是你做什麼，而是你為什麼做」這句話是誰說的？",
-        options: ["Steve Jobs", "Simon Sinek", "Peter Drucker", "Philip Kotler"],
+        question: "新人業務的成交率大約是？",
+        options: ["每 2 個 Demo 出席 1 成交", "每 5-6 個 Demo 出席 1 成交", "每 10 個 Demo 出席 1 成交", "每 1 個 Demo 就成交"],
         answer: 1,
       },
       {
-        question: "用黃金圈做品牌介紹時，What 層應該放在什麼位置？",
-        options: ["最前面", "中間", "最後面", "不需要"],
+        question: "第一週的重點進程是？",
+        options: [
+          "只練習不上機",
+          "訓練開發→練熟架構→有邀約→Pass學長→出單→學Demo",
+          "直接做 Demo",
+          "背完話術就上機",
+        ],
+        answer: 1,
+      },
+      {
+        question: "KPI 循環的起點是什麼？",
+        options: ["成交", "邀約", "通次（撥打量）", "出席"],
         answer: 2,
       },
     ],
   },
+
+  // ===================== DAY 6-9: 進階訓練 =====================
   {
     id: 6,
     day: 6,
-    title: "架構對練",
-    subtitle: "Call 架構 6 步驟實戰練習",
-    description: "整合前幾天學到的技巧，練習完整的電話銷售架構 6 步驟。",
+    title: "進階開發｜架構精進",
+    subtitle: "深度架構對練、受眾分析、引導技巧",
+    description:
+      "你已經完成第一週的訓練了！從今天開始進入進階階段——不再只是走完架構，而是要把架構內化到可以自然對話。重點練習 STEP2-STEP3 的深度聊天能力，以及根據不同受眾（學生/在職/高資產）調整引導方式。",
     content: [
-      "Step 1 - 開場破冰：建立信任，確認通話目的",
-      "Step 2 - 需求探詢：用 SPIN 挖掘客戶真實需求",
-      "Step 3 - 痛點放大：用 Implication 讓客戶感受緊迫性",
-      "Step 4 - 方案呈現：用黃金圈 + GROW 呈現解決方案",
-      "Step 5 - 異議處理：處理價格、時間、猶豫等常見異議",
-      "Step 6 - 推進成交：確認下一步行動，預約 DEMO 或成交",
+      "深度架構對練：不再照架構念，要做到自然對話",
+      "受眾分析進階：不同受眾的切入點、痛點、關注點完全不同",
+      "引導技巧深化：學會「開話題→延伸→引導」的三步法",
+      "聽自己上週的 Call 錄音，找出與成交錄音的差距",
     ],
     keyPoints: [
-      "6 步驟是完整的銷售流程框架",
-      "每個步驟都有明確的目標",
-      "練習越多，自然反應越快",
+      "架構是骨幹，語氣和引導才是靈魂",
+      "STEP2 不要急著進入 STEP3，多花時間了解客戶背景",
+      "引導 ≠ 說服，幫客戶找到他沒看到的可能性",
+      "開發制度：避免說「想不想」→「不要不要」，改用「好不好」或直接引導時間",
     ],
+    trainerTips: [
+      "受眾分析：學生聊科系、同學、未來規劃；在職聊產業、薪水、同事；待業聊轉職方向",
+      "邀約不是問對方有沒有空，是直接引導：今天？明天？上午？下午？幾點？",
+      "年齡 18-30 為主，大多無經驗，客戶話信 50% 就好",
+      "有經驗的客戶用請益方式：「0-10 你了解幾分？剩下幾分差在哪？」",
+    ],
+    practiceTask: "進階架構對練，按受眾分（學生/上班族/待業），全程自然對話不看稿。對練完聽錄音，對比成交錄音找差距",
     hasSparring: true,
     sparringType: "full_call",
     quiz: [
       {
-        question: "完整電話架構共有幾個步驟？",
-        options: ["4 步", "5 步", "6 步", "8 步"],
-        answer: 2,
-      },
-      {
-        question: "在「痛點放大」階段應該用什麼技巧？",
-        options: ["GROW", "Implication", "Golden Circle", "直接報價"],
+        question: "面對有經驗的客戶，應該用什麼方式？",
+        options: ["直接教他", "請益方式：0-10 你了解幾分？剩下差在哪？", "跳過背景探索", "直接報價"],
         answer: 1,
       },
       {
-        question: "異議處理時客戶說「太貴了」，最佳策略是？",
-        options: ["直接打折", "計算 ROI 回報", "放棄這個客戶", "不回應"],
+        question: "邀約時的正確做法是？",
+        options: ["問客戶有沒有空", "直接引導時間：今天？明天？上午？下午？", "說「你想不想了解」", "等客戶主動約"],
+        answer: 1,
+      },
+      {
+        question: "「引導」的正確描述是？",
+        options: ["用道理說服客戶", "幫客戶戴帽子，讓他覺得我行、我可以", "告訴客戶他錯了", "快速進入成交"],
         answer: 1,
       },
     ],
@@ -245,35 +467,57 @@ export const modules: TrainingModule[] = [
   {
     id: 7,
     day: 7,
-    title: "聽 Call Review",
-    subtitle: "3 優化 + 2 維持系統",
-    description: "學會分析銷售通話錄音，用「3 優化 + 2 維持」系統持續進步。",
+    title: "Demo 實戰練習",
+    subtitle: "模擬 Demo 對練、反對問題處理、成交技巧",
+    description:
+      "今天專注練習 Demo 實戰。兩人一組模擬完整 Demo 流程——從引言破冰到客製化規劃到收尾成交。重點練習反對問題處理：「太貴了」「我要想想」「我沒時間」等常見異議。記得 Demo 不是在賣課程，是在幫客戶規劃學習路徑。",
     content: [
-      "聽 Call 的標準流程：先整體感受，再逐段分析",
-      "3 優化：找出 3 個可以做得更好的地方",
-      "2 維持：確認 2 個做得好要繼續保持的地方",
-      "逐字稿分析：標記關鍵話術、客戶反應、轉折點",
+      "Demo 完整對練：一人扮業務做完整 Demo，一人扮客戶提異議",
+      "反對問題處理專項練習",
+      "財報解讀練習：帶客戶看營建股財報，找合約負債",
+      "客製化規劃練習：短期(3個月)/中期(6個月)/長期(1年) 學習計畫",
     ],
     keyPoints: [
-      "每次聽完 Call 都要寫下 3+2",
-      "關注客戶的語氣變化和回應長度",
-      "好的話術要記錄到個人話術庫",
+      "反對問題的表面≠真正顧慮，要挖掘背後原因",
+      "客製化規劃要具象化：Key 出來讓客戶看到自己的學習軌跡",
+      "收尾三次確認：複利觀念→為什麼投資→什麼時候開始",
+      "不會從「你錯了」的角度說話，而是從「我們一起怎麼走得更輕鬆」引導",
     ],
-    hasSparring: false,
+    resources: [
+      { title: "Demo 訓練影片", type: "video", driveFileId: "1L4hmylxNv5j6BR9pAFH6L0EnEkGl6u7h", description: "完整 Demo 流程錄影" },
+      { title: "Demo 逐字稿", type: "notion", url: "https://rattle-notify-a6d.notion.site/230b581c6726800b8684c2098c604735", description: "Demo 每個環節的完整說法" },
+      { title: "學米 DEMO 流程示範", type: "video", driveFileId: "1K6EPCzIz9wxjze15_3Tl3s-Lp226UVKh", description: "標準學米 DEMO 流程完整示範" },
+      { title: "嵇映甯 DEMO 實戰（學米）", type: "video", driveFileId: "1wYq0ycCDY_wvruMVEyr05Ttd2jY1eUGR", description: "學米實戰 DEMO 錄影" },
+      { title: "林錫昌 DEMO 實戰（學米）", type: "video", driveFileId: "1K4zHCwxguc3sHMKLwfciWHsh6tywrkvX", description: "學米實戰 DEMO 錄影" },
+      { title: "林佳霖 DEMO 實戰（學米）", type: "video", driveFileId: "1zFn5BjV5eJJEibwnZk3zwFtzEUoab619", description: "學米實戰 DEMO 錄影" },
+      { title: "無限 DEMO 流程示範", type: "video", driveFileId: "1ABlZjToGKz1FEzDpj7oRx3A3W23-i4zL", description: "標準無限 DEMO 流程完整示範" },
+      { title: "楊祤豪 DEMO 實戰（無限）", type: "video", driveFileId: "1CCwbb1arrWqhF0NieSZH01D-ujEHqsXI", description: "無限實戰 DEMO 錄影" },
+      { title: "陳紀志 DEMO 實戰（無限）", type: "video", driveFileId: "1zo5VwssmVCjSAJPFbRrEpwKB9SrtGh14", description: "無限實戰 DEMO 錄影" },
+      { title: "洪楷雯 DEMO 實戰（無限）", type: "video", driveFileId: "1F51tnaY5bJUE1bs2iCxA-qmQcqiw-n5M", description: "無限實戰 DEMO 錄影" },
+    ],
+    trainerTips: [
+      "Demo 的引言就是重新開發：先從「他是誰」開始聊，不要直接進產品",
+      "從職涯拉到生活的壓力點與隱藏的焦慮，這裡是關鍵",
+      "記下客戶說的話，後面介紹課程時回扣他親口說的——讓他自己看見現況",
+      "投資風險屬性評估問卷：蒐集客戶學習領域、學習預算，做初步篩選",
+    ],
+    practiceTask: "兩人一組模擬完整 Demo，一人設定客戶異議（太貴/沒時間/怕學不好）。對練完互評三大重點，再對換角色",
+    hasSparring: true,
+    sparringType: "demo",
     quiz: [
       {
-        question: "聽 Call Review 的「3+2」系統是什麼？",
-        options: ["3 個電話 + 2 個 DEMO", "3 優化 + 2 維持", "3 分鐘 + 2 分鐘", "3 個問題 + 2 個答案"],
+        question: "Demo 引言的正確做法是？",
+        options: ["直接介紹課程", "先從「他是誰」開始聊，重新開發", "播放公司介紹影片", "讀簡報"],
         answer: 1,
       },
       {
-        question: "聽 Call 時最應該注意什麼？",
-        options: ["業務說了什麼", "客戶的反應和語氣變化", "通話時長", "背景噪音"],
+        question: "客戶說「太貴了」時，應該？",
+        options: ["馬上打折", "了解背後真正顧慮，化解表面異議", "結束 Demo", "說「不買你會後悔」"],
         answer: 1,
       },
       {
-        question: "發現好的話術後應該怎麼做？",
-        options: ["只記在腦中", "記錄到話術庫並練習", "告訴同事", "不需要特別處理"],
+        question: "客製化規劃要包含哪些時間段？",
+        options: ["1個月/2個月/3個月", "短期3個月/中期6個月/長期1年", "只規劃第一週", "按客戶要求"],
         answer: 1,
       },
     ],
@@ -281,37 +525,51 @@ export const modules: TrainingModule[] = [
   {
     id: 8,
     day: 8,
-    title: "DEMO 銷售",
-    subtitle: "螢幕分享、產品展示、成交話術",
-    description: "學會如何進行線上 DEMO，用產品展示打動客戶並推進成交。",
+    title: "綜合實戰",
+    subtitle: "開發 + Demo 全流程整合",
+    description:
+      "把這段時間學到的所有技能整合——從第一通開發電話到邀約到 Demo 到成交的完整閉環。今天的重點是模擬真實客戶的全流程：開發 Call → 邀約 → Demo → 處理異議 → 收尾。用 AI 對練或跟夥伴練習，把每個環節串起來。",
     content: [
-      "DEMO 前準備：確認客戶需求、準備對應展示內容",
-      "開場 2 分鐘：快速回顧需求、說明 DEMO 流程",
-      "展示技巧：先展示客戶最在意的功能，用故事包裝",
-      "收尾成交：總結價值、提供方案選擇、確認下一步",
+      "全流程模擬：開發 Call → 邀約 → Demo → 反對問題 → 收尾",
+      "開發架構 7 步驟完整走一遍",
+      "Demo 架構從引言到客製化規劃完整走一遍",
+      "時間管理：開發 Call 控制在 12-15 分鐘，Demo 控制在 60 分鐘",
+    ],
+    resources: [
+      { title: "開發 Call 逐字稿", type: "notion", url: "https://rattle-notify-a6d.notion.site/nschool-2025-c-03", description: "開發架構參考" },
+      { title: "Demo 逐字稿", type: "notion", url: "https://rattle-notify-a6d.notion.site/230b581c6726800b8684c2098c604735", description: "Demo 流程參考" },
+      { title: "Demo 訓練影片", type: "video", driveFileId: "1L4hmylxNv5j6BR9pAFH6L0EnEkGl6u7h", description: "完整 Demo 流程錄影" },
+      { title: "學米 DEMO 流程示範", type: "video", driveFileId: "1K6EPCzIz9wxjze15_3Tl3s-Lp226UVKh", description: "學米 DEMO 完整示範" },
+      { title: "無限 DEMO 流程示範", type: "video", driveFileId: "1ABlZjToGKz1FEzDpj7oRx3A3W23-i4zL", description: "無限 DEMO 完整示範" },
     ],
     keyPoints: [
-      "DEMO 不是功能展示，是解決方案展示",
-      "永遠從客戶的需求開始，不是從產品開始",
-      "收尾時給 2-3 個方案選擇，不要問「要不要」",
+      "全流程：開發→邀約→Demo→結單，每個環節都要有意識地練習",
+      "開發 Call 12-15 分鐘是健康範圍",
+      "Demo 60 分鐘內完成",
+      "通時通次才會有邀約數，訓練業務力才會有成交",
     ],
-    videos: ["v-xlab-flow", "v-xuemi-flow", "v-ooschool-flow"],
+    trainerTips: [
+      "把模擬當作真實客戶，不要因為是練習就鬆懈",
+      "每完成一次全流程，寫出 3 個做得好的 + 3 個要優化的",
+      "業務就是敢去做敢去衝，不是預設立場最後瘋狂修補",
+    ],
+    practiceTask: "完成至少一次完整的全流程模擬（開發→邀約→Demo→收尾），記錄自己每個環節的表現",
     hasSparring: true,
-    sparringType: "demo",
+    sparringType: "full_call",
     quiz: [
       {
-        question: "DEMO 時應該先展示什麼？",
-        options: ["所有功能", "最便宜的方案", "客戶最在意的部分", "公司介紹"],
-        answer: 2,
-      },
-      {
-        question: "DEMO 收尾時最佳做法是？",
-        options: ["問客戶要不要買", "提供 2-3 個方案選擇", "等客戶主動開口", "直接報最低價"],
+        question: "完整銷售流程的順序是？",
+        options: ["Demo→開發→成交", "開發→邀約→Demo→結單", "邀約→開發→收尾", "Demo→收尾→開發"],
         answer: 1,
       },
       {
-        question: "DEMO 本質上是什麼？",
-        options: ["產品功能展示", "解決方案展示", "價格談判", "技術教學"],
+        question: "開發 Call 的健康時長是？",
+        options: ["5 分鐘", "12-15 分鐘", "30 分鐘", "60 分鐘"],
+        answer: 1,
+      },
+      {
+        question: "「通時通次才會有邀約數」的意思是？",
+        options: ["打越多電話就越好", "撥打量和通話時間是邀約的基礎，要先穩定活動量", "只要有邀約就好", "時間不重要"],
         answer: 1,
       },
     ],
@@ -321,18 +579,26 @@ export const modules: TrainingModule[] = [
     day: 9,
     title: "實戰考核",
     subtitle: "模擬客戶電話、綜合評分",
-    description: "綜合前 8 天所學，進行完整的模擬客戶電話考核，獲得全面評分。",
+    description:
+      "最終考核！你會面對一位模擬客戶，完整走完一通開發 Call 的 7 步驟架構。這不是背誦考試——而是看你能不能像真實打電話一樣自然地引導客戶。評分看的是：開場力、背景探索深度、引導技巧、架構完整性、異議處理、成交推進。70 分及格。",
     content: [
-      "考核形式：AI 模擬真實客戶，完整走完一通銷售電話",
-      "評分維度：開場力、SPIN 覆蓋、痛點挖掘、方案匹配、異議處理、成交推進",
+      "考核形式：模擬真實客戶，完整走完一通開發 Call",
+      "評分維度：開場力、背景探索深度、引導技巧、架構完整性、異議處理、成交推進",
       "及格標準：綜合分數 70 分以上",
-      "考核後會生成完整的分析報告和改善建議",
+      "考核後生成完整分析報告",
     ],
     keyPoints: [
-      "這是綜合考核，不是單一技巧測試",
-      "把它當作真實客戶來應對",
-      "考核可以重複進行，每次都會有不同客戶",
+      "把考核當作真實的一通開發 Call，不要因為考試就緊張過頭",
+      "記得引導不是說服，要讓客戶自己說出需求",
+      "STEP2-STEP3 多聊天，不要急著進入銷售環節",
+      "考核可以重複進行，每次都會有不同受眾背景",
     ],
+    trainerTips: [
+      "聲音放輕鬆，越緊張越卡，必要時站起來講",
+      "架構要完整走完，不要跳步驟",
+      "收尾時給選擇，不要問「要不要」",
+    ],
+    practiceTask: "完成實戰考核，針對考核報告寫出 2 好 + 3 優化，制定下一步個人訓練計畫",
     hasSparring: true,
     sparringType: "exam",
     quiz: [
@@ -342,13 +608,13 @@ export const modules: TrainingModule[] = [
         answer: 1,
       },
       {
-        question: "考核的評分維度有幾個？",
-        options: ["3 個", "4 個", "5 個", "6 個"],
-        answer: 3,
+        question: "考核評分不包括下列哪個維度？",
+        options: ["背景探索深度", "引導技巧", "話術背誦完整度", "異議處理"],
+        answer: 2,
       },
       {
-        question: "考核可以重複進行嗎？",
-        options: ["不行，只有一次機會", "可以，每次客戶不同", "最多 3 次", "需要主管同意"],
+        question: "考核中哪個階段最不應該被跳過？",
+        options: ["STEP1 開場", "STEP2-STEP3 背景探索與需求挖掘", "STEP5 教學說明", "收尾 CTA"],
         answer: 1,
       },
     ],

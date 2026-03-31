@@ -12,6 +12,7 @@ import {
   type User,
   type SparringRecord,
 } from "@/lib/store";
+import { syncProgress, syncQuizScore, syncKpiEntry, syncRegister, migrateLocalStorageToSupabase, syncVideoProgress } from "@/lib/sync";
 import { brands } from "@/data/brands";
 import { modules } from "@/data/modules";
 import { personas, getPersonasByBrand } from "@/data/personas";
@@ -39,6 +40,7 @@ type Page =
   | "pricing"
   | "kpi"
   | "records"
+  | "finance"
   | "knowledge";
 
 export default function Home() {
@@ -48,8 +50,11 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    setUser(getCurrentUser());
+    const u = getCurrentUser();
+    setUser(u);
     setLoading(false);
+    // Migrate localStorage data to Supabase on login
+    if (u) migrateLocalStorageToSupabase(u);
   }, []);
 
   const refreshUser = () => setUser(getCurrentUser());
@@ -93,13 +98,14 @@ export default function Home() {
       <main className="flex-1 ml-0 md:ml-[260px] p-4 md:p-8 animate-fade-in" key={page}>
         {page === "dashboard" && <DashboardPage user={user} onNavigate={(p) => setPage(p as Page)} />}
         {page === "training" && <TrainingPage user={user} onUpdate={refreshUser} />}
-        {page === "videos" && <VideosPage brandId={user.brand} />}
+        {page === "videos" && <VideosPage brandId={user.brand} userEmail={user.email} />}
         {page === "sparring" && <SparringPage user={user} onUpdate={refreshUser} />}
         {page === "transcripts" && <TranscriptsPage brandId={user.brand} />}
         {page === "tools" && <ToolsPage />}
         {page === "pricing" && <PricingPage brandId={user.brand} />}
         {page === "kpi" && <KpiPage user={user} onUpdate={refreshUser} />}
         {page === "records" && <RecordsPage user={user} />}
+        {page === "finance" && <FinanceKnowledgePage />}
         {page === "knowledge" && <KnowledgePage brandId={user.brand} />}
       </main>
       <HelpBot />
@@ -284,6 +290,8 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
         setError(res.error || "註冊失敗");
         return;
       }
+      // Sync to Supabase
+      syncRegister(email, name, brand);
       const loginRes = loginUser(email, password);
       if (loginRes.success) onLogin();
     } else {
@@ -584,8 +592,9 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
 }
 
 /* ===================== VIDEOS ===================== */
-function VideosPage({ brandId }: { brandId: string }) {
+function VideosPage({ brandId, userEmail }: { brandId: string; userEmail?: string }) {
   const [selectedVideo, setSelectedVideo] = useState<TrainingVideo | null>(null);
+  const videoStartTime = useRef<number>(0);
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
   const categories = getCategoriesForBrand(brandId);
@@ -661,7 +670,14 @@ function VideosPage({ brandId }: { brandId: string }) {
                 在 Google Drive 開啟
               </a>
               <button
-                onClick={() => setSelectedVideo(null)}
+                onClick={() => {
+                  if (selectedVideo && userEmail && videoStartTime.current > 0) {
+                    const watchSecs = Math.round((Date.now() - videoStartTime.current) / 1000);
+                    syncVideoProgress(userEmail, selectedVideo.id, watchSecs);
+                  }
+                  videoStartTime.current = 0;
+                  setSelectedVideo(null);
+                }}
                 className="px-3 py-1.5 rounded-lg text-xs bg-[var(--border)] text-[var(--text2)] hover:text-white transition-colors"
               >
                 關閉
@@ -676,7 +692,15 @@ function VideosPage({ brandId }: { brandId: string }) {
         {filteredVideos.map((video) => (
           <button
             key={video.id}
-            onClick={() => setSelectedVideo(video)}
+            onClick={() => {
+              // Track previous video watch time
+              if (selectedVideo && userEmail && videoStartTime.current > 0) {
+                const watchSecs = Math.round((Date.now() - videoStartTime.current) / 1000);
+                syncVideoProgress(userEmail, selectedVideo.id, watchSecs);
+              }
+              setSelectedVideo(video);
+              videoStartTime.current = Date.now();
+            }}
             className={`text-left bg-[var(--bg2)] rounded-xl border transition-all hover:border-[var(--accent)] hover:shadow-lg ${
               selectedVideo?.id === video.id
                 ? "border-[var(--accent)] shadow-lg"
@@ -745,11 +769,16 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
       ? [...new Set([...user.completedModules, mod.id])]
       : user.completedModules;
 
+    const newProgress = Math.round((newCompleted.length / 9) * 100);
     updateUser(user.email, {
       quizScores: newScores,
       completedModules: newCompleted,
-      progress: Math.round((newCompleted.length / 9) * 100),
+      progress: newProgress,
     });
+    // Sync to Supabase
+    syncQuizScore(user.email, mod.id, score);
+    const currentDay = Math.min(Math.max(...newCompleted, 0) + 1, 9);
+    syncProgress(user.email, newCompleted, newProgress, currentDay);
     onUpdate();
   };
 
@@ -793,9 +822,50 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
 
         {!quizMode ? (
           <div className="space-y-6">
+            {/* 前言說明 */}
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-              <h3 className="text-lg font-bold mb-2">{mod.description}</h3>
-              <div className="space-y-3 mt-4">
+              <h3 className="font-bold mb-2" style={{ color: "var(--accent)" }}>
+                今日前言
+              </h3>
+              <p className="text-sm text-[var(--text2)] leading-relaxed">{mod.description}</p>
+            </div>
+
+            {/* 每日行程表 */}
+            {mod.schedule && mod.schedule.length > 0 && (
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+                <h3 className="font-bold mb-4" style={{ color: "var(--teal)" }}>
+                  今日行程表
+                </h3>
+                <div className="relative">
+                  {mod.schedule.map((item, i) => (
+                    <div key={i} className="flex gap-4 mb-3 last:mb-0">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full shrink-0 mt-1" style={{ background: "var(--accent)" }} />
+                        {i < mod.schedule!.length - 1 && (
+                          <div className="w-0.5 flex-1 bg-[var(--border)]" />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-3">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs font-mono font-bold" style={{ color: "var(--accent)" }}>
+                            {item.time}
+                          </span>
+                          <span className="font-bold text-sm">{item.task}</span>
+                        </div>
+                        {item.description && (
+                          <p className="text-xs text-[var(--text3)] mt-1">{item.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 學習內容 */}
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+              <h3 className="font-bold mb-3">學習內容</h3>
+              <div className="space-y-3">
                 {mod.content.map((c, i) => (
                   <div key={i} className="flex gap-3 p-3 bg-[var(--bg2)] rounded-lg">
                     <span className="text-[var(--accent)]">●</span>
@@ -816,34 +886,93 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
               ))}
             </div>
 
-            {mod.videos && mod.videos.length > 0 && (
+            {mod.resources && mod.resources.length > 0 && (
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
                 <h3 className="font-bold mb-3" style={{ color: "var(--teal)" }}>
-                  相關教學影片
+                  教學資源
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {mod.videos
-                    .map((vId) => trainingVideos.find((v) => v.id === vId))
-                    .filter(Boolean)
-                    .map((video) => (
+                  {mod.resources.map((res, ri) => {
+                    const icon = res.type === 'video' ? '🎬' : res.type === 'recording' ? '🎙️' : res.type === 'notion' ? '📝' : '📄';
+                    const href = res.driveFileId
+                      ? getDriveLink(res.driveFileId, 'video')
+                      : res.url || '#';
+                    return (
                       <a
-                        key={video!.id}
-                        href={getDriveLink(video!.driveFileId, video!.type)}
+                        key={ri}
+                        href={href}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-3 p-3 bg-[var(--bg2)] rounded-lg hover:border-[var(--accent)] border border-transparent transition-all"
                       >
                         <div className="w-10 h-10 rounded-lg bg-[rgba(124,108,240,0.15)] flex items-center justify-center text-lg shrink-0">
-                          {video!.type === "video" ? "🎬" : "📊"}
+                          {icon}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-bold text-sm truncate">{video!.title}</p>
-                          <p className="text-[10px] text-[var(--text3)]">
-                            {video!.description} · {video!.size}
-                          </p>
+                          <p className="font-bold text-sm truncate">{res.title}</p>
+                          {res.description && (
+                            <p className="text-[10px] text-[var(--text3)]">{res.description}</p>
+                          )}
                         </div>
                       </a>
-                    ))}
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {mod.trainerTips && mod.trainerTips.length > 0 && (
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+                <h3 className="font-bold mb-3" style={{ color: "var(--gold)" }}>
+                  講師提醒
+                </h3>
+                <div className="space-y-2">
+                  {mod.trainerTips.map((tip, i) => (
+                    <div key={i} className="flex gap-3 p-3 bg-[var(--bg2)] rounded-lg">
+                      <span className="text-[var(--gold)] shrink-0">⚡</span>
+                      <p className="text-sm text-[var(--text2)]">{tip}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {mod.kpiTargets && (
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+                <h3 className="font-bold mb-3" style={{ color: "var(--green)" }}>
+                  今日 KPI 目標
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {mod.kpiTargets.calls && (
+                    <div className="text-center p-3 bg-[var(--bg2)] rounded-lg">
+                      <p className="text-2xl font-bold" style={{ color: "var(--accent)" }}>{mod.kpiTargets.calls}</p>
+                      <p className="text-xs text-[var(--text3)] mt-1">進線數</p>
+                    </div>
+                  )}
+                  {mod.kpiTargets.talkTime && (
+                    <div className="text-center p-3 bg-[var(--bg2)] rounded-lg">
+                      <p className="text-2xl font-bold" style={{ color: "var(--teal)" }}>{mod.kpiTargets.talkTime}</p>
+                      <p className="text-xs text-[var(--text3)] mt-1">通話時長</p>
+                    </div>
+                  )}
+                  {mod.kpiTargets.invites && (
+                    <div className="text-center p-3 bg-[var(--bg2)] rounded-lg">
+                      <p className="text-2xl font-bold" style={{ color: "var(--gold)" }}>{mod.kpiTargets.invites}</p>
+                      <p className="text-xs text-[var(--text3)] mt-1">邀約數</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {mod.practiceTask && (
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+                <h3 className="font-bold mb-3" style={{ color: "var(--accent)" }}>
+                  實作任務
+                </h3>
+                <div className="flex gap-3 p-3 bg-[var(--bg2)] rounded-lg">
+                  <span className="text-[var(--accent)] shrink-0">🎯</span>
+                  <p className="text-sm text-[var(--text2)]">{mod.practiceTask}</p>
                 </div>
               </div>
             )}
@@ -2189,6 +2318,7 @@ function KpiPage({ user, onUpdate }: { user: User; onUpdate: () => void }) {
 
   const save = () => {
     addKpiEntry(user.email, { date: today, calls, validCalls, appointments, closures });
+    syncKpiEntry(user.email, { date: today, calls, validCalls, appointments, closures });
     onUpdate();
   };
 
@@ -2365,6 +2495,190 @@ function RecordsPage({ user }: { user: User }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ===================== FINANCE KNOWLEDGE ===================== */
+function FinanceKnowledgePage() {
+  const [activeTab, setActiveTab] = useState<"fundamental" | "technical" | "chip">("fundamental");
+
+  const tabs = [
+    { id: "fundamental" as const, label: "基本面", icon: "📊", color: "var(--accent)" },
+    { id: "technical" as const, label: "技術面", icon: "📈", color: "var(--teal)" },
+    { id: "chip" as const, label: "籌碼面", icon: "🏦", color: "var(--gold)" },
+  ];
+
+  const content = {
+    fundamental: {
+      title: "基本面分析",
+      subtitle: "看公司體質，判斷值不值得投資",
+      salesAngle: "客戶最常問：「這支股票好不好？」——基本面就是教他怎麼自己判斷，不用再問別人。",
+      sections: [
+        {
+          title: "什麼是基本面？（跟客戶怎麼說）",
+          content: "基本面就像幫公司做健康檢查。你去看醫生會看血壓、血糖、膽固醇，投資也一樣——我們看公司的營收、獲利、負債，來判斷它「健不健康」。健康的公司股價長期會往上走，不健康的再怎麼炒作最終都會回來。",
+        },
+        {
+          title: "三大財報（簡單版）",
+          items: [
+            { name: "損益表", desc: "公司賺不賺錢？營收多少、成本多少、最後淨利多少。就像你的薪水扣掉房租、吃飯、娛樂後剩多少。" },
+            { name: "資產負債表", desc: "公司有多少家產、欠多少錢？就像你有多少存款和房貸。負債太高的公司要小心。" },
+            { name: "現金流量表", desc: "公司手上現金夠不夠？有些公司帳面賺錢但現金不夠，就像月光族——收入不錯但存不到錢。" },
+          ],
+        },
+        {
+          title: "關鍵指標（業務必背）",
+          items: [
+            { name: "EPS（每股盈餘）", desc: "公司每一股幫你賺多少錢。EPS 持續成長 = 公司越來越會賺。跟客戶說：「你買的每一股，一年幫你賺 X 元。」" },
+            { name: "本益比（P/E）", desc: "股價 ÷ EPS = 你花幾年能回本。15 倍以下算便宜，30 倍以上要看成長性。跟客戶說：「就像買雞排攤，月賺 5 萬的攤子賣 100 萬，20 個月回本。」" },
+            { name: "ROE（股東權益報酬率）", desc: "股東投入 100 元能賺多少回來。ROE > 15% 算優秀。跟客戶說：「你放 100 萬在這家公司，一年能幫你賺 15 萬以上。」" },
+            { name: "殖利率", desc: "一年配多少股利 ÷ 股價。5% 以上算高殖利率。跟客戶說：「放 100 萬進去，一年光配息就有 5 萬，比定存好多了。」" },
+          ],
+        },
+        {
+          title: "Demo 時怎麼帶？",
+          content: "帶客戶看一支營建股的財報，找到合約負債（預售屋收的錢）→ 說明這筆錢未來會變成營收 → 股價還沒反映 = 投資機會。讓客戶親眼看到「原來財報可以這樣用」，他就會覺得學了有用。",
+        },
+      ],
+    },
+    technical: {
+      title: "技術面分析",
+      subtitle: "看股價走勢，判斷什麼時候買賣",
+      salesAngle: "客戶最怕的是：「買在最高點怎麼辦？」——技術面就是教他看時機，知道什麼時候該進場、該出場。",
+      sections: [
+        {
+          title: "什麼是技術面？（跟客戶怎麼說）",
+          content: "技術面就是看股價的「行為模式」。就像天氣預報看雲層、氣壓來預測天氣，技術面看K線、均線來預測股價走向。不是100%準，但可以大幅提高你的勝率。",
+        },
+        {
+          title: "K 線基礎（業務必懂）",
+          items: [
+            { name: "紅K（陽線）", desc: "收盤價 > 開盤價 = 今天漲了。越長代表漲越多、買方越強。跟客戶說：「紅色的就是今天買的人比賣的人多。」" },
+            { name: "黑K（陰線）", desc: "收盤價 < 開盤價 = 今天跌了。越長代表跌越多、賣方越強。" },
+            { name: "上影線", desc: "盤中漲上去但被壓回來 = 上面有賣壓。跟客戶說：「有人在上面等著賣，所以拉不上去。」" },
+            { name: "下影線", desc: "盤中跌下去但被拉回來 = 下面有支撐。跟客戶說：「跌到那個價位就有人搶著買。」" },
+          ],
+        },
+        {
+          title: "均線系統",
+          items: [
+            { name: "5日均線（週線）", desc: "短期趨勢，適合短線操作的人看。" },
+            { name: "20日均線（月線）", desc: "中期趨勢，大部分投資人最常參考的。股價站上月線 = 中期看漲。" },
+            { name: "60日均線（季線）", desc: "中長期趨勢。股價跌破季線 = 要小心了。" },
+            { name: "黃金交叉 vs 死亡交叉", desc: "短期均線往上穿過長期均線 = 黃金交叉（買進訊號）。反過來 = 死亡交叉（賣出訊號）。" },
+          ],
+        },
+        {
+          title: "常見 K 棒組合（白話版）",
+          items: [
+            { name: "晨星（Morning Star）", desc: "連跌後出現小K棒再接大紅K = 底部反轉訊號。跟客戶說：「天快亮了，股價要反彈了。」" },
+            { name: "吞噬（Engulfing）", desc: "大紅K完全包住前一根黑K = 多方強力反攻。跟客戶說：「買方一口氣把昨天跌的全部吃回來。」" },
+            { name: "十字線（Doji）", desc: "開盤價 ≈ 收盤價，多空拉鋸 = 變盤訊號。跟客戶說：「多空雙方在猶豫，接下來要注意方向。」" },
+          ],
+        },
+        {
+          title: "Demo 時怎麼帶？",
+          content: "打開一支股票的K線圖，帶客戶看均線排列 → 找出黃金交叉的時間點 → 對比當時買進到現在的報酬。讓客戶看到「如果當時懂技術面，就知道該進場」。重點是讓他有感，不是教他變分析師。",
+        },
+      ],
+    },
+    chip: {
+      title: "籌碼面分析",
+      subtitle: "看大戶動向，跟著聰明錢走",
+      salesAngle: "客戶常說：「散戶怎麼贏得過法人？」——籌碼面就是教他看法人在幹嘛，跟著大戶方向走。",
+      sections: [
+        {
+          title: "什麼是籌碼面？（跟客戶怎麼說）",
+          content: "籌碼面就是看「誰在買、誰在賣」。股市裡有三大法人（外資、投信、自營商），他們的資金量是散戶的好幾百倍。當大戶持續買進一支股票，股價通常會漲；大戶持續賣，股價通常會跌。學會看籌碼，就不用猜——直接看大戶的動作跟著走。",
+        },
+        {
+          title: "三大法人（業務必背）",
+          items: [
+            { name: "外資", desc: "國外投資機構（高盛、摩根等），資金量最大。外資連續買超 = 長期看好。跟客戶說：「全世界最聰明的錢在買，你要不要跟？」" },
+            { name: "投信", desc: "國內基金公司（基金經理人）。投信買 = 基金在佈局，通常中長期看好。跟客戶說：「台灣的專業經理人也在買，代表他們做過研究。」" },
+            { name: "自營商", desc: "券商自己的資金在操作。通常短線進出，參考價值相對低。但如果三大法人同步買超，訊號就很強。" },
+          ],
+        },
+        {
+          title: "關鍵籌碼指標",
+          items: [
+            { name: "法人買賣超", desc: "每天三大法人各買了多少、賣了多少。連續買超 = 看好；連續賣超 = 看壞。" },
+            { name: "融資融券", desc: "融資 = 散戶借錢買股票（看多）。融券 = 借股票來賣（看空）。融資大增通常不是好事——代表散戶在追高。" },
+            { name: "主力進出", desc: "特定券商分點的買賣紀錄。如果某個分點持續大量買進，可能是主力在吃貨。" },
+            { name: "集保戶數", desc: "持有這支股票的人數變化。人數減少但張數增加 = 大戶在收集籌碼（好事）。跟客戶說：「小散戶在賣，大戶在收，等收夠了就要拉了。」" },
+          ],
+        },
+        {
+          title: "Demo 時怎麼帶？",
+          content: "打開一支股票的籌碼分析頁面，帶客戶看外資連續買超 → 對比股價走勢 → 讓他發現「外資買的時候股價就在漲」。再問他：「如果你早一步知道外資在買，你會不會也想跟？這就是籌碼面的威力。」",
+        },
+      ],
+    },
+  };
+
+  const current = content[activeTab];
+
+  return (
+    <div className="animate-fade-in max-w-4xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">專業知識</h1>
+        <p className="text-[var(--text2)]">以業務角度理解財經知識，讓你 Demo 時講得出來、客戶聽得懂</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all border ${
+              activeTab === tab.id
+                ? "text-white shadow-lg border-transparent"
+                : "bg-[var(--card)] border-[var(--border)] text-[var(--text2)] hover:border-[var(--accent)]"
+            }`}
+            style={activeTab === tab.id ? { background: tab.color, boxShadow: `0 4px 20px ${tab.color}40` } : undefined}
+          >
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="space-y-4">
+        {/* Header */}
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+          <h2 className="text-xl font-bold mb-1">{current.title}</h2>
+          <p className="text-sm text-[var(--text3)] mb-3">{current.subtitle}</p>
+          <div className="p-3 rounded-lg" style={{ background: "rgba(254,202,87,0.1)", borderLeft: "3px solid var(--gold)" }}>
+            <p className="text-xs font-bold text-[var(--gold)] mb-1">業務角度</p>
+            <p className="text-sm text-[var(--text2)]">{current.salesAngle}</p>
+          </div>
+        </div>
+
+        {/* Sections */}
+        {current.sections.map((section, si) => (
+          <div key={si} className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+            <h3 className="font-bold mb-3" style={{ color: tabs.find(t => t.id === activeTab)?.color }}>
+              {section.title}
+            </h3>
+            {section.content && (
+              <p className="text-sm text-[var(--text2)] leading-relaxed">{section.content}</p>
+            )}
+            {section.items && (
+              <div className="space-y-3">
+                {section.items.map((item, ii) => (
+                  <div key={ii} className="p-3 bg-[var(--bg2)] rounded-lg">
+                    <p className="font-bold text-sm mb-1">{item.name}</p>
+                    <p className="text-xs text-[var(--text2)] leading-relaxed">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

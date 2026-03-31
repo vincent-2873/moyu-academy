@@ -23,6 +23,7 @@ const navItems = [
   { id: "pricing", icon: "💰", label: "報價方案" },
   { id: "kpi", icon: "📈", label: "KPI 追蹤" },
   { id: "records", icon: "📝", label: "對練紀錄" },
+  { id: "finance", icon: "💹", label: "專業知識" },
   { id: "knowledge", icon: "📖", label: "品牌知識庫" },
 ];
 

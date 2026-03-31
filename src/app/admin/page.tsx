@@ -2,163 +2,131 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "dashboard" | "users" | "videos" | "approvals";
+type AdminTab = "dashboard" | "users" | "content" | "videos" | "approvals";
 
-interface AdminSession {
-  name: string;
-  email: string;
-  token: string;
+interface AdminSession { name: string; email: string; token: string; }
+
+interface EnrichedUser {
+  id: string; name: string; email: string; brand: string; role: string; status: string;
+  created_at: string; currentDay: number; completedModules: number[]; progressPercent: number;
+  quizCount: number; avgQuizScore: number | null; latestQuizScore: number | null; latestQuizModule: number | null;
+  videosWatched: number; videosCompleted: number;
+  sparringCount: number; avgSparringScore: number | null; latestSparringScore: number | null;
+  totalCalls: number; totalAppointments: number; lastActivity: string | null;
+  quizzes: Array<{ module_id: number; score: number; created_at: string }>;
+  kpis: Array<{ date: string; calls: number; valid_calls: number; appointments: number; closures: number }>;
+  sparrings: Array<{ id: string; score: number; date: string }>;
 }
 
-interface StatsData {
-  totalUsers: number;
-  totalSparring: number;
-  avgScore: number;
-  pendingApprovals: number;
+interface ModuleOverride {
+  id: string; module_id: number;
+  description_override: string | null; content_override: string[] | null;
+  key_points_override: string[] | null; trainer_tips_override: string[] | null;
+  practice_task_override: string | null; updated_at: string;
 }
 
-interface UserRow {
-  id: string;
-  name: string;
-  email: string;
-  brand: string;
-  role: string;
-  status: "active" | "inactive";
-  joinDate: string;
-}
-
-interface VideoItem {
-  id: string;
-  title: string;
-  category: string;
-  brands: string[];
-  status: "published" | "pending" | "draft";
-  driveFileId: string;
-}
-
-interface ApprovalItem {
-  id: string;
-  type: string;
-  action: string;
-  submittedBy: string;
-  submittedDate: string;
-  status: "pending" | "approved" | "rejected";
-  note?: string;
-}
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const ROLE_LABELS: Record<string, string> = {
-  super_admin: "超級管理員",
-  brand_manager: "品牌主管",
-  team_leader: "業務主管",
-  trainer: "培訓師",
-  sales_rep: "業務人員",
-};
+// ─── Constants ─────────────────────────────────────────────────────────────
 
 const BRAND_LABELS: Record<string, string> = {
-  nschool: "nSchool 財經學院",
-  xuemi: "XUEMI 學米",
-  ooschool: "OOschool 無限學院",
+  nschool: "nSchool 財經", xuemi: "XUEMI 學米", ooschool: "OOschool 無限",
 };
 
-const ALL_BRANDS = Object.keys(BRAND_LABELS);
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: "超級管理員", brand_manager: "品牌主管", team_leader: "業務主管", trainer: "培訓師", sales_rep: "業務人員",
+};
 
-const VIDEO_CATEGORIES = [
-  "產品知識",
-  "銷售技巧",
-  "客戶服務",
-  "市場分析",
-  "合規培訓",
-  "新人培訓",
-  "進階課程",
-];
+const MODULE_TITLES: Record<number, string> = {
+  1: "新人報到｜開發學習", 2: "架構對練｜後台學習", 3: "正式上機｜開發實戰",
+  4: "學習 Demo", 5: "持續開發｜流程整合", 6: "進階開發｜架構精進",
+  7: "Demo 實戰練習", 8: "綜合實戰", 9: "實戰考核",
+};
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+const inputStyle: React.CSSProperties = {
+  width: "100%", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 10,
+  padding: "10px 14px", color: "var(--text)", fontSize: 14, outline: "none", boxSizing: "border-box",
+};
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; color: string }> = {
-    active: { label: "啟用", color: "#10ac84" },
-    inactive: { label: "停用", color: "#ee5a52" },
-    published: { label: "已發布", color: "#10ac84" },
-    pending: { label: "待審核", color: "#feca57" },
-    draft: { label: "草稿", color: "#9898b0" },
-    approved: { label: "已批准", color: "#10ac84" },
-    rejected: { label: "已拒絕", color: "#ee5a52" },
+// ─── Main Component ────────────────────────────────────────────────────────
+
+export default function AdminPage() {
+  const [session, setSession] = useState<AdminSession | null>(null);
+  const [tab, setTab] = useState<AdminTab>("dashboard");
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("adminSession");
+    if (saved) setSession(JSON.parse(saved));
+  }, []);
+
+  const handleLogin = (s: AdminSession) => {
+    setSession(s);
+    sessionStorage.setItem("adminSession", JSON.stringify(s));
   };
-  const info = map[status] ?? { label: status, color: "#9898b0" };
-  return (
-    <span
-      style={{
-        background: info.color + "22",
-        color: info.color,
-        border: `1px solid ${info.color}44`,
-        borderRadius: 6,
-        padding: "2px 10px",
-        fontSize: 12,
-        fontWeight: 600,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {info.label}
-    </span>
-  );
-}
 
-function StatCard({
-  label,
-  value,
-  icon,
-  color,
-  sub,
-}: {
-  label: string;
-  value: string | number;
-  icon: string;
-  color: string;
-  sub?: string;
-}) {
+  const handleLogout = () => {
+    setSession(null);
+    sessionStorage.removeItem("adminSession");
+  };
+
+  if (!session) return <LoginScreen onLogin={handleLogin} />;
+
+  const tabs: { id: AdminTab; label: string; icon: string }[] = [
+    { id: "dashboard", label: "學員進度", icon: "📊" },
+    { id: "users", label: "用戶管理", icon: "👥" },
+    { id: "content", label: "內容管理", icon: "📝" },
+    { id: "videos", label: "影片管理", icon: "🎬" },
+    { id: "approvals", label: "審核中心", icon: "✅" },
+  ];
+
   return (
-    <div
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: "24px 28px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        flex: 1,
-        minWidth: 180,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span
-          style={{
-            fontSize: 22,
-            background: color + "22",
-            borderRadius: 10,
-            padding: "6px 8px",
-            lineHeight: 1,
-          }}
-        >
-          {icon}
-        </span>
-        <span style={{ color: "var(--text2)", fontSize: 13 }}>{label}</span>
-      </div>
-      <div style={{ fontSize: 32, fontWeight: 700, color: "var(--text)", lineHeight: 1.1 }}>
-        {value}
-      </div>
-      {sub && <div style={{ color: "var(--text3)", fontSize: 12 }}>{sub}</div>}
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
+      {/* Sidebar */}
+      <aside style={{ width: 240, background: "var(--bg2)", borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 10 }}>
+        <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, background: "linear-gradient(135deg, var(--accent), var(--teal))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            墨宇學院 Admin
+          </div>
+          <div style={{ color: "var(--text3)", fontSize: 12, marginTop: 2 }}>管理後台</div>
+        </div>
+        <nav style={{ flex: 1, padding: "8px 0" }}>
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              display: "flex", alignItems: "center", gap: 10, width: "calc(100% - 16px)", margin: "2px 8px",
+              padding: "10px 14px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 14,
+              background: tab === t.id ? "var(--accent)" : "transparent",
+              color: tab === t.id ? "#fff" : "var(--text2)",
+              fontWeight: tab === t.id ? 600 : 400,
+              transition: "all 0.15s",
+            }}>
+              <span style={{ fontSize: 16 }}>{t.icon}</span> {t.label}
+            </button>
+          ))}
+        </nav>
+        <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{session.name}</div>
+            <div style={{ fontSize: 11, color: "var(--text3)" }}>{session.email}</div>
+          </div>
+          <button onClick={handleLogout} style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 12 }}>登出</button>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main style={{ flex: 1, marginLeft: 240, padding: "28px 36px" }}>
+        {tab === "dashboard" && <DashboardTab token={session.token} />}
+        {tab === "users" && <UsersTab token={session.token} />}
+        {tab === "content" && <ContentTab />}
+        {tab === "videos" && <VideosTab token={session.token} />}
+        {tab === "approvals" && <ApprovalsTab token={session.token} />}
+      </main>
     </div>
   );
 }
 
-// ─── Login Screen ─────────────────────────────────────────────────────────────
+// ─── Login ─────────────────────────────────────────────────────────────────
 
-function LoginScreen({ onLogin }: { onLogin: (session: AdminSession) => void }) {
+function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -166,155 +134,36 @@ function LoginScreen({ onLogin }: { onLogin: (session: AdminSession) => void }) 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
-      const res = await fetch("/api/admin/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const res = await fetch("/api/admin/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "登入失敗");
-      onLogin({ name: data.name, email: data.email, token: data.token });
+      onLogin({ name: data.name || data.user?.name || email, email: data.email || data.user?.email || email, token: data.token || "admin" });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "登入失敗，請檢查帳號密碼");
-    } finally {
-      setLoading(false);
-    }
+      setError(err instanceof Error ? err.message : "登入失敗");
+    } finally { setLoading(false); }
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "var(--bg)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      }}
-    >
-      <div
-        style={{
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 20,
-          padding: "48px 40px",
-          width: "100%",
-          maxWidth: 420,
-          boxShadow: "0 24px 80px rgba(0,0,0,0.5)",
-        }}
-      >
-        {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 16,
-              background: "linear-gradient(135deg, var(--accent), var(--teal))",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 26,
-              margin: "0 auto 16px",
-            }}
-          >
-            🎓
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text)" }}>
-            墨宇學院 Admin
-          </div>
-          <div style={{ color: "var(--text3)", fontSize: 14, marginTop: 4 }}>
-            管理後台登入
-          </div>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: "48px 40px", width: "100%", maxWidth: 420 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg, var(--accent), var(--teal))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 14px" }}>🎓</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>墨宇學院 Admin</div>
+          <div style={{ color: "var(--text3)", fontSize: 14, marginTop: 4 }}>管理後台登入</div>
         </div>
-
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label
-              style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}
-            >
-              管理員帳號
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@example.com"
-              required
-              style={{
-                width: "100%",
-                background: "var(--bg2)",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                padding: "11px 14px",
-                color: "var(--text)",
-                fontSize: 14,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
+            <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>管理員帳號</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} placeholder="admin@example.com" />
           </div>
           <div>
-            <label
-              style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}
-            >
-              密碼
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              style={{
-                width: "100%",
-                background: "var(--bg2)",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                padding: "11px 14px",
-                color: "var(--text)",
-                fontSize: 14,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
+            <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>密碼</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} placeholder="••••••••" />
           </div>
-
-          {error && (
-            <div
-              style={{
-                background: "#ee5a5222",
-                border: "1px solid #ee5a5244",
-                borderRadius: 8,
-                padding: "10px 14px",
-                color: "#ee5a52",
-                fontSize: 13,
-              }}
-            >
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              background: loading
-                ? "var(--border)"
-                : "linear-gradient(135deg, var(--accent), #5f52d0)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 10,
-              padding: "13px",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-              marginTop: 4,
-            }}
-          >
+          {error && <div style={{ background: "#f8717122", border: "1px solid #f8717144", borderRadius: 8, padding: "10px 14px", color: "#f87171", fontSize: 13 }}>{error}</div>}
+          <button type="submit" disabled={loading} style={{ background: loading ? "var(--border)" : "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: 13, fontSize: 15, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", marginTop: 4 }}>
             {loading ? "登入中..." : "登入"}
           </button>
         </form>
@@ -323,1314 +172,610 @@ function LoginScreen({ onLogin }: { onLogin: (session: AdminSession) => void }) 
   );
 }
 
-// ─── Dashboard Tab ────────────────────────────────────────────────────────────
+// ─── Dashboard Tab (學員進度) ──────────────────────────────────────────────
 
 function DashboardTab({ token }: { token: string }) {
-  const [stats, setStats] = useState<StatsData | null>(null);
+  const [users, setUsers] = useState<EnrichedUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [selectedUser, setSelectedUser] = useState<EnrichedUser | null>(null);
+  const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    fetch("/api/admin/stats", { headers: { Authorization: `Bearer ${token}` } })
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/admin/progress?brand=${brandFilter}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
-      .then((d) => setStats(d))
-      .catch(() =>
-        setStats({ totalUsers: 0, totalSparring: 0, avgScore: 0, pendingApprovals: 0 })
-      )
+      .then((d) => setUsers(d.users || []))
+      .catch(() => setUsers([]))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, brandFilter]);
 
-  if (loading) return <LoadingSpinner />;
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const s = stats!;
+  const filtered = users.filter((u) => {
+    if (search && !u.name.toLowerCase().includes(search.toLowerCase()) && !u.email.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  // Stats
+  const totalUsers = users.length;
+  const activeThisWeek = users.filter((u) => u.lastActivity && new Date(u.lastActivity) > new Date(Date.now() - 7 * 86400000)).length;
+  const avgQuiz = users.filter((u) => u.avgQuizScore !== null).reduce((s, u) => s + (u.avgQuizScore || 0), 0) / Math.max(users.filter((u) => u.avgQuizScore !== null).length, 1);
+  const avgSparring = users.filter((u) => u.avgSparringScore !== null).reduce((s, u) => s + (u.avgSparringScore || 0), 0) / Math.max(users.filter((u) => u.avgSparringScore !== null).length, 1);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-      <div>
-        <h2 style={{ color: "var(--text)", fontSize: 22, fontWeight: 700, margin: 0 }}>
-          總覽儀表板
-        </h2>
-        <p style={{ color: "var(--text3)", fontSize: 14, margin: "4px 0 0" }}>
-          系統整體數據一覽
-        </p>
-      </div>
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>學員進度總覽</h2>
 
-      {/* Stats Grid */}
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <StatCard
-          label="總用戶數"
-          value={s.totalUsers.toLocaleString()}
-          icon="👥"
-          color="#7c6cf0"
-          sub="已註冊帳號"
-        />
-        <StatCard
-          label="總對練次數"
-          value={s.totalSparring.toLocaleString()}
-          icon="🥊"
-          color="#00d2d3"
-          sub="AI 對練記錄"
-        />
-        <StatCard
-          label="平均得分"
-          value={s.avgScore > 0 ? `${s.avgScore.toFixed(1)}` : "—"}
-          icon="📊"
-          color="#10ac84"
-          sub="全體對練均分"
-        />
-        <StatCard
-          label="待審核"
-          value={s.pendingApprovals}
-          icon="⏳"
-          color="#feca57"
-          sub="需要處理的申請"
-        />
-      </div>
-
-      {/* Quick Info Cards */}
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        {ALL_BRANDS.map((b) => (
-          <div
-            key={b}
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              borderRadius: 12,
-              padding: "18px 22px",
-              flex: 1,
-              minWidth: 200,
-            }}
-          >
-            <div style={{ color: "var(--text2)", fontSize: 12, marginBottom: 6 }}>品牌</div>
-            <div style={{ color: "var(--accent)", fontSize: 15, fontWeight: 600 }}>
-              {BRAND_LABELS[b]}
+      {/* Summary Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+        {[
+          { label: "總人數", value: totalUsers, icon: "👥", color: "var(--accent)" },
+          { label: "本週活躍", value: activeThisWeek, icon: "🔥", color: "var(--teal)" },
+          { label: "平均測驗分", value: avgQuiz ? Math.round(avgQuiz) : "—", icon: "📝", color: "var(--gold)" },
+          { label: "平均對練分", value: avgSparring ? Math.round(avgSparring) : "—", icon: "🎯", color: "var(--green)" },
+        ].map((s) => (
+          <div key={s.label} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 24px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 20, background: s.color + "22", borderRadius: 8, padding: "4px 6px" }}>{s.icon}</span>
+              <span style={{ color: "var(--text2)", fontSize: 13 }}>{s.label}</span>
             </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: s.color }}>{s.value}</div>
           </div>
         ))}
       </div>
-    </div>
-  );
-}
 
-// ─── Users Tab ────────────────────────────────────────────────────────────────
-
-function UsersTab({ token }: { token: string }) {
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterBrand, setFilterBrand] = useState("all");
-  const [searchQ, setSearchQ] = useState("");
-  const [saving, setSaving] = useState<string | null>(null);
-
-  const fetchUsers = useCallback(() => {
-    setLoading(true);
-    fetch("/api/admin/users", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((d) => setUsers(Array.isArray(d) ? d : d.users ?? []))
-      .catch(() => setUsers([]))
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
-
-  async function updateUserRole(userId: string, role: string) {
-    setSaving(userId + "_role");
-    try {
-      await fetch(`/api/admin/users/${userId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ role }),
-      });
-      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
-    } finally {
-      setSaving(null);
-    }
-  }
-
-  async function toggleStatus(userId: string, current: "active" | "inactive") {
-    const newStatus = current === "active" ? "inactive" : "active";
-    setSaving(userId + "_status");
-    try {
-      await fetch(`/api/admin/users/${userId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u))
-      );
-    } finally {
-      setSaving(null);
-    }
-  }
-
-  const filtered = users.filter((u) => {
-    const matchBrand = filterBrand === "all" || u.brand === filterBrand;
-    const q = searchQ.toLowerCase();
-    const matchQ = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-    return matchBrand && matchQ;
-  });
-
-  if (loading) return <LoadingSpinner />;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h2 style={{ color: "var(--text)", fontSize: 22, fontWeight: 700, margin: 0 }}>
-            用戶管理
-          </h2>
-          <p style={{ color: "var(--text3)", fontSize: 14, margin: "4px 0 0" }}>
-            共 {filtered.length} 位用戶
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <input
-            value={searchQ}
-            onChange={(e) => setSearchQ(e.target.value)}
-            placeholder="搜尋姓名 / 信箱..."
-            style={inputStyle}
-          />
-          <select
-            value={filterBrand}
-            onChange={(e) => setFilterBrand(e.target.value)}
-            style={selectStyle}
-          >
-            <option value="all">全部品牌</option>
-            {ALL_BRANDS.map((b) => (
-              <option key={b} value={b}>
-                {BRAND_LABELS[b]}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋姓名或 Email..." style={{ ...inputStyle, maxWidth: 300 }} />
+        <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} style={{ ...inputStyle, maxWidth: 200 }}>
+          <option value="all">全部品牌</option>
+          {Object.entries(BRAND_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
       </div>
 
-      <div
-        style={{
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ overflowX: "auto" }}>
+      {/* User Progress Table */}
+      {loading ? (
+        <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>載入中...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>
+          {users.length === 0 ? "尚無用戶資料。請先在 Supabase SQL Editor 執行 supabase-migration.sql" : "找不到符合條件的用戶"}
+        </div>
+      ) : (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["姓名", "信箱", "品牌", "角色", "狀態", "加入日期", "操作"].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "12px 16px",
-                      textAlign: "left",
-                      color: "var(--text3)",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      letterSpacing: "0.05em",
-                      textTransform: "uppercase",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {h}
-                  </th>
+                {["姓名", "品牌", "目前天數", "完成進度", "測驗分", "對練分", "影片", "通次", "最後活動"].map((h) => (
+                  <th key={h} style={{ padding: "12px 14px", textAlign: "left", fontSize: 12, color: "var(--text3)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: "40px 16px", textAlign: "center", color: "var(--text3)" }}>
-                    沒有找到符合條件的用戶
+              {filtered.map((u) => (
+                <tr key={u.id} onClick={() => setSelectedUser(u)} style={{ borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background 0.15s" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg2)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                  <td style={{ padding: "12px 14px" }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{u.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text3)" }}>{u.email}</div>
+                  </td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <span style={{ background: "var(--accent)" + "22", color: "var(--accent)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+                      {BRAND_LABELS[u.brand] || u.brand}
+                    </span>
+                  </td>
+                  <td style={{ padding: "12px 14px", fontWeight: 700, color: "var(--teal)" }}>Day {u.currentDay}</td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ flex: 1, height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden", maxWidth: 100 }}>
+                        <div style={{ width: `${u.progressPercent}%`, height: "100%", background: "linear-gradient(90deg, var(--accent), var(--teal))", borderRadius: 3 }} />
+                      </div>
+                      <span style={{ fontSize: 12, color: "var(--text2)" }}>{u.progressPercent}%</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>
+                      {u.completedModules.length}/9 完成
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 14px", fontWeight: 600, color: u.avgQuizScore && u.avgQuizScore >= 60 ? "var(--green)" : "var(--text2)" }}>
+                    {u.avgQuizScore ?? "—"}
+                  </td>
+                  <td style={{ padding: "12px 14px", fontWeight: 600, color: u.avgSparringScore && u.avgSparringScore >= 70 ? "var(--green)" : "var(--text2)" }}>
+                    {u.avgSparringScore ?? "—"}
+                  </td>
+                  <td style={{ padding: "12px 14px", fontSize: 13 }}>{u.videosWatched} 部</td>
+                  <td style={{ padding: "12px 14px", fontSize: 13 }}>{u.totalCalls}</td>
+                  <td style={{ padding: "12px 14px", fontSize: 12, color: "var(--text3)" }}>
+                    {u.lastActivity ? new Date(u.lastActivity).toLocaleDateString("zh-TW") : "—"}
                   </td>
                 </tr>
-              ) : (
-                filtered.map((user, idx) => (
-                  <tr
-                    key={user.id}
-                    style={{
-                      borderBottom: idx < filtered.length - 1 ? "1px solid var(--border)" : "none",
-                      transition: "background 0.15s",
-                    }}
-                    onMouseEnter={(e) =>
-                      ((e.currentTarget as HTMLTableRowElement).style.background = "var(--bg2)")
-                    }
-                    onMouseLeave={(e) =>
-                      ((e.currentTarget as HTMLTableRowElement).style.background = "transparent")
-                    }
-                  >
-                    <td style={tdStyle}>
-                      <div style={{ fontWeight: 600, color: "var(--text)" }}>{user.name}</div>
-                    </td>
-                    <td style={tdStyle}>
-                      <div style={{ color: "var(--text2)", fontSize: 13 }}>{user.email}</div>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{ color: "var(--accent)", fontSize: 13 }}>
-                        {BRAND_LABELS[user.brand] ?? user.brand}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      <select
-                        value={user.role}
-                        disabled={saving === user.id + "_role"}
-                        onChange={(e) => updateUserRole(user.id, e.target.value)}
-                        style={{
-                          ...selectStyle,
-                          fontSize: 12,
-                          padding: "4px 8px",
-                          opacity: saving === user.id + "_role" ? 0.5 : 1,
-                        }}
-                      >
-                        {Object.entries(ROLE_LABELS).map(([v, l]) => (
-                          <option key={v} value={v}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td style={tdStyle}>
-                      <StatusBadge status={user.status} />
-                    </td>
-                    <td style={tdStyle}>
-                      <div style={{ color: "var(--text3)", fontSize: 13 }}>
-                        {new Date(user.joinDate).toLocaleDateString("zh-TW")}
-                      </div>
-                    </td>
-                    <td style={tdStyle}>
-                      <button
-                        disabled={saving === user.id + "_status"}
-                        onClick={() => toggleStatus(user.id, user.status)}
-                        style={{
-                          background:
-                            user.status === "active" ? "#ee5a5222" : "#10ac8422",
-                          color:
-                            user.status === "active" ? "#ee5a52" : "#10ac84",
-                          border: `1px solid ${user.status === "active" ? "#ee5a5244" : "#10ac8444"}`,
-                          borderRadius: 6,
-                          padding: "4px 12px",
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: saving === user.id + "_status" ? "not-allowed" : "pointer",
-                          opacity: saving === user.id + "_status" ? 0.5 : 1,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {user.status === "active" ? "停用" : "啟用"}
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
         </div>
-      </div>
+      )}
+
+      {/* User Detail Modal */}
+      {selectedUser && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setSelectedUser(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: 32, width: "100%", maxWidth: 700, maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 24 }}>
+              <div>
+                <h3 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{selectedUser.name}</h3>
+                <p style={{ color: "var(--text3)", fontSize: 13, margin: "4px 0" }}>{selectedUser.email} · {BRAND_LABELS[selectedUser.brand]} · {ROLE_LABELS[selectedUser.role] || selectedUser.role}</p>
+                <p style={{ color: "var(--text3)", fontSize: 12 }}>加入：{new Date(selectedUser.created_at).toLocaleDateString("zh-TW")}</p>
+              </div>
+              <button onClick={() => setSelectedUser(null)} style={{ background: "var(--border)", border: "none", borderRadius: 8, padding: "6px 12px", color: "var(--text2)", cursor: "pointer" }}>✕</button>
+            </div>
+
+            {/* Progress overview */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+              {[
+                { label: "目前天數", value: `Day ${selectedUser.currentDay}`, color: "var(--accent)" },
+                { label: "完成進度", value: `${selectedUser.progressPercent}%`, color: "var(--teal)" },
+                { label: "測驗次數", value: selectedUser.quizCount, color: "var(--gold)" },
+                { label: "對練次數", value: selectedUser.sparringCount, color: "var(--green)" },
+              ].map((s) => (
+                <div key={s.label} style={{ background: "var(--bg2)", borderRadius: 10, padding: "14px 16px", textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Module completion timeline */}
+            <div style={{ marginBottom: 24 }}>
+              <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "var(--text2)" }}>模組完成狀態</h4>
+              <div style={{ display: "flex", gap: 4 }}>
+                {Array.from({ length: 9 }, (_, i) => i + 1).map((day) => {
+                  const completed = selectedUser.completedModules.includes(day);
+                  const quiz = selectedUser.quizzes.find((q) => q.module_id === day);
+                  return (
+                    <div key={day} style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{
+                        height: 32, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600,
+                        background: completed ? "var(--green)" : "var(--border)", color: completed ? "#fff" : "var(--text3)",
+                      }}>
+                        D{day}
+                      </div>
+                      {quiz && <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>{quiz.score}分</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quiz scores */}
+            {selectedUser.quizzes.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "var(--text2)" }}>測驗紀錄</h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {selectedUser.quizzes.slice(0, 10).map((q, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg2)", borderRadius: 8, fontSize: 13 }}>
+                      <span>Day {q.module_id} — {MODULE_TITLES[q.module_id] || `模組 ${q.module_id}`}</span>
+                      <span style={{ fontWeight: 700, color: q.score >= 60 ? "var(--green)" : "var(--red)" }}>{q.score} 分</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* KPI data */}
+            {selectedUser.kpis.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "var(--text2)" }}>KPI 紀錄（近 7 天）</h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {selectedUser.kpis.slice(0, 7).map((k, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "var(--bg2)", borderRadius: 8, fontSize: 13 }}>
+                      <span>{k.date}</span>
+                      <div style={{ display: "flex", gap: 16 }}>
+                        <span>通次 <b>{k.calls}</b></span>
+                        <span>有效 <b>{k.valid_calls}</b></span>
+                        <span>邀約 <b>{k.appointments}</b></span>
+                        <span>成交 <b>{k.closures}</b></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sparring records */}
+            {selectedUser.sparrings.length > 0 && (
+              <div>
+                <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "var(--text2)" }}>對練紀錄</h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {selectedUser.sparrings.map((s, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "var(--bg2)", borderRadius: 8, fontSize: 13 }}>
+                      <span>{new Date(s.date).toLocaleDateString("zh-TW")}</span>
+                      <span style={{ fontWeight: 700, color: s.score >= 70 ? "var(--green)" : "var(--gold)" }}>{s.score} 分</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Videos Tab ───────────────────────────────────────────────────────────────
+// ─── Users Tab ─────────────────────────────────────────────────────────────
+
+function UsersTab({ token }: { token: string }) {
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; status: string; created_at: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [brandFilter, setBrandFilter] = useState("all");
+
+  const fetchUsers = useCallback(() => {
+    setLoading(true);
+    const url = brandFilter === "all" ? "/api/admin/users" : `/api/admin/users?brand=${brandFilter}`;
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setUsers(d.users || []))
+      .catch(() => setUsers([]))
+      .finally(() => setLoading(false));
+  }, [token, brandFilter]);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const updateRole = async (userId: string, role: string) => {
+    await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, role }) });
+    fetchUsers();
+  };
+
+  const toggleStatus = async (userId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "active" ? "inactive" : "active";
+    await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, status: newStatus }) });
+    fetchUsers();
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>用戶管理</h2>
+      <div style={{ marginBottom: 16 }}>
+        <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} style={{ ...inputStyle, maxWidth: 200 }}>
+          <option value="all">全部品牌</option>
+          {Object.entries(BRAND_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+      {loading ? <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>載入中...</div> : (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                {["姓名", "Email", "品牌", "角色", "狀態", "加入日期", "操作"].map((h) => (
+                  <th key={h} style={{ padding: "12px 14px", textAlign: "left", fontSize: 12, color: "var(--text3)", fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td style={{ padding: "12px 14px", fontWeight: 600, fontSize: 14 }}>{u.name}</td>
+                  <td style={{ padding: "12px 14px", fontSize: 13, color: "var(--text2)" }}>{u.email}</td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <span style={{ background: "var(--accent)22", color: "var(--accent)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>{BRAND_LABELS[u.brand] || u.brand}</span>
+                  </td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <select value={u.role} onChange={(e) => updateRole(u.id, e.target.value)} style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", color: "var(--text)", fontSize: 12 }}>
+                      {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <span style={{ background: u.status === "active" ? "#22c55e22" : "#f8717122", color: u.status === "active" ? "var(--green)" : "var(--red)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+                      {u.status === "active" ? "啟用" : "停用"}
+                    </span>
+                  </td>
+                  <td style={{ padding: "12px 14px", fontSize: 12, color: "var(--text3)" }}>{new Date(u.created_at).toLocaleDateString("zh-TW")}</td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <button onClick={() => toggleStatus(u.id, u.status)} style={{ background: "var(--border)", border: "none", borderRadius: 6, padding: "4px 10px", color: "var(--text2)", cursor: "pointer", fontSize: 12 }}>
+                      {u.status === "active" ? "停用" : "啟用"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Content Tab (內容管理) ────────────────────────────────────────────────
+
+function ContentTab() {
+  const [overrides, setOverrides] = useState<ModuleOverride[]>([]);
+  const [editingModule, setEditingModule] = useState<number | null>(null);
+  const [editDesc, setEditDesc] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editKeyPoints, setEditKeyPoints] = useState("");
+  const [editTips, setEditTips] = useState("");
+  const [editTask, setEditTask] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/module-overrides").then((r) => r.json()).then((d) => setOverrides(d.overrides || []));
+  }, []);
+
+  const startEdit = (moduleId: number) => {
+    const existing = overrides.find((o) => o.module_id === moduleId);
+    setEditingModule(moduleId);
+    setEditDesc(existing?.description_override || "");
+    setEditContent(existing?.content_override ? existing.content_override.join("\n") : "");
+    setEditKeyPoints(existing?.key_points_override ? existing.key_points_override.join("\n") : "");
+    setEditTips(existing?.trainer_tips_override ? existing.trainer_tips_override.join("\n") : "");
+    setEditTask(existing?.practice_task_override || "");
+  };
+
+  const saveOverride = async () => {
+    if (!editingModule) return;
+    setSaving(true);
+    const body: Record<string, unknown> = { moduleId: editingModule };
+    if (editDesc) body.description = editDesc;
+    if (editContent) body.content = editContent.split("\n").filter(Boolean);
+    if (editKeyPoints) body.keyPoints = editKeyPoints.split("\n").filter(Boolean);
+    if (editTips) body.trainerTips = editTips.split("\n").filter(Boolean);
+    if (editTask) body.practiceTask = editTask;
+
+    await fetch("/api/admin/module-overrides", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const res = await fetch("/api/admin/module-overrides").then((r) => r.json());
+    setOverrides(res.overrides || []);
+    setEditingModule(null);
+    setSaving(false);
+  };
+
+  const resetOverride = async (moduleId: number) => {
+    await fetch(`/api/admin/module-overrides?moduleId=${moduleId}`, { method: "DELETE" });
+    const res = await fetch("/api/admin/module-overrides").then((r) => r.json());
+    setOverrides(res.overrides || []);
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>訓練內容管理</h2>
+      <p style={{ color: "var(--text3)", fontSize: 14, marginBottom: 24 }}>編輯各天的訓練內容。修改後新人端會即時顯示更新內容。</p>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {Array.from({ length: 9 }, (_, i) => i + 1).map((day) => {
+          const hasOverride = overrides.some((o) => o.module_id === day);
+          return (
+            <div key={day} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: hasOverride ? "var(--gold)" : "var(--accent)", color: hasOverride ? "#000" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14 }}>
+                  {day}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Day {day} — {MODULE_TITLES[day]}</div>
+                  {hasOverride && <div style={{ fontSize: 11, color: "var(--gold)" }}>已自訂內容</div>}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => startEdit(day)} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  編輯
+                </button>
+                {hasOverride && (
+                  <button onClick={() => resetOverride(day)} style={{ background: "var(--border)", color: "var(--text2)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 13, cursor: "pointer" }}>
+                    重置
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Edit Modal */}
+      {editingModule && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setEditingModule(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: 32, width: "100%", maxWidth: 700, maxHeight: "85vh", overflowY: "auto" }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
+              編輯 Day {editingModule} — {MODULE_TITLES[editingModule]}
+            </h3>
+            <p style={{ color: "var(--text3)", fontSize: 12, marginBottom: 20 }}>
+              留空的欄位會使用預設內容。只需填寫要修改的部分。
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6, fontWeight: 600 }}>前言說明</label>
+                <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical" }} placeholder="留空使用預設" />
+              </div>
+              <div>
+                <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6, fontWeight: 600 }}>學習內容（每行一項）</label>
+                <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={5} style={{ ...inputStyle, resize: "vertical" }} placeholder="每行一項內容..." />
+              </div>
+              <div>
+                <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6, fontWeight: 600 }}>關鍵要點（每行一項）</label>
+                <textarea value={editKeyPoints} onChange={(e) => setEditKeyPoints(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical" }} placeholder="每行一項..." />
+              </div>
+              <div>
+                <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6, fontWeight: 600 }}>講師提醒（每行一項）</label>
+                <textarea value={editTips} onChange={(e) => setEditTips(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical" }} placeholder="每行一項..." />
+              </div>
+              <div>
+                <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6, fontWeight: 600 }}>實作任務</label>
+                <textarea value={editTask} onChange={(e) => setEditTask(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="留空使用預設" />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
+              <button onClick={() => setEditingModule(null)} style={{ background: "var(--border)", color: "var(--text2)", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}>取消</button>
+              <button onClick={saveOverride} disabled={saving} style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer" }}>
+                {saving ? "儲存中..." : "儲存修改"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Videos Tab ────────────────────────────────────────────────────────────
 
 function VideosTab({ token }: { token: string }) {
-  const [videos, setVideos] = useState<VideoItem[]>([]);
+  const [videos, setVideos] = useState<Array<{ id: string; title: string; category: string; brands: string[]; status: string; drive_file_id: string }>>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editTarget, setEditTarget] = useState<VideoItem | null>(null);
-  const [formData, setFormData] = useState({
-    title: "",
-    driveFileId: "",
-    category: VIDEO_CATEGORIES[0],
-    brands: [] as string[],
-    status: "draft" as VideoItem["status"],
-  });
-  const [saving, setSaving] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDriveId, setNewDriveId] = useState("");
+  const [newCategory, setNewCategory] = useState("新人培訓");
 
   const fetchVideos = useCallback(() => {
     setLoading(true);
     fetch("/api/admin/videos", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
-      .then((d) => setVideos(Array.isArray(d) ? d : d.videos ?? []))
+      .then((d) => setVideos(d.videos || []))
       .catch(() => setVideos([]))
       .finally(() => setLoading(false));
   }, [token]);
 
   useEffect(() => { fetchVideos(); }, [fetchVideos]);
 
-  function openAdd() {
-    setEditTarget(null);
-    setFormData({ title: "", driveFileId: "", category: VIDEO_CATEGORIES[0], brands: [], status: "draft" });
-    setShowForm(true);
-  }
-
-  function openEdit(v: VideoItem) {
-    setEditTarget(v);
-    setFormData({
-      title: v.title,
-      driveFileId: v.driveFileId,
-      category: v.category,
-      brands: v.brands,
-      status: v.status,
+  const addVideo = async () => {
+    if (!newTitle || !newDriveId) return;
+    await fetch("/api/admin/videos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ title: newTitle, url: newDriveId, category: newCategory, status: "published", brands: [] }),
     });
-    setShowForm(true);
-  }
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      if (editTarget) {
-        await fetch(`/api/admin/videos/${editTarget.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(formData),
-        });
-        setVideos((prev) =>
-          prev.map((v) => (v.id === editTarget.id ? { ...v, ...formData } : v))
-        );
-      } else {
-        const res = await fetch("/api/admin/videos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(formData),
-        });
-        const created = await res.json();
-        setVideos((prev) => [created, ...prev]);
-      }
-      setShowForm(false);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm("確定要刪除這個影片嗎？")) return;
-    await fetch(`/api/admin/videos/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    setVideos((prev) => prev.filter((v) => v.id !== id));
-  }
-
-  function toggleBrand(b: string) {
-    setFormData((prev) => ({
-      ...prev,
-      brands: prev.brands.includes(b) ? prev.brands.filter((x) => x !== b) : [...prev.brands, b],
-    }));
-  }
-
-  if (loading) return <LoadingSpinner />;
+    setNewTitle(""); setNewDriveId(""); setShowAdd(false);
+    fetchVideos();
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <h2 style={{ color: "var(--text)", fontSize: 22, fontWeight: 700, margin: 0 }}>
-            影片管理
-          </h2>
-          <p style={{ color: "var(--text3)", fontSize: 14, margin: "4px 0 0" }}>
-            共 {videos.length} 個影片
-          </p>
-        </div>
-        <button onClick={openAdd} style={primaryBtnStyle}>
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700 }}>影片管理</h2>
+        <button onClick={() => setShowAdd(!showAdd)} style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: "8px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
           + 新增影片
         </button>
       </div>
 
-      {/* Video Form Modal */}
-      {showForm && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.65)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: 20,
-          }}
-        >
-          <div
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              borderRadius: 18,
-              padding: "32px",
-              width: "100%",
-              maxWidth: 520,
-              boxShadow: "0 32px 100px rgba(0,0,0,0.6)",
-            }}
-          >
-            <h3 style={{ color: "var(--text)", fontSize: 18, fontWeight: 700, margin: "0 0 24px" }}>
-              {editTarget ? "編輯影片" : "新增影片"}
-            </h3>
-            <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div>
-                <label style={labelStyle}>影片標題</label>
-                <input
-                  value={formData.title}
-                  onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
-                  placeholder="請輸入影片標題"
-                  required
-                  style={inputStyle}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Google Drive 檔案 ID</label>
-                <input
-                  value={formData.driveFileId}
-                  onChange={(e) => setFormData((p) => ({ ...p, driveFileId: e.target.value }))}
-                  placeholder="例: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
-                  required
-                  style={inputStyle}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>分類</label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData((p) => ({ ...p, category: e.target.value }))}
-                  style={selectStyle}
-                >
-                  {VIDEO_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={labelStyle}>適用品牌（可多選）</label>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
-                  {ALL_BRANDS.map((b) => {
-                    const selected = formData.brands.includes(b);
-                    return (
-                      <button
-                        key={b}
-                        type="button"
-                        onClick={() => toggleBrand(b)}
-                        style={{
-                          background: selected ? "var(--accent)" : "var(--bg2)",
-                          color: selected ? "#fff" : "var(--text2)",
-                          border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
-                          borderRadius: 8,
-                          padding: "6px 14px",
-                          fontSize: 13,
-                          cursor: "pointer",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {BRAND_LABELS[b]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div>
-                <label style={labelStyle}>狀態</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData((p) => ({ ...p, status: e.target.value as VideoItem["status"] }))}
-                  style={selectStyle}
-                >
-                  <option value="draft">草稿</option>
-                  <option value="pending">待審核</option>
-                  <option value="published">已發布</option>
-                </select>
-              </div>
-              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  style={ghostBtnStyle}
-                >
-                  取消
-                </button>
-                <button type="submit" disabled={saving} style={{ ...primaryBtnStyle, flex: 1 }}>
-                  {saving ? "儲存中..." : editTarget ? "儲存變更" : "新增影片"}
-                </button>
-              </div>
-            </form>
+      {showAdd && (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>影片標題</label>
+              <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} style={inputStyle} placeholder="例：後台操作教學" />
+            </div>
+            <div>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>Google Drive 檔案 ID</label>
+              <input value={newDriveId} onChange={(e) => setNewDriveId(e.target.value)} style={inputStyle} placeholder="貼上 Drive 檔案 ID" />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "end" }}>
+            <div>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>分類</label>
+              <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ ...inputStyle, maxWidth: 200 }}>
+                {["新人培訓", "銷售技巧", "產品知識", "進階課程"].map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <button onClick={addVideo} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>新增</button>
           </div>
         </div>
       )}
 
-      {/* Video Grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-          gap: 16,
-        }}
-      >
-        {videos.length === 0 ? (
-          <div
-            style={{
-              gridColumn: "1/-1",
-              textAlign: "center",
-              color: "var(--text3)",
-              padding: "60px 0",
-            }}
-          >
-            尚無影片，點擊「新增影片」開始建立
-          </div>
-        ) : (
-          videos.map((v) => (
-            <div
-              key={v.id}
-              style={{
-                background: "var(--card)",
-                border: "1px solid var(--border)",
-                borderRadius: 14,
-                padding: "20px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-                transition: "border-color 0.2s",
-              }}
-              onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLDivElement).style.borderColor = "var(--accent)")
-              }
-              onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)")
-              }
-            >
-              {/* Thumbnail placeholder */}
-              <div
-                style={{
-                  background: "var(--bg2)",
-                  borderRadius: 10,
-                  height: 140,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 36,
-                  color: "var(--text3)",
-                }}
-              >
-                🎬
-              </div>
-              <div>
-                <div style={{ color: "var(--text)", fontWeight: 600, fontSize: 15, lineHeight: 1.3 }}>
-                  {v.title}
-                </div>
-                <div style={{ color: "var(--text3)", fontSize: 12, marginTop: 4 }}>
-                  {v.category}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {v.brands.map((b) => (
-                  <span
-                    key={b}
-                    style={{
-                      background: "var(--accent)22",
-                      color: "var(--accent)",
-                      border: "1px solid var(--accent)44",
-                      borderRadius: 5,
-                      padding: "2px 8px",
-                      fontSize: 11,
-                    }}
-                  >
-                    {BRAND_LABELS[b] ?? b}
-                  </span>
-                ))}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <StatusBadge status={v.status} />
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => openEdit(v)}
-                    style={{
-                      background: "var(--bg2)",
-                      color: "var(--text2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 7,
-                      padding: "5px 12px",
-                      fontSize: 12,
-                      cursor: "pointer",
-                    }}
-                  >
-                    編輯
-                  </button>
-                  <button
-                    onClick={() => handleDelete(v.id)}
-                    style={{
-                      background: "#ee5a5222",
-                      color: "#ee5a52",
-                      border: "1px solid #ee5a5244",
-                      borderRadius: 7,
-                      padding: "5px 12px",
-                      fontSize: 12,
-                      cursor: "pointer",
-                    }}
-                  >
-                    刪除
-                  </button>
-                </div>
-              </div>
+      {loading ? <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>載入中...</div> : videos.length === 0 ? (
+        <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>尚無影片</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+          {videos.map((v) => (
+            <div key={v.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>{v.title}</div>
+              <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 4 }}>分類：{v.category}</div>
+              <div style={{ fontSize: 11, color: "var(--text3)", wordBreak: "break-all" }}>ID: {v.drive_file_id || "—"}</div>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Approvals Tab ────────────────────────────────────────────────────────────
+// ─── Approvals Tab ─────────────────────────────────────────────────────────
 
 function ApprovalsTab({ token }: { token: string }) {
-  const [items, setItems] = useState<ApprovalItem[]>([]);
+  const [approvals, setApprovals] = useState<Array<{ id: string; type: string; action: string; submitted_by: string; created_at: string; status: string; review_note: string }>>([]);
   const [loading, setLoading] = useState(true);
-  const [noteModal, setNoteModal] = useState<{ id: string; action: "approve" | "reject" } | null>(null);
-  const [note, setNote] = useState("");
-  const [processing, setProcessing] = useState<string | null>(null);
 
-  const fetchApprovals = useCallback(() => {
-    setLoading(true);
-    fetch("/api/admin/approvals", { headers: { Authorization: `Bearer ${token}` } })
+  useEffect(() => {
+    fetch("/api/admin/approvals?status=all", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
-      .then((d) => setItems(Array.isArray(d) ? d : d.approvals ?? []))
-      .catch(() => setItems([]))
+      .then((d) => setApprovals(d.approvals || []))
+      .catch(() => setApprovals([]))
       .finally(() => setLoading(false));
   }, [token]);
 
-  useEffect(() => { fetchApprovals(); }, [fetchApprovals]);
+  const handleAction = async (id: string, status: "approved" | "rejected") => {
+    await fetch("/api/admin/approvals", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id, status, reviewed_by: "admin" }),
+    });
+    // Refresh
+    const res = await fetch("/api/admin/approvals?status=all", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
+    setApprovals(res.approvals || []);
+  };
 
-  async function handleDecision(id: string, decision: "approve" | "reject", noteText?: string) {
-    setProcessing(id);
-    try {
-      await fetch(`/api/admin/approvals/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: decision === "approve" ? "approved" : "rejected", note: noteText }),
-      });
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === id
-            ? { ...item, status: decision === "approve" ? "approved" : "rejected", note: noteText }
-            : item
-        )
-      );
-    } finally {
-      setProcessing(null);
-      setNoteModal(null);
-      setNote("");
-    }
-  }
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>載入中...</div>;
 
-  const pending = items.filter((i) => i.status === "pending");
-  const processed = items.filter((i) => i.status !== "pending");
-
-  if (loading) return <LoadingSpinner />;
+  const pending = approvals.filter((a) => a.status === "pending");
+  const processed = approvals.filter((a) => a.status !== "pending");
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div>
-        <h2 style={{ color: "var(--text)", fontSize: 22, fontWeight: 700, margin: 0 }}>
-          審核管理
-        </h2>
-        <p style={{ color: "var(--text3)", fontSize: 14, margin: "4px 0 0" }}>
-          {pending.length} 件待處理
-        </p>
-      </div>
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>審核中心</h2>
 
-      {/* Note Modal */}
-      {noteModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.65)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: 20,
-          }}
-        >
-          <div
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              borderRadius: 18,
-              padding: "28px",
-              width: "100%",
-              maxWidth: 420,
-            }}
-          >
-            <h3 style={{ color: "var(--text)", fontSize: 16, fontWeight: 700, margin: "0 0 16px" }}>
-              {noteModal.action === "approve" ? "批准申請" : "拒絕申請"}
-            </h3>
-            <label style={labelStyle}>備注（選填）</label>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="輸入審核備注..."
-              rows={3}
-              style={{
-                ...inputStyle,
-                resize: "vertical",
-                marginTop: 6,
-                fontFamily: "inherit",
-              }}
-            />
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button
-                onClick={() => { setNoteModal(null); setNote(""); }}
-                style={ghostBtnStyle}
-              >
-                取消
-              </button>
-              <button
-                onClick={() => handleDecision(noteModal.id, noteModal.action, note || undefined)}
-                disabled={!!processing}
-                style={{
-                  ...primaryBtnStyle,
-                  flex: 1,
-                  background:
-                    noteModal.action === "approve"
-                      ? "linear-gradient(135deg, #10ac84, #068368)"
-                      : "linear-gradient(135deg, #ee5a52, #c0392b)",
-                }}
-              >
-                {processing ? "處理中..." : noteModal.action === "approve" ? "確認批准" : "確認拒絕"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Pending */}
-      <div>
-        <div style={{ color: "var(--text2)", fontSize: 13, fontWeight: 600, marginBottom: 12, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-          待審核 ({pending.length})
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {pending.length === 0 ? (
-            <div
-              style={{
-                background: "var(--card)",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
-                padding: "32px",
-                textAlign: "center",
-                color: "var(--text3)",
-              }}
-            >
-              🎉 目前沒有待審核的申請
-            </div>
-          ) : (
-            pending.map((item) => (
-              <ApprovalCard
-                key={item.id}
-                item={item}
-                processing={processing}
-                onApprove={() => setNoteModal({ id: item.id, action: "approve" })}
-                onReject={() => setNoteModal({ id: item.id, action: "reject" })}
-              />
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Processed */}
-      {processed.length > 0 && (
-        <div>
-          <div style={{ color: "var(--text3)", fontSize: 13, fontWeight: 600, marginBottom: 12, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-            已處理 ({processed.length})
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {processed.map((item) => (
-              <ApprovalCard
-                key={item.id}
-                item={item}
-                processing={processing}
-                readonly
-              />
+      {pending.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--gold)", marginBottom: 12 }}>待審核 ({pending.length})</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pending.map((a) => (
+              <div key={a.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{a.action || a.type}</div>
+                  <div style={{ fontSize: 12, color: "var(--text3)" }}>提交者：{a.submitted_by} · {new Date(a.created_at).toLocaleDateString("zh-TW")}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => handleAction(a.id, "approved")} style={{ background: "var(--green)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>批准</button>
+                  <button onClick={() => handleAction(a.id, "rejected")} style={{ background: "var(--red)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>拒絕</button>
+                </div>
+              </div>
             ))}
           </div>
         </div>
       )}
-    </div>
-  );
-}
 
-function ApprovalCard({
-  item,
-  processing,
-  onApprove,
-  onReject,
-  readonly,
-}: {
-  item: ApprovalItem;
-  processing: string | null;
-  onApprove?: () => void;
-  onReject?: () => void;
-  readonly?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: "16px 20px",
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-        flexWrap: "wrap",
-        opacity: readonly ? 0.7 : 1,
-      }}
-    >
-      <div style={{ flex: 1, minWidth: 200 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <span
-            style={{
-              background: "var(--accent)22",
-              color: "var(--accent)",
-              borderRadius: 5,
-              padding: "2px 8px",
-              fontSize: 11,
-              fontWeight: 600,
-            }}
-          >
-            {item.type}
-          </span>
-          <span style={{ color: "var(--text)", fontWeight: 600, fontSize: 14 }}>{item.action}</span>
-        </div>
-        <div style={{ color: "var(--text2)", fontSize: 13 }}>
-          提交者：{item.submittedBy}
-        </div>
-        <div style={{ color: "var(--text3)", fontSize: 12, marginTop: 2 }}>
-          {new Date(item.submittedDate).toLocaleString("zh-TW")}
-        </div>
-        {item.note && (
-          <div style={{ color: "var(--text3)", fontSize: 12, marginTop: 4, fontStyle: "italic" }}>
-            備注：{item.note}
+      {processed.length > 0 && (
+        <div>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--text2)", marginBottom: 12 }}>已處理 ({processed.length})</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, opacity: 0.7 }}>
+            {processed.slice(0, 20).map((a) => (
+              <div key={a.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{a.action || a.type}</div>
+                  <div style={{ fontSize: 12, color: "var(--text3)" }}>{a.submitted_by}</div>
+                </div>
+                <span style={{
+                  background: a.status === "approved" ? "#22c55e22" : "#f8717122",
+                  color: a.status === "approved" ? "var(--green)" : "var(--red)",
+                  padding: "2px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                }}>
+                  {a.status === "approved" ? "已批准" : "已拒絕"}
+                </span>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <StatusBadge status={item.status} />
-        {!readonly && (
-          <>
-            <button
-              disabled={processing === item.id}
-              onClick={onApprove}
-              style={{
-                background: "#10ac8422",
-                color: "#10ac84",
-                border: "1px solid #10ac8444",
-                borderRadius: 8,
-                padding: "6px 16px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: processing === item.id ? "not-allowed" : "pointer",
-                opacity: processing === item.id ? 0.5 : 1,
-              }}
-            >
-              批准
-            </button>
-            <button
-              disabled={processing === item.id}
-              onClick={onReject}
-              style={{
-                background: "#ee5a5222",
-                color: "#ee5a52",
-                border: "1px solid #ee5a5244",
-                borderRadius: 8,
-                padding: "6px 16px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: processing === item.id ? "not-allowed" : "pointer",
-                opacity: processing === item.id ? 0.5 : 1,
-              }}
-            >
-              拒絕
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Loading Spinner ──────────────────────────────────────────────────────────
-
-function LoadingSpinner() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          border: "3px solid var(--border)",
-          borderTopColor: "var(--accent)",
-          animation: "spin 0.8s linear infinite",
-        }}
-      />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-}
-
-// ─── Shared Styles ────────────────────────────────────────────────────────────
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  background: "var(--bg2)",
-  border: "1px solid var(--border)",
-  borderRadius: 10,
-  padding: "9px 12px",
-  color: "var(--text)",
-  fontSize: 14,
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const selectStyle: React.CSSProperties = {
-  background: "var(--bg2)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  padding: "8px 12px",
-  color: "var(--text)",
-  fontSize: 13,
-  outline: "none",
-  cursor: "pointer",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  color: "var(--text2)",
-  fontSize: 13,
-  marginBottom: 6,
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "12px 16px",
-  verticalAlign: "middle",
-};
-
-const primaryBtnStyle: React.CSSProperties = {
-  background: "linear-gradient(135deg, var(--accent), #5f52d0)",
-  color: "#fff",
-  border: "none",
-  borderRadius: 10,
-  padding: "9px 18px",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-};
-
-const ghostBtnStyle: React.CSSProperties = {
-  background: "var(--bg2)",
-  color: "var(--text2)",
-  border: "1px solid var(--border)",
-  borderRadius: 10,
-  padding: "9px 18px",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-  flex: 1,
-};
-
-// ─── Nav Item ─────────────────────────────────────────────────────────────────
-
-function NavItem({
-  label,
-  icon,
-  active,
-  onClick,
-  badge,
-}: {
-  label: string;
-  icon: string;
-  active: boolean;
-  onClick: () => void;
-  badge?: number;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        width: "100%",
-        padding: "10px 14px",
-        borderRadius: 10,
-        border: "none",
-        background: active ? "var(--accent)" : "transparent",
-        color: active ? "#fff" : "var(--text2)",
-        fontSize: 14,
-        fontWeight: active ? 600 : 400,
-        cursor: "pointer",
-        textAlign: "left",
-        transition: "all 0.15s",
-        position: "relative",
-      }}
-      onMouseEnter={(e) => {
-        if (!active) (e.currentTarget as HTMLButtonElement).style.background = "var(--bg2)";
-      }}
-      onMouseLeave={(e) => {
-        if (!active) (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-      }}
-    >
-      <span style={{ fontSize: 17 }}>{icon}</span>
-      <span style={{ flex: 1 }}>{label}</span>
-      {badge !== undefined && badge > 0 && (
-        <span
-          style={{
-            background: "#feca57",
-            color: "#08080c",
-            borderRadius: 10,
-            padding: "1px 7px",
-            fontSize: 11,
-            fontWeight: 700,
-            minWidth: 20,
-            textAlign: "center",
-          }}
-        >
-          {badge}
-        </span>
+        </div>
       )}
-    </button>
-  );
-}
 
-// ─── Main Admin Page ──────────────────────────────────────────────────────────
-
-export default function AdminPage() {
-  const [session, setSession] = useState<AdminSession | null>(null);
-  const [tab, setTab] = useState<AdminTab>("dashboard");
-  const [pendingCount, setPendingCount] = useState(0);
-  const [hydrated, setHydrated] = useState(false);
-
-  // Hydrate from sessionStorage
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("adminSession");
-      if (raw) setSession(JSON.parse(raw));
-    } catch {
-      // ignore
-    }
-    setHydrated(true);
-  }, []);
-
-  // Fetch pending count for badge
-  useEffect(() => {
-    if (!session) return;
-    fetch("/api/admin/approvals", { headers: { Authorization: `Bearer ${session.token}` } })
-      .then((r) => r.json())
-      .then((d) => {
-        const arr: ApprovalItem[] = Array.isArray(d) ? d : d.approvals ?? [];
-        setPendingCount(arr.filter((i) => i.status === "pending").length);
-      })
-      .catch(() => {});
-  }, [session, tab]);
-
-  function handleLogin(s: AdminSession) {
-    sessionStorage.setItem("adminSession", JSON.stringify(s));
-    setSession(s);
-  }
-
-  function handleLogout() {
-    sessionStorage.removeItem("adminSession");
-    setSession(null);
-  }
-
-  if (!hydrated) return null;
-  if (!session) return <LoginScreen onLogin={handleLogin} />;
-
-  const TABS: { id: AdminTab; label: string; icon: string }[] = [
-    { id: "dashboard", label: "Dashboard", icon: "📊" },
-    { id: "users", label: "用戶管理", icon: "👥" },
-    { id: "videos", label: "影片管理", icon: "🎬" },
-    { id: "approvals", label: "審核管理", icon: "✅" },
-  ];
-
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "var(--bg)",
-        display: "flex",
-        fontFamily: '"SF Pro Display", "PingFang TC", "Microsoft JhengHei", sans-serif',
-      }}
-    >
-      {/* ── Sidebar ── */}
-      <aside
-        style={{
-          width: 240,
-          flexShrink: 0,
-          background: "var(--bg2)",
-          borderRight: "1px solid var(--border)",
-          display: "flex",
-          flexDirection: "column",
-          padding: "24px 16px",
-          position: "sticky",
-          top: 0,
-          height: "100vh",
-          overflowY: "auto",
-        }}
-      >
-        {/* Logo */}
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 6px" }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                background: "linear-gradient(135deg, var(--accent), var(--teal))",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 18,
-                flexShrink: 0,
-              }}
-            >
-              🎓
-            </div>
-            <div>
-              <div style={{ color: "var(--text)", fontWeight: 700, fontSize: 14 }}>
-                墨宇學院
-              </div>
-              <div style={{ color: "var(--accent)", fontSize: 11, fontWeight: 600 }}>
-                Admin Panel
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-          <div style={{ color: "var(--text3)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", padding: "0 8px", marginBottom: 6 }}>
-            管理選單
-          </div>
-          {TABS.map((t) => (
-            <NavItem
-              key={t.id}
-              label={t.label}
-              icon={t.icon}
-              active={tab === t.id}
-              onClick={() => setTab(t.id)}
-              badge={t.id === "approvals" ? pendingCount : undefined}
-            />
-          ))}
-        </nav>
-
-        {/* User Info */}
-        <div
-          style={{
-            borderTop: "1px solid var(--border)",
-            paddingTop: 16,
-            marginTop: 16,
-          }}
-        >
-          <div style={{ padding: "0 6px", marginBottom: 10 }}>
-            <div style={{ color: "var(--text)", fontWeight: 600, fontSize: 14 }}>
-              {session.name}
-            </div>
-            <div style={{ color: "var(--text3)", fontSize: 12, marginTop: 2 }}>
-              {session.email}
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            style={{
-              width: "100%",
-              background: "#ee5a5215",
-              color: "#ee5a52",
-              border: "1px solid #ee5a5230",
-              borderRadius: 8,
-              padding: "8px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) =>
-              ((e.currentTarget as HTMLButtonElement).style.background = "#ee5a5230")
-            }
-            onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLButtonElement).style.background = "#ee5a5215")
-            }
-          >
-            登出
-          </button>
-        </div>
-      </aside>
-
-      {/* ── Main Content ── */}
-      <main
-        style={{
-          flex: 1,
-          padding: "32px 40px",
-          overflowY: "auto",
-          maxWidth: "100%",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 28,
-            paddingBottom: 20,
-            borderBottom: "1px solid var(--border)",
-          }}
-        >
-          <div>
-            <h1 style={{ color: "var(--text)", fontSize: 18, fontWeight: 700, margin: 0 }}>
-              {TABS.find((t) => t.id === tab)?.label}
-            </h1>
-            <div style={{ color: "var(--text3)", fontSize: 13, marginTop: 3 }}>
-              {new Date().toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
-            </div>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              padding: "8px 14px",
-            }}
-          >
-            <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "#10ac84",
-                boxShadow: "0 0 0 2px #10ac8433",
-              }}
-            />
-            <span style={{ color: "var(--text2)", fontSize: 13 }}>系統正常運行</span>
-          </div>
-        </div>
-
-        {/* Tab Content */}
-        <div style={{ animation: "fadeIn 0.3s ease-out" }}>
-          {tab === "dashboard" && <DashboardTab token={session.token} />}
-          {tab === "users" && <UsersTab token={session.token} />}
-          {tab === "videos" && <VideosTab token={session.token} />}
-          {tab === "approvals" && <ApprovalsTab token={session.token} />}
-        </div>
-      </main>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        input::placeholder { color: var(--text3); }
-        textarea::placeholder { color: var(--text3); }
-        select option { background: var(--bg2); color: var(--text); }
-      `}</style>
+      {approvals.length === 0 && (
+        <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>目前沒有審核項目</div>
+      )}
     </div>
   );
 }
