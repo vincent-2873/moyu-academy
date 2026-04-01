@@ -25,6 +25,7 @@ const navItems = [
   { id: "records", icon: "📝", label: "對練紀錄" },
   { id: "finance", icon: "💹", label: "專業知識" },
   { id: "knowledge", icon: "📖", label: "品牌知識庫" },
+  { id: "articles", icon: "📰", label: "業務專欄", badge: "AI" },
 ];
 
 export default function Sidebar({

@@ -17,6 +17,7 @@ import { brands } from "@/data/brands";
 import { modules, TASK_ICONS } from "@/data/modules";
 import { personas, getPersonasByBrand } from "@/data/personas";
 import Sidebar from "@/components/Sidebar";
+import CalendarDashboard from "@/components/CalendarDashboard";
 import ScoreRadar from "@/components/ScoreRadar";
 import { scoreConversation, getScoreColor, getScoreLabel, SCORE_LABELS } from "@/lib/scoring";
 import {
@@ -41,7 +42,8 @@ type Page =
   | "kpi"
   | "records"
   | "finance"
-  | "knowledge";
+  | "knowledge"
+  | "articles";
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -107,6 +109,7 @@ export default function Home() {
         {page === "records" && <RecordsPage user={user} />}
         {page === "finance" && <FinanceKnowledgePage />}
         {page === "knowledge" && <KnowledgePage brandId={user.brand} />}
+        {page === "articles" && <ArticlesPage />}
       </main>
       <HelpBot />
     </div>
@@ -462,15 +465,92 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
       })()
     : null;
 
+  // Calculate overdue tasks for notification bell
+  const currentDay = Math.min(22, Math.max(1, Math.ceil((Date.now() - new Date(user.joinDate).getTime()) / (1000 * 60 * 60 * 24))));
+  const [overdueCount, setOverdueCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`moyu_tasks_${user.email}`);
+      const tasks: Record<string, boolean> = stored ? JSON.parse(stored) : {};
+      let overdue = 0;
+      // Count incomplete tasks from past days
+      for (let d = 1; d < currentDay; d++) {
+        const mod = modules.find((m) => m.day === d);
+        if (mod) {
+          mod.tasks.forEach((_, idx) => {
+            const taskId = `day${d}_task${idx}`;
+            if (!tasks[taskId]) overdue++;
+          });
+        }
+      }
+      setOverdueCount(overdue);
+    } catch { setOverdueCount(0); }
+  }, [user.email, currentDay]);
+
   return (
     <div className="animate-fade-in">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold">
-          歡迎回來，{user.name}
-        </h1>
-        <p className="text-[var(--text2)]">
-          {brand.fullName} | 加入 {Math.ceil((Date.now() - new Date(user.joinDate).getTime()) / (1000 * 60 * 60 * 24))} 天
-        </p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">
+            歡迎回來，{user.name}
+          </h1>
+          <p className="text-[var(--text2)]">
+            {brand.fullName} | 加入 {Math.ceil((Date.now() - new Date(user.joinDate).getTime()) / (1000 * 60 * 60 * 24))} 天 | 訓練第 {currentDay} 天
+          </p>
+        </div>
+        {/* Notification Bell */}
+        <div className="relative">
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="relative w-10 h-10 rounded-lg bg-[var(--card)] border border-[var(--border)] flex items-center justify-center text-xl hover:bg-[var(--bg2)] transition-all"
+          >
+            🔔
+            {overdueCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-[var(--red)] text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                {overdueCount > 99 ? "99+" : overdueCount}
+              </span>
+            )}
+          </button>
+          {showNotifications && (
+            <div className="absolute right-0 top-12 w-72 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl z-50 overflow-hidden">
+              <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                <span className="font-bold text-sm">通知中心</span>
+                <button onClick={() => setShowNotifications(false)} className="text-[var(--text3)] hover:text-[var(--text)]">✕</button>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {overdueCount > 0 ? (
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-start gap-3 p-3 bg-[rgba(255,77,77,0.08)] rounded-lg border border-[rgba(255,77,77,0.2)]">
+                      <span className="text-lg">⚠️</span>
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--red)]">逾期任務提醒</p>
+                        <p className="text-xs text-[var(--text2)] mt-0.5">
+                          你有 {overdueCount} 項過去天數的任務尚未完成，請盡快補完！
+                        </p>
+                      </div>
+                    </div>
+                    {!todayKpi && (
+                      <div className="flex items-start gap-3 p-3 bg-[rgba(254,202,87,0.08)] rounded-lg border border-[rgba(254,202,87,0.2)]">
+                        <span className="text-lg">📊</span>
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--gold)]">今日 KPI 未填</p>
+                          <p className="text-xs text-[var(--text2)] mt-0.5">記得填寫今天的 KPI 數據</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-[var(--text3)]">
+                    <p className="text-2xl mb-2">✅</p>
+                    <p className="text-sm">太棒了！目前沒有逾期任務</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -495,8 +575,32 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
         ))}
       </div>
 
+      {/* Calendar Dashboard - 日曆 + 每日待辦 */}
+      <div className="mb-8">
+        <CalendarDashboard
+          userEmail={user.email}
+          currentDay={Math.min(22, Math.max(1, Math.ceil((Date.now() - new Date(user.joinDate).getTime()) / (1000 * 60 * 60 * 24))))}
+          startDate={user.joinDate}
+          completedTasks={(() => {
+            try {
+              const stored = localStorage.getItem(`moyu_tasks_${user.email}`);
+              return stored ? JSON.parse(stored) : {};
+            } catch { return {}; }
+          })()}
+          onTaskToggle={(taskId: string) => {
+            try {
+              const key = `moyu_tasks_${user.email}`;
+              const stored = localStorage.getItem(key);
+              const tasks = stored ? JSON.parse(stored) : {};
+              tasks[taskId] = !tasks[taskId];
+              localStorage.setItem(key, JSON.stringify(tasks));
+            } catch { /* ignore */ }
+          }}
+        />
+      </div>
+
       {/* Recommended Actions */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
           <h3 className="text-lg font-bold mb-4" style={{ color: "var(--accent-light)" }}>
             推薦行動
@@ -2695,6 +2799,100 @@ function FinanceKnowledgePage() {
 }
 
 /* ===================== KNOWLEDGE ===================== */
+/* ===================== ARTICLES PAGE (業務專欄) ===================== */
+
+const ARTICLE_CATEGORIES = [
+  { id: "all", label: "全部", icon: "📰" },
+  { id: "sales", label: "銷售技巧", icon: "🎯" },
+  { id: "mindset", label: "心態建設", icon: "💪" },
+  { id: "finance", label: "財經時事", icon: "💹" },
+  { id: "trend", label: "產業趨勢", icon: "📊" },
+  { id: "success", label: "成功案例", icon: "🏆" },
+];
+
+const ARTICLES_DATA = [
+  { id: 1, cat: "sales", title: "SPIN 銷售法：用問題引導客戶需求", summary: "SPIN 代表 Situation(現況)、Problem(問題)、Implication(影響)、Need-payoff(需求回報)。透過有系統的提問，讓客戶自己說出需求，而不是你去推銷。", takeaways: ["先問現況再問痛點，不要急著介紹產品", "Implication 問題讓客戶意識到不行動的代價", "Need-payoff 讓客戶自己說出解決方案的價值"], date: "2026-04-01" },
+  { id: 2, cat: "sales", title: "電話行銷的黃金 30 秒：開場白決定一切", summary: "客戶接起電話的前 30 秒，決定了他會不會繼續聽下去。開場白要做到三件事：建立身分、引起興趣、取得許可繼續對話。", takeaways: ["開場不要問「方便嗎」，直接建立價值", "用「好不好」取代「想不想」", "語氣決定 80%，內容只佔 20%"], date: "2026-04-01" },
+  { id: 3, cat: "sales", title: "處理「太貴了」異議的 5 種方法", summary: "客戶說太貴，不一定真的嫌貴。可能是不確定價值、沒有預算概念、或只是習慣性殺價。關鍵是分辨真假異議。", takeaways: ["先認同再轉化：「理解，所以更值得了解清楚」", "拆解成日均成本：「一天不到一杯咖啡」", "不要急著打折，先問「是跟什麼比覺得貴？」"], date: "2026-03-31" },
+  { id: 4, cat: "sales", title: "從邀約到成交：Demo 的關鍵轉化點", summary: "Demo 不是產品說明會，是幫客戶規劃學習路徑。從破冰到客製化規劃，每個環節都要回扣客戶的初衷和痛點。", takeaways: ["P1-P3 先從「你是誰」開始，不要直接進產品", "務必給客戶看兩個課程影片，讓他感受 1+1>2", "收尾三次確認：複利觀念→為什麼投資→什麼時候開始"], date: "2026-03-31" },
+  { id: 5, cat: "sales", title: "客戶說「我要想想」？3 步化解拖延", summary: "「我要想想」是最常見的軟拒絕。不要直接放棄，也不要硬逼。用三步法化解：確認顧慮→具體化→引導決策。", takeaways: ["問「想想哪個部分？」把模糊變具體", "幫客戶整理他已經認同的點", "給出限時方案或下次約定，不留模糊空間"], date: "2026-03-30" },
+  { id: 6, cat: "mindset", title: "業務新人的第一週：如何度過挫折期", summary: "第一週是離職率最高的時期。被拒絕是常態，不是你的問題。重點是建立正確的心態框架：把每通電話當練習，不是考試。", takeaways: ["第一週的目標是「習慣被拒絕」，不是成交", "每天找到一個小進步，哪怕只是語氣更自然", "下班後跟師父聊 15 分鐘，不要把情緒帶回家"], date: "2026-03-30" },
+  { id: 7, cat: "mindset", title: "被拒絕 100 次後的心態重建", summary: "頂尖業務的共同特質不是口才好，而是抗壓性強。被拒絕不代表你不好，只是時機不對、需求不匹配。調整心態的關鍵是「去個人化」。", takeaways: ["客戶拒絕的是產品時機，不是你這個人", "記錄拒絕原因，找出可以改善的模式", "每 10 通被拒絕，就會有 1 通成功，這是數學不是運氣"], date: "2026-03-29" },
+  { id: 8, cat: "mindset", title: "為什麼頂尖業務都是自律的人", summary: "業績好的不一定很聰明，但一定自律、努力、正面、積極、抗壓性強。自律不是天生的，是透過習慣養成的。", takeaways: ["每天固定時間撥打，不要等「狀態好」才開始", "數據不會騙人：通次→通時→邀約→成交", "跟表現好的人待在一起，環境決定你的標準"], date: "2026-03-29" },
+  { id: 9, cat: "finance", title: "2026 台股趨勢：AI 概念股持續領漲", summary: "AI 相關族群持續吸引資金流入，從上游晶片到下游應用，整個產業鏈都在受惠。投資人需要了解不同層次的受惠程度。", takeaways: ["AI 不只是台積電，整個供應鏈都有機會", "選股要看實際營收貢獻，不是只有題材", "ETF 是新手參與 AI 趨勢的最簡單方式"], date: "2026-04-01" },
+  { id: 10, cat: "finance", title: "ETF 投資新手指南：從 0050 到主題式 ETF", summary: "ETF 是最適合新手的投資工具。從市值型 0050 到產業型 ETF，了解不同類型的風險和報酬特性。", takeaways: ["0050 適合長期定期定額，不用選股", "主題式 ETF 波動大但成長潛力高", "配息型 ETF 不代表穩賺，要看總報酬率"], date: "2026-03-31" },
+  { id: 11, cat: "finance", title: "Fed 利率決策對台灣投資人的影響", summary: "美國聯準會的利率政策直接影響全球資金流向。降息有利股市，升息則讓資金回流美元。台灣投資人要懂得看這個指標。", takeaways: ["降息預期 → 資金往新興市場流 → 台股受惠", "利率高 → 定存和債券更有吸引力", "不要只看利率，要看整體經濟數據配合"], date: "2026-03-30" },
+  { id: 12, cat: "trend", title: "線上理財教育市場 2026 展望", summary: "疫後線上教育持續成長，尤其理財教育需求爆發。年輕人不再滿足於「老師講、學生聽」，更需要實戰型、互動型的學習方式。", takeaways: ["市場規模持續擴大，需求遠大於供給", "客戶要的不只是知識，是「能用的技能」", "實戰模擬+教練指導是最有效的學習模式"], date: "2026-03-31" },
+  { id: 13, cat: "trend", title: "Z 世代的投資行為：從短影音理財到專業學習", summary: "Z 世代透過 TikTok、YouTube 接觸理財概念，但碎片化資訊讓他們知其然不知其所以然。專業系統化學習是下一步需求。", takeaways: ["Z 世代有投資意願但缺系統化知識", "他們習慣線上學習，對實體課程接受度較低", "Demo 時強調「從碎片到系統」的學習路徑升級"], date: "2026-03-30" },
+  { id: 14, cat: "success", title: "新人第一個月就成交：他做對了什麼？", summary: "不是天賦異稟，是做對了三件事：每天穩定 100 通以上、每通 Call 都做 CRM 紀錄、每天下班前跟師父做 2+1 回饋。量變帶來質變。", takeaways: ["量是一切的基礎，沒有量就沒有質", "CRM 紀錄是你的第二大腦，不要靠記憶", "師父的回饋讓你少走三個月彎路"], date: "2026-04-01" },
+  { id: 15, cat: "success", title: "從月薪 3 萬到年收百萬：業務轉型之路", summary: "業務不是靠口才，是靠系統。建立自己的銷售流程、養成數據習慣、持續學習精進。三年內從菜鳥變頂尖，靠的是紀律不是天分。", takeaways: ["第一年學架構、第二年練深度、第三年帶團隊", "每月檢視轉化率，找到自己的瓶頸點", "教別人是最好的學習方式"], date: "2026-03-31" },
+];
+
+function ArticlesPage() {
+  const [cat, setCat] = useState("all");
+  const [search, setSearch] = useState("");
+  const filtered = ARTICLES_DATA.filter(a => {
+    if (cat !== "all" && a.cat !== cat) return false;
+    if (search && !a.title.includes(search) && !a.summary.includes(search)) return false;
+    return true;
+  });
+  const catColors: Record<string, string> = { sales: "var(--accent)", mindset: "var(--teal)", finance: "var(--gold)", trend: "var(--green)", success: "#f59e0b" };
+  const catLabels: Record<string, string> = { sales: "銷售技巧", mindset: "心態建設", finance: "財經時事", trend: "產業趨勢", success: "成功案例" };
+
+  return (
+    <div className="animate-fade-in" style={{ maxWidth: 900 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700 }}>📰 業務專欄</h2>
+        <span style={{ fontSize: 11, color: "var(--text3)", background: "var(--bg2)", padding: "4px 10px", borderRadius: 6 }}>
+          🤖 AI 每日自動更新 · 上次更新: {new Date().toLocaleDateString("zh-TW")}
+        </span>
+      </div>
+      <p style={{ color: "var(--text3)", fontSize: 13, marginBottom: 20 }}>銷售技巧、財經時事、心態建設 — 讓你每天都在進步</p>
+
+      {/* Categories */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+        {ARTICLE_CATEGORIES.map(c => (
+          <button key={c.id} onClick={() => setCat(c.id)} style={{
+            background: cat === c.id ? "var(--accent)" : "var(--bg2)", color: cat === c.id ? "#fff" : "var(--text2)",
+            border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}>{c.icon} {c.label}</button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜尋文章..." style={{
+        width: "100%", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 10,
+        padding: "10px 14px", color: "var(--text)", fontSize: 14, outline: "none", marginBottom: 20, boxSizing: "border-box" as const,
+      }} />
+
+      {/* Articles */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {filtered.map(a => (
+          <div key={a.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
+              <span style={{ background: (catColors[a.cat] || "var(--accent)") + "22", color: catColors[a.cat] || "var(--accent)", padding: "2px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                {catLabels[a.cat]}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--text3)" }}>{a.date}</span>
+            </div>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{a.title}</h3>
+            <p style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.7, marginBottom: 12 }}>{a.summary}</p>
+            <div style={{ background: "var(--bg2)", borderRadius: 10, padding: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--teal)", marginBottom: 6 }}>🎯 關鍵重點</div>
+              {a.takeaways.map((t, i) => (
+                <div key={i} style={{ fontSize: 12, color: "var(--text2)", padding: "3px 0", display: "flex", gap: 6 }}>
+                  <span style={{ color: "var(--accent)" }}>•</span> {t}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {filtered.length === 0 && <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>找不到相關文章</div>}
+    </div>
+  );
+}
+
 function KnowledgePage({ brandId }: { brandId: string }) {
   const brand = brands[brandId];
 

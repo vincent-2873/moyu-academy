@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { modules } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "dashboard" | "users" | "content" | "videos" | "approvals";
+type AdminTab = "dashboard" | "users" | "content" | "videos" | "mentorship" | "approvals";
 
 interface AdminSession { name: string; email: string; token: string; }
 
@@ -34,7 +35,8 @@ const BRAND_LABELS: Record<string, string> = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  super_admin: "超級管理員", brand_manager: "品牌主管", team_leader: "業務主管", trainer: "培訓師", sales_rep: "業務人員",
+  super_admin: "超級管理員", brand_manager: "品牌主管", team_leader: "業務主管",
+  trainer: "培訓師", reserve_cadre: "儲備幹部", mentor: "師父（帶訓）", sales_rep: "業務人員",
 };
 
 const MODULE_TITLES: Record<number, string> = {
@@ -76,6 +78,7 @@ export default function AdminPage() {
     { id: "users", label: "用戶管理", icon: "👥" },
     { id: "content", label: "內容管理", icon: "📝" },
     { id: "videos", label: "影片管理", icon: "🎬" },
+    { id: "mentorship", label: "師徒管理", icon: "🤝" },
     { id: "approvals", label: "審核中心", icon: "✅" },
   ];
 
@@ -118,6 +121,7 @@ export default function AdminPage() {
         {tab === "users" && <UsersTab token={session.token} />}
         {tab === "content" && <ContentTab />}
         {tab === "videos" && <VideosTab token={session.token} />}
+        {tab === "mentorship" && <MentorshipTab token={session.token} />}
         {tab === "approvals" && <ApprovalsTab token={session.token} />}
       </main>
     </div>
@@ -407,6 +411,13 @@ function UsersTab({ token }: { token: string }) {
   const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; is_active: boolean; created_at: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [brandFilter, setBrandFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newBrand, setNewBrand] = useState("nschool");
+  const [newRole, setNewRole] = useState("sales_rep");
+  const [addError, setAddError] = useState("");
 
   const fetchUsers = useCallback(() => {
     setLoading(true);
@@ -430,16 +441,89 @@ function UsersTab({ token }: { token: string }) {
     fetchUsers();
   };
 
+  const addUser = async () => {
+    if (!newName || !newEmail) { setAddError("請填寫姓名和 Email"); return; }
+    setAddError("");
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: newEmail, name: newName, brand: newBrand, role: newRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "新增失敗");
+      setNewName(""); setNewEmail(""); setShowAdd(false);
+      fetchUsers();
+    } catch (err: unknown) {
+      setAddError(err instanceof Error ? err.message : "新增失敗");
+    }
+  };
+
+  const filtered = users.filter((u) => {
+    if (search && !u.name.toLowerCase().includes(search.toLowerCase()) && !u.email.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const activeCount = users.filter((u) => u.is_active).length;
+  const inactiveCount = users.filter((u) => !u.is_active).length;
+
   return (
     <div>
-      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>用戶管理</h2>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>用戶管理</h2>
+          <p style={{ color: "var(--text3)", fontSize: 13, marginTop: 4 }}>
+            共 {users.length} 人 · 啟用 {activeCount} · 停用 {inactiveCount}
+          </p>
+        </div>
+        <button onClick={() => setShowAdd(!showAdd)} style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: "8px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+          + 新增用戶
+        </button>
+      </div>
+
+      {showAdd && (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 20 }}>
+          <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>新增用戶</h4>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>姓名 *</label>
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} style={inputStyle} placeholder="輸入姓名" />
+            </div>
+            <div>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>Email *</label>
+              <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} style={inputStyle} placeholder="輸入 Email" />
+            </div>
+            <div>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>品牌</label>
+              <select value={newBrand} onChange={(e) => setNewBrand(e.target.value)} style={inputStyle}>
+                {Object.entries(BRAND_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>角色</label>
+              <select value={newRole} onChange={(e) => setNewRole(e.target.value)} style={inputStyle}>
+                {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+          {addError && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{addError}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={addUser} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 10, padding: "8px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>新增</button>
+            <button onClick={() => setShowAdd(false)} style={{ background: "var(--border)", color: "var(--text2)", border: "none", borderRadius: 10, padding: "8px 20px", fontSize: 14, cursor: "pointer" }}>取消</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋姓名或 Email..." style={{ ...inputStyle, maxWidth: 300 }} />
         <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} style={{ ...inputStyle, maxWidth: 200 }}>
           <option value="all">全部品牌</option>
           {Object.entries(BRAND_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </div>
-      {loading ? <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>載入中...</div> : (
+      {loading ? <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>載入中...</div> : filtered.length === 0 ? (
+        <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>找不到符合條件的用戶</div>
+      ) : (
         <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -450,7 +534,7 @@ function UsersTab({ token }: { token: string }) {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {filtered.map((u) => (
                 <tr key={u.id} style={{ borderBottom: "1px solid var(--border)" }}>
                   <td style={{ padding: "12px 14px", fontWeight: 600, fontSize: 14 }}>{u.name}</td>
                   <td style={{ padding: "12px 14px", fontSize: 13, color: "var(--text2)" }}>{u.email}</td>
@@ -616,19 +700,21 @@ function ContentTab() {
 // ─── Videos Tab ────────────────────────────────────────────────────────────
 
 function VideosTab({ token }: { token: string }) {
-  const [videos, setVideos] = useState<Array<{ id: string; title: string; category: string; brands: string[]; status: string; drive_file_id: string }>>([]);
+  const [dbVideos, setDbVideos] = useState<Array<{ id: string; title: string; category: string; brands: string[]; status: string; drive_file_id: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDriveId, setNewDriveId] = useState("");
   const [newCategory, setNewCategory] = useState("新人培訓");
+  const [filterDay, setFilterDay] = useState("all");
+  const [filterType, setFilterType] = useState("all");
 
   const fetchVideos = useCallback(() => {
     setLoading(true);
     fetch("/api/admin/videos", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
-      .then((d) => setVideos(d.videos || []))
-      .catch(() => setVideos([]))
+      .then((d) => setDbVideos(d.videos || []))
+      .catch(() => setDbVideos([]))
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -645,17 +731,80 @@ function VideosTab({ token }: { token: string }) {
     fetchVideos();
   };
 
+  // Collect all resources from modules.ts
+  const allResources = modules.flatMap((m) =>
+    (m.resources || []).map((r) => ({ ...r, day: m.day, moduleTitle: m.title }))
+  );
+
+  const videoResources = allResources.filter((r) => r.type === "video" || r.type === "recording");
+  const notionResources = allResources.filter((r) => r.type === "notion" || r.type === "document");
+
+  const TYPE_ICONS: Record<string, string> = { video: "🎬", recording: "🎙️", notion: "📄", document: "📑" };
+  const TYPE_LABELS: Record<string, string> = { video: "教學影片", recording: "成交錄音", notion: "Notion 文件", document: "文件" };
+
+  const filteredVideos = videoResources.filter((r) => {
+    if (filterDay !== "all" && r.day !== Number(filterDay)) return false;
+    if (filterType !== "all" && r.type !== filterType) return false;
+    return true;
+  });
+
+  const filteredDocs = notionResources.filter((r) => {
+    if (filterDay !== "all" && r.day !== Number(filterDay)) return false;
+    return true;
+  });
+
+  const totalVideos = videoResources.length;
+  const totalDocs = notionResources.length;
+  const totalDbVideos = dbVideos.length;
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700 }}>影片管理</h2>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>影片與資源管理</h2>
+          <p style={{ color: "var(--text3)", fontSize: 13, marginTop: 4 }}>所有訓練影片、錄音、文件資源一覽</p>
+        </div>
         <button onClick={() => setShowAdd(!showAdd)} style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: "8px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
           + 新增影片
         </button>
       </div>
 
+      {/* Summary Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        {[
+          { label: "教學影片", value: videoResources.filter((r) => r.type === "video").length, icon: "🎬", color: "var(--accent)" },
+          { label: "成交錄音", value: videoResources.filter((r) => r.type === "recording").length, icon: "🎙️", color: "var(--teal)" },
+          { label: "Notion 文件", value: totalDocs, icon: "📄", color: "var(--gold)" },
+          { label: "自訂影片", value: totalDbVideos, icon: "➕", color: "var(--green)" },
+        ].map((s) => (
+          <div key={s.label} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 18 }}>{s.icon}</span>
+              <span style={{ color: "var(--text2)", fontSize: 12 }}>{s.label}</span>
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+        <select value={filterDay} onChange={(e) => setFilterDay(e.target.value)} style={{ ...inputStyle, maxWidth: 200 }}>
+          <option value="all">全部天數</option>
+          {Array.from({ length: 9 }, (_, i) => i + 1).map((d) => (
+            <option key={d} value={d}>Day {d}</option>
+          ))}
+        </select>
+        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ ...inputStyle, maxWidth: 200 }}>
+          <option value="all">全部類型</option>
+          <option value="video">教學影片</option>
+          <option value="recording">成交錄音</option>
+        </select>
+      </div>
+
       {showAdd && (
         <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 20 }}>
+          <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>新增自訂影片</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div>
               <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>影片標題</label>
@@ -678,17 +827,270 @@ function VideosTab({ token }: { token: string }) {
         </div>
       )}
 
-      {loading ? <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>載入中...</div> : videos.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>尚無影片</div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-          {videos.map((v) => (
-            <div key={v.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>{v.title}</div>
-              <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 4 }}>分類：{v.category}</div>
-              <div style={{ fontSize: 11, color: "var(--text3)", wordBreak: "break-all" }}>ID: {v.drive_file_id || "—"}</div>
+      {/* Videos & Recordings from modules.ts */}
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>🎬 訓練影片與錄音 ({totalVideos})</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 28 }}>
+        {filteredVideos.map((r, i) => (
+          <div key={`v-${i}`} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 18 }}>{TYPE_ICONS[r.type]}</span>
+                <span style={{ background: r.type === "video" ? "var(--accent)22" : "var(--teal)22", color: r.type === "video" ? "var(--accent)" : "var(--teal)", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                  {TYPE_LABELS[r.type]}
+                </span>
+              </div>
+              <span style={{ background: "var(--bg2)", padding: "2px 8px", borderRadius: 6, fontSize: 11, color: "var(--text3)", fontWeight: 600 }}>
+                Day {r.day}
+              </span>
             </div>
-          ))}
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{r.title}</div>
+            {r.description && <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 8 }}>{r.description}</div>}
+            {r.driveFileId && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontSize: 11, color: "var(--text3)", background: "var(--bg2)", padding: "4px 8px", borderRadius: 6, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  ID: {r.driveFileId}
+                </div>
+                <a href={`https://drive.google.com/file/d/${r.driveFileId}/view`} target="_blank" rel="noopener" style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none", whiteSpace: "nowrap" }}>開啟 ↗</a>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Notion & Document resources */}
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>📄 文件與 Notion 資源 ({totalDocs})</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 28 }}>
+        {filteredDocs.map((r, i) => (
+          <div key={`d-${i}`} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 18 }}>{TYPE_ICONS[r.type]}</span>
+                <span style={{ background: "var(--gold)22", color: "var(--gold)", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                  {TYPE_LABELS[r.type]}
+                </span>
+              </div>
+              <span style={{ background: "var(--bg2)", padding: "2px 8px", borderRadius: 6, fontSize: 11, color: "var(--text3)", fontWeight: 600 }}>
+                Day {r.day}
+              </span>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{r.title}</div>
+            {r.description && <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 8 }}>{r.description}</div>}
+            {r.url && (
+              <a href={r.url} target="_blank" rel="noopener" style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none" }}>開啟連結 ↗</a>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Custom DB Videos */}
+      {dbVideos.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>➕ 自訂影片 ({totalDbVideos})</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            {dbVideos.map((v) => (
+              <div key={v.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>{v.title}</div>
+                <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 4 }}>分類：{v.category}</div>
+                <div style={{ fontSize: 11, color: "var(--text3)", wordBreak: "break-all" }}>ID: {v.drive_file_id || "—"}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Mentorship Tab (師徒管理) ─────────────────────────────────────────────
+
+const WEEK_CONFIGS = [
+  { week: 1, title: "建立習慣", mentorRole: "教練 (Coach)", emoji: "🏋️", summary: "示範 (Show Me) — 我做你看，建立信任", callRange: "30→60", retention: "80%" },
+  { week: 2, title: "標準對齊", mentorRole: "標竿 (Model)", emoji: "🎯", summary: "觀摩 (Watch Me) — 量能達標，看我成交", callRange: "80", retention: "持續跟進" },
+  { week: 3, title: "實戰上手", mentorRole: "副駕駛 (Co-pilot)", emoji: "✈️", summary: "陪同 (Help Me) — 你做我改，即時救援", callRange: "100", retention: "穩定產出" },
+  { week: 4, title: "獨立驗收", mentorRole: "顧問 (Advisor)", emoji: "🏆", summary: "獨立 (Let Me) — 你做我評，準備獨立", callRange: "120", retention: "成功留存" },
+];
+
+const MENTOR_SOP = [
+  { category: "實戰示範", freq: "每天 3-5 通 / 每週 3 場", purpose: "讓新人看見正確的成交路徑", icon: "📞" },
+  { category: "旁聽指導", freq: "前兩週累計 10 通以上", purpose: "抓出話術致命傷，避免錯誤習慣", icon: "🎧" },
+  { category: "每日回饋", freq: "每天 15-30 分鐘", purpose: "2+1 格式：2 優點 + 1 建議", icon: "📝" },
+  { category: "心態引導", freq: "視新人狀態調整", purpose: "降低第一週離職率", icon: "💪" },
+  { category: "數據監控", freq: "每日填寫 / 每週五回報", purpose: "將輔導轉化為數據供主管決策", icon: "📊" },
+];
+
+function MentorshipTab({ token }: { token: string }) {
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; is_active: boolean }>>([]);
+  const [feedbacks, setFeedbacks] = useState<Array<{ id: string; trainee_email: string; mentor_email: string; day: number; date: string; actual_calls: number; call_target: number; invites: number; demos: number; strength_1: string; strength_2: string; improvement: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"overview" | "pairs" | "feedback">("overview");
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/admin/users", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+      fetch("/api/mentor-feedback", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()).catch(() => ({ feedbacks: [] })),
+    ]).then(([userData, fbData]) => {
+      setUsers(userData.users || []);
+      setFeedbacks(fbData.feedbacks || []);
+    }).finally(() => setLoading(false));
+  }, [token]);
+
+  const mentors = users.filter((u) => ["reserve_cadre", "mentor", "team_leader", "trainer", "super_admin", "brand_manager"].includes(u.role));
+  const trainees = users.filter((u) => u.role === "sales_rep");
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>師徒管理</h2>
+      <p style={{ color: "var(--text3)", fontSize: 13, marginBottom: 20 }}>
+        4 週師徒制訓練系統 · 師徒 SOP · 每日回饋追蹤
+      </p>
+
+      {/* View Toggle */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+        {(["overview", "pairs", "feedback"] as const).map((v) => (
+          <button key={v} onClick={() => setViewMode(v)} style={{
+            background: viewMode === v ? "var(--accent)" : "var(--bg2)", color: viewMode === v ? "#fff" : "var(--text2)",
+            border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}>
+            {v === "overview" ? "📋 訓練總覽" : v === "pairs" ? "🤝 師徒配對" : "📝 回饋紀錄"}
+          </button>
+        ))}
+      </div>
+
+      {viewMode === "overview" && (
+        <div>
+          {/* 4-Week Timeline */}
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>4 週爬坡邏輯</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
+            {WEEK_CONFIGS.map((w) => (
+              <div key={w.week} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 24 }}>{w.emoji}</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>Week {w.week}</div>
+                    <div style={{ fontSize: 12, color: "var(--text3)" }}>{w.title}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--teal)", fontWeight: 600, marginBottom: 4 }}>{w.mentorRole}</div>
+                <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 8 }}>{w.summary}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text3)" }}>
+                  <span>通次：{w.callRange}</span>
+                  <span>留存：{w.retention}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* SOP Tasks */}
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>師徒 SOP 任務清單</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}>
+            {MENTOR_SOP.map((s) => (
+              <div key={s.category} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14 }}>
+                <span style={{ fontSize: 24, background: "var(--bg2)", borderRadius: 10, padding: "8px 10px" }}>{s.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{s.category}</div>
+                  <div style={{ fontSize: 12, color: "var(--text3)" }}>{s.purpose}</div>
+                </div>
+                <span style={{ fontSize: 12, color: "var(--accent)", background: "var(--accent)22", padding: "4px 10px", borderRadius: 6, fontWeight: 600, whiteSpace: "nowrap" }}>{s.freq}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* QA Section */}
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>核心要點 Q&A</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {[
+              { q: "為什麼把「新訓」跟「師徒」分開？", a: "會教課的人不一定會打仗。訓練人員負責把 SOP 講清楚（結構價值），師父負責在現場示範怎麼活下來（實戰價值）。避免新人學了一堆理論，上機卻因為挫折感太重而離開。" },
+              { q: "儲備幹部的「功能」與「價值」？", a: "儲備幹部是團隊的精神領袖和標竿。透過示範和下班後的 1:1 關懷，讓新人覺得這份工作有未來、這家公司有人幫。這是維護團隊氣氛、降低流動率的關鍵。" },
+              { q: "為什麼第一週數據要慢慢要求？", a: "第一週重點是讓新人愛上這份工作、建立信心。如果第一天就逼 120 通，新人只會覺得自己是撥號機器。師徒全力示範，是為了讓新人開始衝刺時，已經具備「想贏」的心態。" },
+            ].map((item) => (
+              <div key={item.q} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 18px" }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: "var(--gold)", marginBottom: 6 }}>Q: {item.q}</div>
+                <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.6 }}>{item.a}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {viewMode === "pairs" && (
+        <div>
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>師徒配對</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <h4 style={{ fontSize: 14, color: "var(--teal)", marginBottom: 8 }}>可擔任師父 ({mentors.length})</h4>
+              {loading ? <div style={{ color: "var(--text3)" }}>載入中...</div> : mentors.length === 0 ? (
+                <div style={{ color: "var(--text3)", fontSize: 13, padding: 16, background: "var(--card)", borderRadius: 10 }}>尚無可用師父。請在用戶管理中設定角色為「儲備幹部」或「師父（帶訓）」</div>
+              ) : mentors.map((m) => (
+                <div key={m.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text3)" }}>{m.email}</div>
+                  </div>
+                  <span style={{ fontSize: 11, color: "var(--accent)", background: "var(--accent)22", padding: "2px 8px", borderRadius: 6, fontWeight: 600 }}>{ROLE_LABELS[m.role]}</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <h4 style={{ fontSize: 14, color: "var(--gold)", marginBottom: 8 }}>新人 ({trainees.length})</h4>
+              {loading ? <div style={{ color: "var(--text3)" }}>載入中...</div> : trainees.length === 0 ? (
+                <div style={{ color: "var(--text3)", fontSize: 13, padding: 16, background: "var(--card)", borderRadius: 10 }}>尚無新人。新人註冊後會自動出現在這裡</div>
+              ) : trainees.map((t) => (
+                <div key={t.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text3)" }}>{t.email}</div>
+                  </div>
+                  <span style={{ fontSize: 11, color: "var(--gold)", background: "var(--gold)22", padding: "2px 8px", borderRadius: 6, fontWeight: 600 }}>業務人員</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewMode === "feedback" && (
+        <div>
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>每日回饋紀錄</h3>
+          {feedbacks.length === 0 ? (
+            <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📝</div>
+              <div>尚無回饋紀錄</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>師父在新人頁面填寫每日 1:1 回饋後，紀錄會顯示在這裡</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {feedbacks.map((f) => (
+                <div key={f.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 18px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div>
+                      <span style={{ fontWeight: 600 }}>Day {f.day}</span>
+                      <span style={{ color: "var(--text3)", fontSize: 12, marginLeft: 8 }}>{f.date}</span>
+                    </div>
+                    <div style={{ fontSize: 12 }}>
+                      <span style={{ color: f.actual_calls >= f.call_target ? "var(--green)" : "var(--red)", fontWeight: 700 }}>
+                        {f.actual_calls}/{f.call_target} 通
+                      </span>
+                      <span style={{ color: "var(--text3)", marginLeft: 8 }}>邀約 {f.invites} · Demo {f.demos}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
+                    <div style={{ background: "var(--bg2)", borderRadius: 8, padding: "8px 10px" }}>
+                      <div style={{ color: "var(--green)", fontWeight: 600, marginBottom: 2 }}>✅ 優點 1</div>
+                      <div style={{ color: "var(--text2)" }}>{f.strength_1}</div>
+                    </div>
+                    <div style={{ background: "var(--bg2)", borderRadius: 8, padding: "8px 10px" }}>
+                      <div style={{ color: "var(--green)", fontWeight: 600, marginBottom: 2 }}>✅ 優點 2</div>
+                      <div style={{ color: "var(--text2)" }}>{f.strength_2}</div>
+                    </div>
+                    <div style={{ background: "var(--bg2)", borderRadius: 8, padding: "8px 10px" }}>
+                      <div style={{ color: "var(--gold)", fontWeight: 600, marginBottom: 2 }}>💡 建議</div>
+                      <div style={{ color: "var(--text2)" }}>{f.improvement}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
