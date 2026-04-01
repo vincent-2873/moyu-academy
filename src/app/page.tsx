@@ -14,7 +14,7 @@ import {
 } from "@/lib/store";
 import { syncProgress, syncQuizScore, syncKpiEntry, syncRegister, migrateLocalStorageToSupabase, syncVideoProgress } from "@/lib/sync";
 import { brands } from "@/data/brands";
-import { modules } from "@/data/modules";
+import { modules, TASK_ICONS } from "@/data/modules";
 import { personas, getPersonasByBrand } from "@/data/personas";
 import Sidebar from "@/components/Sidebar";
 import ScoreRadar from "@/components/ScoreRadar";
@@ -747,8 +747,25 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
   const [quizMode, setQuizMode] = useState(false);
   const [answers, setAnswers] = useState<number[]>([]);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [taskDone, setTaskDone] = useState<Record<string, boolean>>({});
+  const [expandedTask, setExpandedTask] = useState<string | null>(null);
 
   const mod = selectedModule !== null ? modules.find((m) => m.id === selectedModule) : null;
+
+  // Load task completions from localStorage
+  useEffect(() => {
+    const key = `moyu_tasks_${user.email}`;
+    const saved = localStorage.getItem(key);
+    if (saved) setTaskDone(JSON.parse(saved));
+  }, [user.email]);
+
+  const toggleTask = (taskId: string) => {
+    setTaskDone((prev) => {
+      const updated = { ...prev, [taskId]: !prev[taskId] };
+      localStorage.setItem(`moyu_tasks_${user.email}`, JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   const handleQuizSubmit = () => {
     if (!mod) return;
@@ -759,7 +776,6 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
     const score = Math.round((correct / mod.quiz.length) * 100);
     setQuizSubmitted(true);
 
-    // Save score
     const newScores = [
       ...user.quizScores.filter((s) => s.moduleId !== mod.id),
       { moduleId: mod.id, score, date: new Date().toISOString() },
@@ -775,7 +791,19 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
       completedModules: newCompleted,
       progress: newProgress,
     });
-    // Sync to Supabase
+
+    // Auto-complete the quiz task
+    if (score >= 60 && mod.tasks) {
+      const quizTask = mod.tasks.find((t) => t.type === "quiz");
+      if (quizTask) {
+        setTaskDone((prev) => {
+          const updated = { ...prev, [quizTask.id]: true };
+          localStorage.setItem(`moyu_tasks_${user.email}`, JSON.stringify(updated));
+          return updated;
+        });
+      }
+    }
+
     syncQuizScore(user.email, mod.id, score);
     const currentDay = Math.min(Math.max(...newCompleted, 0) + 1, 9);
     syncProgress(user.email, newCompleted, newProgress, currentDay);
@@ -784,281 +812,266 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
 
   if (mod) {
     const prevScore = user.quizScores.find((s) => s.moduleId === mod.id);
+    const dayCompleted = user.completedModules.includes(mod.id);
+    const doneTasks = mod.tasks.filter((t) => t.type === "quiz" ? dayCompleted : taskDone[t.id]);
+    const taskProgress = mod.tasks.length > 0 ? Math.round((doneTasks.length / mod.tasks.length) * 100) : 0;
+    const firstUndone = mod.tasks.find((t) => t.type === "quiz" ? !dayCompleted : !taskDone[t.id]);
 
     return (
       <div className="animate-fade-in max-w-3xl">
         <button
-          onClick={() => {
-            setSelectedModule(null);
-            setQuizMode(false);
-            setQuizSubmitted(false);
-            setAnswers([]);
-          }}
+          onClick={() => { setSelectedModule(null); setQuizMode(false); setQuizSubmitted(false); setAnswers([]); }}
           className="text-sm text-[var(--text2)] hover:text-[var(--text)] mb-4 flex items-center gap-1"
         >
           ← 回到課程列表
         </button>
 
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-14 h-14 rounded-xl bg-[var(--accent)] bg-opacity-15 flex items-center justify-center text-2xl font-bold text-[var(--accent-light)]">
-            {mod.day}
+        {/* Header */}
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 mb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl font-bold" style={{ background: dayCompleted ? "rgba(34,197,94,0.15)" : "rgba(99,102,241,0.15)", color: dayCompleted ? "var(--green)" : "var(--accent-light)" }}>
+              {dayCompleted ? "✓" : mod.day}
+            </div>
+            <div className="flex-1">
+              <h1 className="text-xl font-bold">Day {mod.day} — {mod.title}</h1>
+              <p className="text-sm text-[var(--text2)]">{mod.subtitle}</p>
+            </div>
+            {prevScore && (
+              <span className="px-3 py-1 rounded-lg text-sm font-bold" style={{ background: `${getScoreColor(prevScore.score)}20`, color: getScoreColor(prevScore.score) }}>
+                {prevScore.score} 分
+              </span>
+            )}
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">Day {mod.day} — {mod.title}</h1>
-            <p className="text-[var(--text2)]">{mod.subtitle}</p>
-          </div>
-          {prevScore && (
-            <span
-              className="ml-auto px-3 py-1 rounded-lg text-sm font-bold"
-              style={{
-                background: `${getScoreColor(prevScore.score)}20`,
-                color: getScoreColor(prevScore.score),
-              }}
-            >
-              最高分 {prevScore.score}
+          {/* Progress bar */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-3 bg-[var(--bg2)] rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${taskProgress}%`, background: taskProgress === 100 ? "var(--green)" : "linear-gradient(90deg, var(--accent), var(--teal))" }} />
+            </div>
+            <span className="text-sm font-bold" style={{ color: taskProgress === 100 ? "var(--green)" : "var(--accent)" }}>
+              {doneTasks.length}/{mod.tasks.length}
             </span>
-          )}
+          </div>
+          {/* Description */}
+          <p className="text-sm text-[var(--text2)] mt-4 leading-relaxed">{mod.description}</p>
         </div>
 
         {!quizMode ? (
-          <div className="space-y-6">
-            {/* 前言說明 */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-              <h3 className="font-bold mb-2" style={{ color: "var(--accent)" }}>
-                今日前言
-              </h3>
-              <p className="text-sm text-[var(--text2)] leading-relaxed">{mod.description}</p>
+          <div className="space-y-3">
+            {/* KPI Targets */}
+            {mod.kpiTargets && (
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-2">
+                <p className="text-xs font-bold text-[var(--text3)] mb-3">今日 KPI 目標</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {mod.kpiTargets.calls && <div className="text-center p-2 bg-[var(--bg2)] rounded-lg"><p className="text-lg font-bold" style={{ color: "var(--accent)" }}>{mod.kpiTargets.calls}</p><p className="text-[10px] text-[var(--text3)]">進線數</p></div>}
+                  {mod.kpiTargets.talkTime && <div className="text-center p-2 bg-[var(--bg2)] rounded-lg"><p className="text-lg font-bold" style={{ color: "var(--teal)" }}>{mod.kpiTargets.talkTime}</p><p className="text-[10px] text-[var(--text3)]">通話時長</p></div>}
+                  {mod.kpiTargets.invites && <div className="text-center p-2 bg-[var(--bg2)] rounded-lg"><p className="text-lg font-bold" style={{ color: "var(--gold)" }}>{mod.kpiTargets.invites}</p><p className="text-[10px] text-[var(--text3)]">邀約數</p></div>}
+                </div>
+              </div>
+            )}
+
+            {/* Task List */}
+            <div className="space-y-2">
+              {mod.tasks.map((task, idx) => {
+                const isQuizTask = task.type === "quiz";
+                const isDone = isQuizTask ? dayCompleted : taskDone[task.id];
+                const isCurrent = task.id === firstUndone?.id;
+                const isExpanded = expandedTask === task.id;
+                const resource = task.resourceIndex !== undefined && mod.resources ? mod.resources[task.resourceIndex] : null;
+
+                return (
+                  <div key={task.id}>
+                    <div
+                      className={`relative rounded-xl border transition-all cursor-pointer ${
+                        isDone
+                          ? "bg-[var(--card)] border-[var(--green)] border-opacity-30"
+                          : isCurrent
+                          ? "bg-[var(--card)] border-[var(--accent)] shadow-lg shadow-[var(--accent)]/10"
+                          : "bg-[var(--card)] border-[var(--border)] opacity-70"
+                      }`}
+                      onClick={() => {
+                        if (isQuizTask) {
+                          setQuizMode(true);
+                          setAnswers(new Array(mod.quiz.length).fill(-1));
+                          setQuizSubmitted(false);
+                        } else {
+                          setExpandedTask(isExpanded ? null : task.id);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-3 p-4">
+                        {/* Step number / checkbox */}
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 ${
+                            isDone
+                              ? "bg-[rgba(34,197,94,0.15)]"
+                              : isCurrent
+                              ? "bg-[rgba(99,102,241,0.15)]"
+                              : "bg-[var(--bg2)]"
+                          }`}
+                          style={{ color: isDone ? "var(--green)" : isCurrent ? "var(--accent)" : "var(--text3)" }}
+                        >
+                          {isDone ? "✓" : TASK_ICONS[task.type]}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-semibold text-sm ${isDone ? "line-through text-[var(--text3)]" : ""}`}>
+                              {idx + 1}. {task.title}
+                            </span>
+                            {isCurrent && !isDone && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "rgba(99,102,241,0.15)", color: "var(--accent-light)" }}>
+                                下一步
+                              </span>
+                            )}
+                          </div>
+                          {task.time && (
+                            <span className="text-[11px] font-mono" style={{ color: "var(--teal)" }}>{task.time}</span>
+                          )}
+                        </div>
+
+                        {/* Checkbox / action */}
+                        {!isQuizTask ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
+                            className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${
+                              isDone ? "border-[var(--green)] bg-[var(--green)]" : "border-[var(--border)] hover:border-[var(--accent)]"
+                            }`}
+                          >
+                            {isDone && <span className="text-white text-xs font-bold">✓</span>}
+                          </button>
+                        ) : (
+                          <div className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: isDone ? "rgba(34,197,94,0.15)" : "linear-gradient(135deg, var(--accent), var(--teal))", color: isDone ? "var(--green)" : "#fff" }}>
+                            {isDone ? "已通過" : "開始測驗"}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Expanded content */}
+                      {isExpanded && !isQuizTask && (
+                        <div className="px-4 pb-4 pt-0">
+                          <div className="border-t border-[var(--border)] pt-3 space-y-2">
+                            {task.description && (
+                              <p className="text-sm text-[var(--text2)]">{task.description}</p>
+                            )}
+                            {task.tip && (
+                              <div className="flex gap-2 items-start">
+                                <span className="text-[var(--gold)] shrink-0">💡</span>
+                                <p className="text-xs text-[var(--gold)]">{task.tip}</p>
+                              </div>
+                            )}
+                            {resource && (
+                              <a
+                                href={resource.driveFileId ? getDriveLink(resource.driveFileId, 'video') : resource.url || '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-2 p-2 bg-[var(--bg2)] rounded-lg hover:border-[var(--accent)] border border-transparent transition-all text-sm"
+                              >
+                                <span>{resource.type === 'video' ? '🎬' : resource.type === 'recording' ? '🎙️' : '📝'}</span>
+                                <span className="text-[var(--accent-light)] font-medium truncate">{resource.title}</span>
+                                <span className="text-[var(--text3)] text-xs ml-auto shrink-0">打開 →</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* 每日行程表 */}
-            {mod.schedule && mod.schedule.length > 0 && (
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-                <h3 className="font-bold mb-4" style={{ color: "var(--teal)" }}>
-                  今日行程表
-                </h3>
-                <div className="relative">
-                  {mod.schedule.map((item, i) => (
-                    <div key={i} className="flex gap-4 mb-3 last:mb-0">
-                      <div className="flex flex-col items-center">
-                        <div className="w-3 h-3 rounded-full shrink-0 mt-1" style={{ background: "var(--accent)" }} />
-                        {i < mod.schedule!.length - 1 && (
-                          <div className="w-0.5 flex-1 bg-[var(--border)]" />
-                        )}
-                      </div>
-                      <div className="flex-1 pb-3">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-xs font-mono font-bold" style={{ color: "var(--accent)" }}>
-                            {item.time}
-                          </span>
-                          <span className="font-bold text-sm">{item.task}</span>
-                        </div>
-                        {item.description && (
-                          <p className="text-xs text-[var(--text3)] mt-1">{item.description}</p>
-                        )}
-                      </div>
-                    </div>
+            {/* Key Points */}
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-4">
+              <h3 className="font-bold mb-3 text-sm" style={{ color: "var(--gold)" }}>💡 關鍵要點</h3>
+              <div className="space-y-2">
+                {mod.keyPoints.map((kp, i) => (
+                  <p key={i} className="text-xs text-[var(--text2)] leading-relaxed">• {kp}</p>
+                ))}
+              </div>
+            </div>
+
+            {/* Trainer Tips */}
+            {mod.trainerTips && mod.trainerTips.length > 0 && (
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
+                <h3 className="font-bold mb-3 text-sm" style={{ color: "var(--gold)" }}>⚡ 講師提醒</h3>
+                <div className="space-y-2">
+                  {mod.trainerTips.map((tip, i) => (
+                    <p key={i} className="text-xs text-[var(--text2)] leading-relaxed">• {tip}</p>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* 學習內容 */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-              <h3 className="font-bold mb-3">學習內容</h3>
-              <div className="space-y-3">
-                {mod.content.map((c, i) => (
-                  <div key={i} className="flex gap-3 p-3 bg-[var(--bg2)] rounded-lg">
-                    <span className="text-[var(--accent)]">●</span>
-                    <p className="text-sm">{c}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-              <h3 className="font-bold mb-3" style={{ color: "var(--gold)" }}>
-                關鍵要點
-              </h3>
-              {mod.keyPoints.map((kp, i) => (
-                <p key={i} className="text-sm text-[var(--text2)] mb-2">
-                  💡 {kp}
-                </p>
-              ))}
-            </div>
-
+            {/* All Resources */}
             {mod.resources && mod.resources.length > 0 && (
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-                <h3 className="font-bold mb-3" style={{ color: "var(--teal)" }}>
-                  教學資源
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
+                <h3 className="font-bold mb-3 text-sm" style={{ color: "var(--teal)" }}>📚 教學資源</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {mod.resources.map((res, ri) => {
                     const icon = res.type === 'video' ? '🎬' : res.type === 'recording' ? '🎙️' : res.type === 'notion' ? '📝' : '📄';
-                    const href = res.driveFileId
-                      ? getDriveLink(res.driveFileId, 'video')
-                      : res.url || '#';
+                    const href = res.driveFileId ? getDriveLink(res.driveFileId, 'video') : res.url || '#';
                     return (
-                      <a
-                        key={ri}
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 p-3 bg-[var(--bg2)] rounded-lg hover:border-[var(--accent)] border border-transparent transition-all"
-                      >
-                        <div className="w-10 h-10 rounded-lg bg-[rgba(124,108,240,0.15)] flex items-center justify-center text-lg shrink-0">
-                          {icon}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-sm truncate">{res.title}</p>
-                          {res.description && (
-                            <p className="text-[10px] text-[var(--text3)]">{res.description}</p>
-                          )}
-                        </div>
+                      <a key={ri} href={href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2.5 bg-[var(--bg2)] rounded-lg hover:border-[var(--accent)] border border-transparent transition-all">
+                        <span className="text-base">{icon}</span>
+                        <span className="text-xs font-medium truncate">{res.title}</span>
                       </a>
                     );
                   })}
                 </div>
               </div>
             )}
-
-            {mod.trainerTips && mod.trainerTips.length > 0 && (
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-                <h3 className="font-bold mb-3" style={{ color: "var(--gold)" }}>
-                  講師提醒
-                </h3>
-                <div className="space-y-2">
-                  {mod.trainerTips.map((tip, i) => (
-                    <div key={i} className="flex gap-3 p-3 bg-[var(--bg2)] rounded-lg">
-                      <span className="text-[var(--gold)] shrink-0">⚡</span>
-                      <p className="text-sm text-[var(--text2)]">{tip}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {mod.kpiTargets && (
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-                <h3 className="font-bold mb-3" style={{ color: "var(--green)" }}>
-                  今日 KPI 目標
-                </h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {mod.kpiTargets.calls && (
-                    <div className="text-center p-3 bg-[var(--bg2)] rounded-lg">
-                      <p className="text-2xl font-bold" style={{ color: "var(--accent)" }}>{mod.kpiTargets.calls}</p>
-                      <p className="text-xs text-[var(--text3)] mt-1">進線數</p>
-                    </div>
-                  )}
-                  {mod.kpiTargets.talkTime && (
-                    <div className="text-center p-3 bg-[var(--bg2)] rounded-lg">
-                      <p className="text-2xl font-bold" style={{ color: "var(--teal)" }}>{mod.kpiTargets.talkTime}</p>
-                      <p className="text-xs text-[var(--text3)] mt-1">通話時長</p>
-                    </div>
-                  )}
-                  {mod.kpiTargets.invites && (
-                    <div className="text-center p-3 bg-[var(--bg2)] rounded-lg">
-                      <p className="text-2xl font-bold" style={{ color: "var(--gold)" }}>{mod.kpiTargets.invites}</p>
-                      <p className="text-xs text-[var(--text3)] mt-1">邀約數</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {mod.practiceTask && (
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-                <h3 className="font-bold mb-3" style={{ color: "var(--accent)" }}>
-                  實作任務
-                </h3>
-                <div className="flex gap-3 p-3 bg-[var(--bg2)] rounded-lg">
-                  <span className="text-[var(--accent)] shrink-0">🎯</span>
-                  <p className="text-sm text-[var(--text2)]">{mod.practiceTask}</p>
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={() => {
-                setQuizMode(true);
-                setAnswers(new Array(mod.quiz.length).fill(-1));
-                setQuizSubmitted(false);
-              }}
-              className="px-6 py-3 rounded-lg font-bold text-white"
-              style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}
-            >
-              開始測驗 ({mod.quiz.length} 題)
-            </button>
           </div>
         ) : (
+          /* Quiz Mode */
           <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <button onClick={() => setQuizMode(false)} className="text-sm text-[var(--text2)] hover:text-[var(--text)]">← 回到任務</button>
+              <span className="text-sm font-bold">每日測驗（{mod.quiz.length} 題）</span>
+            </div>
             {mod.quiz.map((q, qi) => (
-              <div
-                key={qi}
-                className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5"
-              >
-                <p className="font-semibold mb-3">
-                  {qi + 1}. {q.question}
-                </p>
+              <div key={qi} className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
+                <p className="font-semibold mb-3">{qi + 1}. {q.question}</p>
                 <div className="space-y-2">
                   {q.options.map((opt, oi) => {
                     const isSelected = answers[qi] === oi;
                     const isCorrect = quizSubmitted && oi === q.answer;
                     const isWrong = quizSubmitted && isSelected && oi !== q.answer;
                     return (
-                      <button
-                        key={oi}
-                        onClick={() => {
-                          if (quizSubmitted) return;
-                          const newAnswers = [...answers];
-                          newAnswers[qi] = oi;
-                          setAnswers(newAnswers);
-                        }}
-                        className={`w-full text-left px-4 py-2.5 rounded-lg border transition-all text-sm ${
-                          isCorrect
-                            ? "border-[var(--green)] bg-[rgba(16,172,132,0.1)]"
-                            : isWrong
-                            ? "border-[var(--red)] bg-[rgba(238,90,82,0.1)]"
-                            : isSelected
-                            ? "border-[var(--accent)] bg-[rgba(124,108,240,0.1)]"
-                            : "border-[var(--border)] hover:border-[var(--accent)]"
-                        }`}
-                        disabled={quizSubmitted}
-                      >
-                        {opt}
-                      </button>
+                      <button key={oi} onClick={() => { if (quizSubmitted) return; const na = [...answers]; na[qi] = oi; setAnswers(na); }}
+                        className={`w-full text-left px-4 py-2.5 rounded-lg border transition-all text-sm ${isCorrect ? "border-[var(--green)] bg-[rgba(16,172,132,0.1)]" : isWrong ? "border-[var(--red)] bg-[rgba(238,90,82,0.1)]" : isSelected ? "border-[var(--accent)] bg-[rgba(124,108,240,0.1)]" : "border-[var(--border)] hover:border-[var(--accent)]"}`}
+                        disabled={quizSubmitted}>{opt}</button>
                     );
                   })}
                 </div>
               </div>
             ))}
-
             {!quizSubmitted ? (
-              <button
-                onClick={handleQuizSubmit}
-                disabled={answers.includes(-1)}
-                className="px-6 py-3 rounded-lg font-bold text-white disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}
-              >
+              <button onClick={handleQuizSubmit} disabled={answers.includes(-1)}
+                className="w-full px-6 py-3 rounded-xl font-bold text-white disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}>
                 提交測驗
               </button>
             ) : (
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 text-center">
                 {(() => {
-                  const correct = mod.quiz.reduce(
-                    (c, q, i) => c + (answers[i] === q.answer ? 1 : 0),
-                    0
-                  );
+                  const correct = mod.quiz.reduce((c, q, i) => c + (answers[i] === q.answer ? 1 : 0), 0);
                   const score = Math.round((correct / mod.quiz.length) * 100);
                   return (
                     <>
-                      <p className="text-xl font-bold" style={{ color: getScoreColor(score) }}>
-                        得分：{score} 分（{correct}/{mod.quiz.length} 正確）
+                      <p className="text-3xl font-bold mb-2" style={{ color: getScoreColor(score) }}>{score} 分</p>
+                      <p className="text-sm text-[var(--text2)]">{correct}/{mod.quiz.length} 正確</p>
+                      <p className="text-sm mt-3" style={{ color: score >= 60 ? "var(--green)" : "var(--red)" }}>
+                        {score >= 60 ? "🎉 恭喜通過！已解鎖下一天訓練" : "未達 60 分及格線，複習後再試一次"}
                       </p>
-                      <p className="text-sm text-[var(--text2)] mt-2">
-                        {score >= 60
-                          ? "恭喜通過！已解鎖下一個模組。"
-                          : "未達 60 分及格線，請複習後重新測驗。"}
-                      </p>
+                      {score >= 60 && (
+                        <button onClick={() => { setQuizMode(false); setSelectedModule(null); }}
+                          className="mt-4 px-6 py-2.5 rounded-lg font-bold text-white"
+                          style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}>
+                          繼續下一天 →
+                        </button>
+                      )}
                     </>
                   );
                 })()}
@@ -1070,11 +1083,19 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
     );
   }
 
+  /* ─── Module List View ─── */
   return (
     <div className="animate-fade-in">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">課程訓練</h1>
-        <p className="text-[var(--text2)]">9 天系統化銷售訓練，完成測驗解鎖下一階段</p>
+        <p className="text-[var(--text2)] text-sm">完成每天的任務和測驗，逐步解鎖下一階段</p>
+        {/* Overall progress */}
+        <div className="mt-4 flex items-center gap-3">
+          <div className="flex-1 h-2.5 bg-[var(--bg2)] rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.round((user.completedModules.length / 9) * 100)}%`, background: "linear-gradient(90deg, var(--accent), var(--teal), var(--green))" }} />
+          </div>
+          <span className="text-sm font-bold text-[var(--accent)]">{user.completedModules.length}/9</span>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -1084,62 +1105,52 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
           const locked = !completed && !prevCompleted;
           const isCurrent = !completed && prevCompleted;
           const score = user.quizScores.find((s) => s.moduleId === m.id);
+          const mDoneTasks = m.tasks.filter((t) => t.type === "quiz" ? completed : taskDone[t.id]);
+          const mProgress = m.tasks.length > 0 ? Math.round((mDoneTasks.length / m.tasks.length) * 100) : 0;
 
           return (
             <button
               key={m.id}
               onClick={() => !locked && setSelectedModule(m.id)}
               disabled={locked}
-              className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all text-left ${
-                locked
-                  ? "opacity-40 cursor-not-allowed border-[var(--border)] bg-[var(--card)]"
-                  : isCurrent
-                  ? "border-[var(--teal)] bg-[var(--card)] hover:shadow-lg"
-                  : completed
-                  ? "border-[var(--green)] bg-[var(--card)] hover:shadow-lg"
+              className={`w-full text-left rounded-xl border transition-all ${
+                locked ? "opacity-35 cursor-not-allowed border-[var(--border)] bg-[var(--card)]"
+                  : isCurrent ? "border-[var(--accent)] bg-[var(--card)] shadow-lg shadow-[var(--accent)]/10"
+                  : completed ? "border-[var(--green)] border-opacity-40 bg-[var(--card)]"
                   : "border-[var(--border)] bg-[var(--card)] hover:border-[var(--accent)]"
               }`}
             >
-              <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg ${
-                  completed
-                    ? "bg-[rgba(16,172,132,0.15)] text-[var(--green)]"
-                    : isCurrent
-                    ? "bg-[rgba(0,210,211,0.15)] text-[var(--teal)]"
-                    : "bg-[rgba(124,108,240,0.1)] text-[var(--accent-light)]"
-                }`}
-              >
-                {completed ? "✓" : locked ? "🔒" : m.day}
+              <div className="flex items-center gap-4 p-4 pb-3">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 ${
+                  completed ? "bg-[rgba(34,197,94,0.15)] text-[var(--green)]"
+                    : isCurrent ? "bg-[rgba(99,102,241,0.15)] text-[var(--accent-light)]"
+                    : "bg-[var(--bg2)] text-[var(--text3)]"
+                }`}>
+                  {completed ? "✓" : locked ? "🔒" : m.day}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-sm truncate">Day {m.day} — {m.title}</p>
+                    {isCurrent && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0" style={{ background: "rgba(99,102,241,0.15)", color: "var(--accent-light)" }}>進行中</span>}
+                  </div>
+                  <p className="text-xs text-[var(--text3)] truncate">{m.subtitle}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {score && <span className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: `${getScoreColor(score.score)}20`, color: getScoreColor(score.score) }}>{score.score}分</span>}
+                  {m.hasSparring && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[rgba(0,210,211,0.1)] text-[var(--teal)]">含對練</span>}
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="font-semibold">
-                  Day {m.day} — {m.title}
-                </p>
-                <p className="text-xs text-[var(--text2)]">{m.subtitle}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {m.hasSparring && (
-                  <span className="px-2 py-0.5 rounded bg-[rgba(0,210,211,0.1)] text-[var(--teal)] text-[10px] font-bold">
-                    含對練
-                  </span>
-                )}
-                {score && (
-                  <span
-                    className="px-2 py-0.5 rounded text-[10px] font-bold"
-                    style={{
-                      background: `${getScoreColor(score.score)}20`,
-                      color: getScoreColor(score.score),
-                    }}
-                  >
-                    {score.score}分
-                  </span>
-                )}
-                {isCurrent && (
-                  <span className="px-2 py-0.5 rounded bg-[rgba(0,210,211,0.12)] text-[var(--teal)] text-[10px] font-bold">
-                    進行中
-                  </span>
-                )}
-              </div>
+              {/* Mini progress bar */}
+              {!locked && (
+                <div className="px-4 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-[var(--bg2)] rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${mProgress}%`, background: completed ? "var(--green)" : "var(--accent)" }} />
+                    </div>
+                    <span className="text-[10px] text-[var(--text3)]">{mDoneTasks.length}/{m.tasks.length}</span>
+                  </div>
+                </div>
+              )}
             </button>
           );
         })}

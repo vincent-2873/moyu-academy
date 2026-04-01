@@ -24,6 +24,21 @@ export interface DailyScheduleItem {
   description?: string;
 }
 
+export interface ModuleTask {
+  id: string;
+  title: string;
+  description?: string;
+  type: 'info' | 'watch' | 'listen' | 'practice' | 'note' | 'review' | 'call' | 'quiz';
+  time?: string;
+  resourceIndex?: number;
+  tip?: string;
+}
+
+export const TASK_ICONS: Record<ModuleTask['type'], string> = {
+  info: '📋', watch: '🎬', listen: '🎧', practice: '🗣',
+  note: '✏️', review: '🔍', call: '📞', quiz: '✅',
+};
+
 export interface TrainingModule {
   id: number;
   day: number;
@@ -43,6 +58,8 @@ export interface TrainingModule {
   hasSparring: boolean;
   sparringType?: string;
   quiz: QuizQuestion[];
+  /** 任務清單：遊戲化步驟引導 */
+  tasks: ModuleTask[];
 }
 
 export const modules: TrainingModule[] = [
@@ -91,6 +108,17 @@ export const modules: TrainingModule[] = [
     practiceTask: "逐字稿對練 1-1 到 1-4，兩人一組對練。對練完聽自己的錄音，標記卡住不熟的地方，心裡默念幾次",
     hasSparring: true,
     sparringType: "transcript_practice",
+    tasks: [
+      { id: "d1t1", title: "新人合約導讀", type: "info", time: "10:00-11:00", description: "了解公司合約內容與新人權益" },
+      { id: "d1t2", title: "公司環境、集團介紹", type: "info", time: "11:00-11:30", description: "認識公司環境與集團架構" },
+      { id: "d1t3", title: "聽開發 Call 錄音（8段）", type: "listen", time: "13:00-14:30", description: "仔細聽語氣口吻、語調、受眾辨識", resourceIndex: 1 },
+      { id: "d1t4", title: "筆記：受眾分類分析", type: "note", description: "按受眾分類（學生/在職/待業）整理筆記" },
+      { id: "d1t5", title: "回報目前進度", type: "review", time: "14:30", description: "向業訓回報聽 Call 進度" },
+      { id: "d1t6", title: "線上 Review 會議", type: "review", time: "16:00", description: "參加線上 Review 會議，討論學習重點" },
+      { id: "d1t7", title: "逐字稿對練 1-1 到 1-4", type: "practice", time: "17:30-18:30", description: "兩人一組，照著逐字稿練習" },
+      { id: "d1t8", title: "聽自己的對練錄音", type: "listen", description: "標記卡住不熟的地方，心裡默念幾次" },
+      { id: "d1t9", title: "完成每日測驗", type: "quiz", description: "通過測驗解鎖 Day 2", tip: "及格線 60 分" },
+    ],
     quiz: [
       {
         question: "練習核心三要素不包括下列哪項？",
@@ -160,6 +188,16 @@ export const modules: TrainingModule[] = [
     practiceTask: "架構對練（上班族/學生），兩人一組。練完聽 Call 寫 3 優化 + 2 維持。然後準備據點主管考試",
     hasSparring: true,
     sparringType: "structure_practice",
+    tasks: [
+      { id: "d2t1", title: "逐字稿對練（續）", type: "practice", time: "上午", description: "延續 Day 1 的逐字稿練習，加強不熟的段落" },
+      { id: "d2t2", title: "確認打卡信件", type: "info", time: "13:00-13:30", description: "確認打卡信件已寄出" },
+      { id: "d2t3", title: "架構對練（上班族/學生/待業）", type: "practice", time: "13:30-17:15", description: "記得受眾的個性和內容，STEP2-STEP3 可以多聊天" },
+      { id: "d2t4", title: "聽 Call 寫 3 優化 + 2 維持", type: "note", description: "對練完後聽自己每通 Call，列出改善項目" },
+      { id: "d2t5", title: "據點主管考試", type: "review", time: "17:15-18:15", description: "架構考試一次過就會讓你們上機！" },
+      { id: "d2t6", title: "觀看後台操作影片（看到 48 分）", type: "watch", time: "18:15-19:00", description: "後台操作影片看到 48 分就好，後面不要看", resourceIndex: 1 },
+      { id: "d2t7", title: "個人信箱註冊官網 nschool.tw", type: "info", description: "用個人信箱註冊" },
+      { id: "d2t8", title: "完成每日測驗", type: "quiz", description: "通過測驗解鎖 Day 3", tip: "及格線 60 分" },
+    ],
     quiz: [
       {
         question: "架構對練和逐字稿對練的差別是？",
@@ -238,6 +276,14 @@ export const modules: TrainingModule[] = [
     practiceTask: "正式上機撥打，目標 150 通次 / 120 分鐘通時 / 3-5 個邀約。下班時把有約到 Demo 的客戶資訊貼給業訓",
     hasSparring: true,
     sparringType: "live_call",
+    tasks: [
+      { id: "d3t1", title: "上機前會議、強心針", type: "review", time: "10:00-12:00", description: "了解上機流程、心態建設" },
+      { id: "d3t2", title: "了解名單制度和 CRM 操作", type: "info", description: "名單打 5 次後就不再打，客戶拒絕 1 次不代表真拒絕" },
+      { id: "d3t3", title: "正式上機開發", type: "call", time: "13:00-19:00", description: "目標：150 通次 / 120 分鐘通時 / 3-5 邀約", tip: "不要預設立場！CRM 上面寫拒絕的不一定是真拒絕" },
+      { id: "d3t4", title: "記錄今日 KPI 數據", type: "note", description: "記錄通次、通時、邀約數" },
+      { id: "d3t5", title: "回報 Demo 客戶資訊", type: "info", description: "有邀約到 Demo 的客戶資訊貼給業訓" },
+      { id: "d3t6", title: "完成每日測驗", type: "quiz", description: "通過測驗解鎖 Day 4", tip: "及格線 60 分" },
+    ],
     quiz: [
       {
         question: "一筆名單打幾次後就不用再打了？",
@@ -311,6 +357,16 @@ export const modules: TrainingModule[] = [
     ],
     practiceTask: "觀看 Demo 影片和 3 段成交錄音，針對三大重點（架構、信任感、反對問題）做筆記。每段錄音各寫出 1 個學到的技巧",
     hasSparring: false,
+    tasks: [
+      { id: "d4t1", title: "業訓日會 / 據點日會", type: "review", time: "10:45-12:00", description: "參加日會，了解今日訓練重點" },
+      { id: "d4t2", title: "觀看 Demo 訓練影片", type: "watch", time: "13:00-15:00", description: "仔細看 Demo 的完整流程", resourceIndex: 0 },
+      { id: "d4t3", title: "學習 Demo 逐字稿", type: "note", description: "對照影片和逐字稿，理解每個銷售點", resourceIndex: 1 },
+      { id: "d4t4", title: "聽成交錄音 1：譚睦懷", type: "listen", description: "17歲客戶，學習信心建立技巧", resourceIndex: 2 },
+      { id: "d4t5", title: "聽成交錄音 2：楊燿銓", type: "listen", description: "學生客戶，信心建立", resourceIndex: 3 },
+      { id: "d4t6", title: "聽成交錄音 3：Terry Li", type: "listen", description: "反對問題處理技巧", resourceIndex: 4 },
+      { id: "d4t7", title: "Demo 三大重點筆記", type: "note", description: "針對架構、信任感、反對問題做筆記", tip: "每段錄音各寫出 1 個學到的技巧" },
+      { id: "d4t8", title: "完成每日測驗", type: "quiz", description: "通過測驗解鎖 Day 5", tip: "及格線 60 分" },
+    ],
     quiz: [
       {
         question: "Demo 的三大重點不包括哪項？",
@@ -388,6 +444,14 @@ export const modules: TrainingModule[] = [
     practiceTask: "持續上機開發。有 Demo 出席就嘗試自己做，旁邊有學長姐輔助。下班前回報今日通次/通時/邀約/Demo 狀況",
     hasSparring: true,
     sparringType: "live_call",
+    tasks: [
+      { id: "d5t1", title: "業訓日會", type: "review", time: "09:45-11:00", description: "了解成交後流程、銷售方案" },
+      { id: "d5t2", title: "了解成交後流程和銷售方案", type: "info", description: "學習簽約後金流處理、課程結構", resourceIndex: 0 },
+      { id: "d5t3", title: "上機開發", type: "call", time: "11:00-19:00", description: "目標：130-160 通次 / 100-150 分鐘通時 / 4-5 邀約" },
+      { id: "d5t4", title: "嘗試自己做 Demo", type: "practice", description: "有 Demo 出席就嘗試自己做，旁邊有學長姐輔助", tip: "1-3 次 Pass 之後就要自己來" },
+      { id: "d5t5", title: "回報今日數據", type: "note", description: "下班前回報通次/通時/邀約/Demo 狀況" },
+      { id: "d5t6", title: "完成每日測驗", type: "quiz", description: "通過測驗解鎖 Day 6", tip: "及格線 60 分" },
+    ],
     quiz: [
       {
         question: "nSchool 課程的五大領域不包括？",
@@ -446,6 +510,13 @@ export const modules: TrainingModule[] = [
     practiceTask: "進階架構對練，按受眾分（學生/上班族/待業），全程自然對話不看稿。對練完聽錄音，對比成交錄音找差距",
     hasSparring: true,
     sparringType: "full_call",
+    tasks: [
+      { id: "d6t1", title: "聽自己上週的 Call 錄音", type: "listen", description: "找出與成交錄音的差距" },
+      { id: "d6t2", title: "受眾分析進階", type: "note", description: "學生聊科系/同學；在職聊產業/薪水；待業聊轉職方向" },
+      { id: "d6t3", title: "進階架構對練（不看稿）", type: "practice", description: "按受眾分（學生/上班族/待業），全程自然對話", tip: "STEP2 不要急著進入 STEP3，多花時間了解客戶" },
+      { id: "d6t4", title: "對練完聽錄音找差距", type: "listen", description: "對比成交錄音，找出可以優化的地方" },
+      { id: "d6t5", title: "完成每日測驗", type: "quiz", description: "通過測驗解鎖 Day 7", tip: "及格線 60 分" },
+    ],
     quiz: [
       {
         question: "面對有經驗的客戶，應該用什麼方式？",
@@ -504,6 +575,15 @@ export const modules: TrainingModule[] = [
     practiceTask: "兩人一組模擬完整 Demo，一人設定客戶異議（太貴/沒時間/怕學不好）。對練完互評三大重點，再對換角色",
     hasSparring: true,
     sparringType: "demo",
+    tasks: [
+      { id: "d7t1", title: "觀看 Demo 流程示範影片", type: "watch", description: "學米 + 無限的標準 Demo 流程", resourceIndex: 2 },
+      { id: "d7t2", title: "觀看 Demo 實戰影片（6支）", type: "watch", description: "學米 3 支 + 無限 3 支實戰錄影", resourceIndex: 3 },
+      { id: "d7t3", title: "Demo 完整對練", type: "practice", description: "一人扮業務做完整 Demo，一人扮客戶提異議" },
+      { id: "d7t4", title: "反對問題處理練習", type: "practice", description: "練習處理「太貴/沒時間/怕學不好」", tip: "反對問題的表面≠真正顧慮" },
+      { id: "d7t5", title: "客製化規劃練習", type: "note", description: "短期(3個月)/中期(6個月)/長期(1年) 學習計畫" },
+      { id: "d7t6", title: "互評三大重點", type: "review", description: "架構、信任感、反對問題 — 互相給回饋" },
+      { id: "d7t7", title: "完成每日測驗", type: "quiz", description: "通過測驗解鎖 Day 8", tip: "及格線 60 分" },
+    ],
     quiz: [
       {
         question: "Demo 引言的正確做法是？",
@@ -556,6 +636,13 @@ export const modules: TrainingModule[] = [
     practiceTask: "完成至少一次完整的全流程模擬（開發→邀約→Demo→收尾），記錄自己每個環節的表現",
     hasSparring: true,
     sparringType: "full_call",
+    tasks: [
+      { id: "d8t1", title: "開發架構 7 步驟完整走一遍", type: "practice", description: "開發 Call 控制在 12-15 分鐘" },
+      { id: "d8t2", title: "Demo 架構完整走一遍", type: "practice", description: "從引言到客製化規劃，控制在 60 分鐘" },
+      { id: "d8t3", title: "全流程模擬", type: "practice", description: "開發→邀約→Demo→反對問題→收尾", tip: "把模擬當作真實客戶，不要鬆懈" },
+      { id: "d8t4", title: "寫出 3 優 + 3 優化", type: "note", description: "每完成一次全流程，記錄做得好和要改進的" },
+      { id: "d8t5", title: "完成每日測驗", type: "quiz", description: "通過測驗解鎖 Day 9", tip: "及格線 60 分" },
+    ],
     quiz: [
       {
         question: "完整銷售流程的順序是？",
@@ -601,6 +688,13 @@ export const modules: TrainingModule[] = [
     practiceTask: "完成實戰考核，針對考核報告寫出 2 好 + 3 優化，制定下一步個人訓練計畫",
     hasSparring: true,
     sparringType: "exam",
+    tasks: [
+      { id: "d9t1", title: "考前準備", type: "info", description: "放輕鬆，把考核當作真實的一通開發 Call" },
+      { id: "d9t2", title: "完成實戰考核", type: "practice", description: "模擬真實客戶，完整走完開發 Call 7 步驟", tip: "70 分及格，架構要完整走完不要跳步驟" },
+      { id: "d9t3", title: "考核報告：2 好 + 3 優化", type: "note", description: "針對考核報告寫出反思" },
+      { id: "d9t4", title: "制定個人訓練計畫", type: "note", description: "根據考核結果，制定下一步自我提升方向" },
+      { id: "d9t5", title: "完成最終測驗", type: "quiz", description: "完成 9 天訓練！", tip: "及格線 60 分" },
+    ],
     quiz: [
       {
         question: "實戰考核的及格標準是？",
