@@ -101,36 +101,7 @@ export default function MentorTeamCard({ userEmail, onNavigate }: MentorTeamCard
     );
   }
 
-  // Error state
-  if (error) {
-    return (
-      <div
-        style={{
-          backgroundColor: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: "0.75rem",
-          padding: "1.5rem",
-        }}
-      >
-        <h3
-          style={{
-            margin: "0 0 0.75rem 0",
-            fontSize: "1rem",
-            background: "linear-gradient(135deg, var(--accent), var(--accent-light))",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          🏮 我的師徒團隊
-        </h3>
-        <p style={{ color: "var(--red)", fontSize: "0.875rem", margin: 0 }}>
-          載入失敗：{error}
-        </p>
-      </div>
-    );
-  }
-
-  // No pair exists
+  // Error state or no pair — show waiting state
   if (!data || !data.mentor) {
     return (
       <div
