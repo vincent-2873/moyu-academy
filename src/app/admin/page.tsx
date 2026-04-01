@@ -921,18 +921,64 @@ const MENTOR_SOP = [
 function MentorshipTab({ token }: { token: string }) {
   const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; is_active: boolean }>>([]);
   const [feedbacks, setFeedbacks] = useState<Array<{ id: string; trainee_email: string; mentor_email: string; day: number; date: string; actual_calls: number; call_target: number; invites: number; demos: number; strength_1: string; strength_2: string; improvement: string }>>([]);
+  const [pairs, setPairs] = useState<Array<{ id: string; trainee_id: string; mentor_id: string; manager_id: string; brand: string; status: string; start_date: string; trainee_name?: string; mentor_name?: string; manager_name?: string; trainee_email?: string; mentor_email?: string; manager_email?: string; ceremony_completed?: boolean }>>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"overview" | "pairs" | "feedback">("overview");
+  const [bindForm, setBindForm] = useState({ trainee_id: "", mentor_id: "", manager_id: "", brand: "" });
+  const [binding, setBinding] = useState(false);
+  const [bindMsg, setBindMsg] = useState("");
+
+  const loadPairs = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/mentorship", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setPairs(data.pairs || []);
+    } catch { setPairs([]); }
+  }, [token]);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/admin/users", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
       fetch("/api/mentor-feedback", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()).catch(() => ({ feedbacks: [] })),
+      loadPairs(),
     ]).then(([userData, fbData]) => {
       setUsers(userData.users || []);
       setFeedbacks(fbData.feedbacks || []);
     }).finally(() => setLoading(false));
-  }, [token]);
+  }, [token, loadPairs]);
+
+  const handleBind = async () => {
+    if (!bindForm.trainee_id || !bindForm.mentor_id) { setBindMsg("請選擇師父和新人"); return; }
+    setBinding(true); setBindMsg("");
+    try {
+      const brand = bindForm.brand || users.find(u => u.id === bindForm.trainee_id)?.brand || "";
+      const res = await fetch("/api/admin/mentorship", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ trainee_id: bindForm.trainee_id, mentor_id: bindForm.mentor_id, manager_id: bindForm.manager_id || undefined, brand }),
+      });
+      if (res.ok) {
+        setBindMsg("✅ 師徒配對成功！");
+        setBindForm({ trainee_id: "", mentor_id: "", manager_id: "", brand: "" });
+        await loadPairs();
+      } else {
+        const err = await res.json();
+        setBindMsg(`❌ ${err.error || "配對失敗"}`);
+      }
+    } catch { setBindMsg("❌ 網路錯誤"); }
+    setBinding(false);
+  };
+
+  const handleStatusChange = async (pairId: string, newStatus: string) => {
+    try {
+      await fetch("/api/admin/mentorship", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: pairId, status: newStatus }),
+      });
+      await loadPairs();
+    } catch { /* ignore */ }
+  };
 
   const mentors = users.filter((u) => ["reserve_cadre", "mentor", "team_leader", "trainer", "super_admin", "brand_manager"].includes(u.role));
   const trainees = users.filter((u) => u.role === "sales_rep");
@@ -1014,8 +1060,127 @@ function MentorshipTab({ token }: { token: string }) {
 
       {viewMode === "pairs" && (
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>師徒配對</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {/* Binding Form */}
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 24, marginBottom: 24 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 24 }}>🏮</span> 建立師徒配對
+            </h3>
+            <p style={{ color: "var(--text3)", fontSize: 12, marginBottom: 16 }}>選擇師父、新人與據點主管，建立正式師徒關係</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+              {/* Mentor Select */}
+              <div>
+                <label style={{ fontSize: 12, color: "var(--text2)", marginBottom: 4, display: "block" }}>🛡️ 師父</label>
+                <select value={bindForm.mentor_id} onChange={e => setBindForm({...bindForm, mentor_id: e.target.value})} style={{ width: "100%", padding: "10px 12px", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 13 }}>
+                  <option value="">選擇師父...</option>
+                  {mentors.map(m => <option key={m.id} value={m.id}>{m.name} ({ROLE_LABELS[m.role]}) - {m.brand}</option>)}
+                </select>
+              </div>
+              {/* Trainee Select */}
+              <div>
+                <label style={{ fontSize: 12, color: "var(--text2)", marginBottom: 4, display: "block" }}>🌱 新人</label>
+                <select value={bindForm.trainee_id} onChange={e => setBindForm({...bindForm, trainee_id: e.target.value})} style={{ width: "100%", padding: "10px 12px", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 13 }}>
+                  <option value="">選擇新人...</option>
+                  {trainees.filter(t => !pairs.some(p => p.trainee_id === t.id && p.status === "active")).map(t => <option key={t.id} value={t.id}>{t.name} - {t.brand}</option>)}
+                </select>
+              </div>
+              {/* Manager Select */}
+              <div>
+                <label style={{ fontSize: 12, color: "var(--text2)", marginBottom: 4, display: "block" }}>👑 據點主管（選填）</label>
+                <select value={bindForm.manager_id} onChange={e => setBindForm({...bindForm, manager_id: e.target.value})} style={{ width: "100%", padding: "10px 12px", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 13 }}>
+                  <option value="">選擇據點主管...</option>
+                  {users.filter(u => ["team_leader", "brand_manager", "super_admin"].includes(u.role)).map(m => <option key={m.id} value={m.id}>{m.name} ({ROLE_LABELS[m.role]})</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button onClick={handleBind} disabled={binding} style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: "10px 28px", fontWeight: 700, fontSize: 14, cursor: binding ? "not-allowed" : "pointer", opacity: binding ? 0.6 : 1 }}>
+                {binding ? "配對中..." : "🏮 正式拜師"}
+              </button>
+              {bindMsg && <span style={{ fontSize: 13, color: bindMsg.startsWith("✅") ? "var(--green)" : "var(--red)" }}>{bindMsg}</span>}
+            </div>
+          </div>
+
+          {/* Active Pairs */}
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>目前配對 ({pairs.filter(p => p.status === "active").length})</h3>
+          {pairs.filter(p => p.status === "active").length === 0 ? (
+            <div style={{ padding: 40, textAlign: "center", color: "var(--text3)", background: "var(--card)", borderRadius: 16, border: "1px solid var(--border)" }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>🏮</div>
+              <div>尚無師徒配對</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>使用上方表單建立第一組師徒關係</div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+              {pairs.filter(p => p.status === "active").map(p => {
+                const days = Math.ceil((Date.now() - new Date(p.start_date).getTime()) / (1000*60*60*24));
+                const week = Math.min(4, Math.ceil(days / 7));
+                return (
+                  <div key={p.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, position: "relative", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg, var(--accent), var(--teal))" }} />
+                    {/* 3-level hierarchy */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+                      {p.manager_name && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, var(--gold), #b8860b)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>{p.manager_name?.charAt(0)}</div>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>{p.manager_name}</span>
+                          <span style={{ fontSize: 10, color: "var(--gold)", background: "var(--gold)18", padding: "1px 6px", borderRadius: 4 }}>👑 據點主管</span>
+                        </div>
+                      )}
+                      {p.manager_name && <div style={{ width: 2, height: 12, background: "var(--border)", marginLeft: 13 }} />}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, var(--accent), #5b4ec7)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>{p.mentor_name?.charAt(0) || "?"}</div>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{p.mentor_name || "未知"}</span>
+                        <span style={{ fontSize: 10, color: "var(--accent-light)", background: "var(--accent)18", padding: "1px 6px", borderRadius: 4 }}>🛡️ 師父</span>
+                      </div>
+                      <div style={{ width: 2, height: 12, background: "var(--border)", marginLeft: 13 }} />
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, var(--teal), #2a9d8f)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>{p.trainee_name?.charAt(0) || "?"}</div>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{p.trainee_name || "未知"}</span>
+                        <span style={{ fontSize: 10, color: "var(--teal)", background: "var(--teal)18", padding: "1px 6px", borderRadius: 4 }}>🌱 新人</span>
+                      </div>
+                    </div>
+                    {/* Stats */}
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text2)", marginBottom: 12 }}>
+                      <span>第 {days} 天 / 28 天</span>
+                      <span>Week {week}</span>
+                      <span>{p.ceremony_completed ? "✅ 已拜師" : "⏳ 待拜師"}</span>
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{ height: 4, background: "var(--border)", borderRadius: 4, overflow: "hidden", marginBottom: 12 }}>
+                      <div style={{ height: "100%", borderRadius: 4, background: "linear-gradient(90deg, var(--accent), var(--teal))", width: `${Math.min(100, (days / 28) * 100)}%`, transition: "width 0.5s" }} />
+                    </div>
+                    {/* Actions */}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => handleStatusChange(p.id, "graduated")} style={{ flex: 1, padding: "6px 0", background: "var(--green)18", color: "var(--green)", border: "1px solid var(--green)40", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>🎓 結業</button>
+                      <button onClick={() => handleStatusChange(p.id, "dissolved")} style={{ flex: 1, padding: "6px 0", background: "var(--red)18", color: "var(--red)", border: "1px solid var(--red)40", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>解除</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Graduated/Past Pairs */}
+          {pairs.filter(p => p.status !== "active").length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "var(--text2)" }}>歷史紀錄 ({pairs.filter(p => p.status !== "active").length})</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {pairs.filter(p => p.status !== "active").map(p => (
+                  <div key={p.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", opacity: 0.7 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, fontWeight: 600, background: p.status === "graduated" ? "var(--green)22" : "var(--red)22", color: p.status === "graduated" ? "var(--green)" : "var(--red)" }}>
+                        {p.status === "graduated" ? "🎓 結業" : "已解除"}
+                      </span>
+                      <span style={{ fontSize: 13 }}>{p.mentor_name || "?"} → {p.trainee_name || "?"}</span>
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--text3)" }}>{p.start_date}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Available lists */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 24 }}>
             <div>
               <h4 style={{ fontSize: 14, color: "var(--teal)", marginBottom: 8 }}>可擔任師父 ({mentors.length})</h4>
               {loading ? <div style={{ color: "var(--text3)" }}>載入中...</div> : mentors.length === 0 ? (

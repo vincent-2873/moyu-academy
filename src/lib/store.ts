@@ -5,6 +5,7 @@ export interface User {
   password: string;
   name: string;
   brand: string;
+  role?: string;
   joinDate: string;
   progress: number;
   completedModules: number[];

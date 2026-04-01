@@ -76,3 +76,63 @@ CREATE POLICY "service_role_all_quiz_scores" ON quiz_scores FOR ALL USING (true)
 CREATE POLICY "service_role_all_video_watch" ON video_watch_progress FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "service_role_all_kpi" ON kpi_entries FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "service_role_all_overrides" ON module_overrides FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================
+-- 6. Mentor Pairs table (師徒配對)
+-- ============================================
+CREATE TABLE IF NOT EXISTS mentor_pairs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  trainee_id UUID NOT NULL,
+  mentor_id UUID NOT NULL,
+  manager_id UUID,
+  brand TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'graduated', 'dissolved', 'pending')),
+  start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  actual_end_date DATE,
+  ceremony_completed BOOLEAN DEFAULT false,
+  ceremony_date TIMESTAMPTZ,
+  milestones JSONB DEFAULT '[]'::jsonb,
+  latest_mentor_message TEXT,
+  latest_mentor_message_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_by UUID
+);
+
+CREATE INDEX IF NOT EXISTS idx_mentor_pairs_trainee ON mentor_pairs(trainee_id);
+CREATE INDEX IF NOT EXISTS idx_mentor_pairs_mentor ON mentor_pairs(mentor_id);
+CREATE INDEX IF NOT EXISTS idx_mentor_pairs_brand ON mentor_pairs(brand);
+CREATE INDEX IF NOT EXISTS idx_mentor_pairs_status ON mentor_pairs(status);
+
+-- 7. Mentor Messages table (師徒訊息)
+CREATE TABLE IF NOT EXISTS mentor_messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  pair_id UUID NOT NULL REFERENCES mentor_pairs(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL,
+  message TEXT NOT NULL,
+  message_type TEXT DEFAULT 'daily' CHECK (message_type IN ('daily', 'encouragement', 'milestone', 'ceremony')),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mentor_messages_pair ON mentor_messages(pair_id);
+
+-- 8. Mentorship Milestones table (師徒里程碑)
+CREATE TABLE IF NOT EXISTS mentorship_milestones (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  pair_id UUID NOT NULL REFERENCES mentor_pairs(id) ON DELETE CASCADE,
+  milestone_type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  achieved_at TIMESTAMPTZ DEFAULT now(),
+  celebrated BOOLEAN DEFAULT false
+);
+
+CREATE INDEX IF NOT EXISTS idx_milestones_pair ON mentorship_milestones(pair_id);
+
+ALTER TABLE mentor_pairs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mentor_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mentorship_milestones ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "service_role_all" ON mentor_pairs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON mentor_messages FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON mentorship_milestones FOR ALL USING (true) WITH CHECK (true);

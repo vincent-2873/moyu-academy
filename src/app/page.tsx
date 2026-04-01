@@ -18,6 +18,9 @@ import { modules, TASK_ICONS } from "@/data/modules";
 import { personas, getPersonasByBrand } from "@/data/personas";
 import Sidebar from "@/components/Sidebar";
 import CalendarDashboard from "@/components/CalendarDashboard";
+import MentorTeamCard from "@/components/MentorTeamCard";
+import MentorshipPage from "@/components/MentorshipPage";
+import CeremonyOverlay from "@/components/CeremonyOverlay";
 import ScoreRadar from "@/components/ScoreRadar";
 import { scoreConversation, getScoreColor, getScoreLabel, SCORE_LABELS } from "@/lib/scoring";
 import {
@@ -43,6 +46,7 @@ type Page =
   | "records"
   | "finance"
   | "knowledge"
+  | "mentorship"
   | "articles";
 
 export default function Home() {
@@ -109,6 +113,7 @@ export default function Home() {
         {page === "records" && <RecordsPage user={user} />}
         {page === "finance" && <FinanceKnowledgePage />}
         {page === "knowledge" && <KnowledgePage brandId={user.brand} />}
+        {page === "mentorship" && <MentorshipPage userEmail={user.email} userName={user.name} brandId={user.brand} userRole={user.role || "sales_rep"} />}
         {page === "articles" && <ArticlesPage />}
       </main>
       <HelpBot />
@@ -690,6 +695,11 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
             </div>
           )}
         </div>
+      </div>
+
+      {/* Mentor Team Card */}
+      <div className="mt-6">
+        <MentorTeamCard userEmail={user.email} onNavigate={onNavigate} />
       </div>
     </div>
   );
