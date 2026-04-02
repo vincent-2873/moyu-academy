@@ -187,10 +187,10 @@ export default function MentorshipPage({
     async function fetchPair() {
       setLoading(true);
       try {
-        const identifier = userId || userEmail;
-        const res = await fetch(
-          `/api/mentorship?user_email=${encodeURIComponent(identifier)}`
-        );
+        const params = userId
+          ? `user_id=${encodeURIComponent(userId)}`
+          : `user_email=${encodeURIComponent(userEmail)}`;
+        const res = await fetch(`/api/mentorship?${params}`);
         if (!res.ok) throw new Error("fetch failed");
         const data = await res.json();
         setPair(data.pair ?? null);

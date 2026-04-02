@@ -6,7 +6,7 @@ import { trainingVideos, videoCategories } from "@/data/videos";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "dashboard" | "users" | "content" | "videos" | "mentorship" | "approvals";
+type AdminTab = "dashboard" | "users" | "training" | "mentorship" | "approvals";
 
 interface AdminSession { name: string; email: string; token: string; }
 
@@ -77,8 +77,7 @@ export default function AdminPage() {
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
     { id: "dashboard", label: "學員進度", icon: "📊" },
     { id: "users", label: "用戶管理", icon: "👥" },
-    { id: "content", label: "內容管理", icon: "📝" },
-    { id: "videos", label: "影片管理", icon: "🎬" },
+    { id: "training", label: "訓練管理", icon: "📝" },
     { id: "mentorship", label: "師徒管理", icon: "🤝" },
     { id: "approvals", label: "審核中心", icon: "✅" },
   ];
@@ -120,8 +119,7 @@ export default function AdminPage() {
       <main style={{ flex: 1, marginLeft: 240, padding: "28px 36px" }}>
         {tab === "dashboard" && <DashboardTab token={session.token} />}
         {tab === "users" && <UsersTab token={session.token} />}
-        {tab === "content" && <ContentTab />}
-        {tab === "videos" && <VideosTab token={session.token} />}
+        {tab === "training" && <TrainingTab token={session.token} />}
         {tab === "mentorship" && <MentorshipTab token={session.token} />}
         {tab === "approvals" && <ApprovalsTab token={session.token} />}
       </main>
@@ -569,9 +567,12 @@ function UsersTab({ token }: { token: string }) {
   );
 }
 
-// ─── Content Tab (內容管理) ────────────────────────────────────────────────
+// ─── Training Tab (訓練管理 = 內容 + 影片) ──────────────────────────────────
 
-function ContentTab() {
+interface DbVideo { id: string; title: string; category: string; brands: string[]; related_days: number[]; status: string; drive_file_id: string; description?: string }
+
+function TrainingTab({ token }: { token: string }) {
+  // Content overrides state
   const [overrides, setOverrides] = useState<ModuleOverride[]>([]);
   const [editingModule, setEditingModule] = useState<number | null>(null);
   const [editDesc, setEditDesc] = useState("");
@@ -580,10 +581,38 @@ function ContentTab() {
   const [editTips, setEditTips] = useState("");
   const [editTask, setEditTask] = useState("");
   const [saving, setSaving] = useState(false);
+  // Video state
+  const [dbVideos, setDbVideos] = useState<DbVideo[]>([]);
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  // Video add form
+  const [addingVideoDay, setAddingVideoDay] = useState<number | null>(null);
+  const [addStep, setAddStep] = useState(0);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDriveId, setNewDriveId] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newBrands, setNewBrands] = useState<string[]>([]);
+
+  const BRAND_OPTIONS = [
+    { id: "ooschool", name: "OOschool 無限", color: "#4F46E5" },
+    { id: "xuemi", name: "XUEMI 學米", color: "#7c6cf0" },
+    { id: "nschool", name: "nSchool 財經", color: "#feca57" },
+    { id: "aischool", name: "AIschool AI", color: "#10B981" },
+  ];
+
+  const toggleArr = (arr: string[], item: string) => arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
 
   useEffect(() => {
     fetch("/api/admin/module-overrides").then((r) => r.json()).then((d) => setOverrides(d.overrides || []));
   }, []);
+
+  const fetchVideos = useCallback(() => {
+    fetch("/api/admin/videos", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setDbVideos((d.videos || []).map((v: DbVideo) => ({ ...v, brands: v.brands || [], related_days: v.related_days || [] }))))
+      .catch(() => setDbVideos([]));
+  }, [token]);
+
+  useEffect(() => { fetchVideos(); }, [fetchVideos]);
 
   const startEdit = (moduleId: number) => {
     const existing = overrides.find((o) => o.module_id === moduleId);
@@ -618,41 +647,236 @@ function ContentTab() {
     setOverrides(res.overrides || []);
   };
 
+  const resetAddForm = () => { setAddingVideoDay(null); setAddStep(0); setNewTitle(""); setNewDriveId(""); setNewDescription(""); setNewBrands([]); };
+
+  const addVideo = async () => {
+    if (!newTitle || !newDriveId || !addingVideoDay) return;
+    await fetch("/api/admin/videos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ title: newTitle, drive_file_id: newDriveId, description: newDescription, status: "published", brands: newBrands, related_days: [addingVideoDay] }),
+    });
+    resetAddForm();
+    fetchVideos();
+  };
+
+  const deleteVideo = async (videoId: string) => {
+    if (!confirm("確定要刪除這部影片嗎？")) return;
+    await fetch("/api/admin/videos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: videoId, status: "deleted" }),
+    });
+    fetchVideos();
+  };
+
+  // Get videos for a specific day (static + DB)
+  const getVideosForDay = (day: number) => {
+    const staticV = trainingVideos.filter(v => v.relatedDays.includes(day));
+    const dbV = dbVideos.filter(v => v.status !== "deleted" && v.related_days?.includes(day));
+    return { staticVideos: staticV, customVideos: dbV };
+  };
+
+  const BrandTags = ({ brands }: { brands: string[] }) => {
+    if (!brands || brands.length === 0) return <span style={{ fontSize: 10, color: "var(--green)", background: "var(--green)15", padding: "1px 6px", borderRadius: 5, fontWeight: 600 }}>全品牌</span>;
+    return <>{brands.map((bid) => { const b = BRAND_OPTIONS.find(x => x.id === bid); return b ? <span key={bid} style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 5, background: `${b.color}18`, color: b.color }}>{b.name}</span> : null; })}</>;
+  };
+
   return (
     <div>
-      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>訓練內容管理</h2>
-      <p style={{ color: "var(--text3)", fontSize: 14, marginBottom: 24 }}>編輯各天的訓練內容。修改後新人端會即時顯示更新內容。</p>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>訓練管理</h2>
+      <p style={{ color: "var(--text3)", fontSize: 14, marginBottom: 24 }}>管理每天的訓練內容與影片。點擊展開查看/編輯該天的影片和課程內容。</p>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {Array.from({ length: 9 }, (_, i) => i + 1).map((day) => {
           const hasOverride = overrides.some((o) => o.module_id === day);
+          const { staticVideos: dayStaticVideos, customVideos: dayCustomVideos } = getVideosForDay(day);
+          const totalVideos = dayStaticVideos.length + dayCustomVideos.length;
+          const isExpanded = expandedDay === day;
+
           return (
-            <div key={day} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: hasOverride ? "var(--gold)" : "var(--accent)", color: hasOverride ? "#000" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14 }}>
-                  {day}
+            <div key={day} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+              {/* Day Header - clickable */}
+              <div onClick={() => setExpandedDay(isExpanded ? null : day)} style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: hasOverride ? "var(--gold)" : "var(--accent)", color: hasOverride ? "#000" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15 }}>
+                    {day}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>Day {day} — {MODULE_TITLES[day]}</div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 2 }}>
+                      <span style={{ fontSize: 11, color: "var(--text3)" }}>🎬 {totalVideos} 部影片</span>
+                      {hasOverride && <span style={{ fontSize: 11, color: "var(--gold)" }}>✏️ 已自訂內容</span>}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>Day {day} — {MODULE_TITLES[day]}</div>
-                  {hasOverride && <div style={{ fontSize: 11, color: "var(--gold)" }}>已自訂內容</div>}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => startEdit(day)} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  編輯
-                </button>
-                {hasOverride && (
-                  <button onClick={() => resetOverride(day)} style={{ background: "var(--border)", color: "var(--text2)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 13, cursor: "pointer" }}>
-                    重置
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button onClick={(e) => { e.stopPropagation(); startEdit(day); }} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                    編輯內容
                   </button>
-                )}
+                  {hasOverride && (
+                    <button onClick={(e) => { e.stopPropagation(); resetOverride(day); }} style={{ background: "var(--border)", color: "var(--text2)", border: "none", borderRadius: 8, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>
+                      重置
+                    </button>
+                  )}
+                  <span style={{ fontSize: 18, color: "var(--text3)", transition: "transform 0.2s", transform: isExpanded ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
+                </div>
               </div>
+
+              {/* Expanded: Videos for this day */}
+              {isExpanded && (
+                <div style={{ padding: "0 20px 20px", borderTop: "1px solid var(--border)" }}>
+                  {/* Static videos */}
+                  {dayStaticVideos.length > 0 && (
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 8 }}>📋 系統內建影片</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                        {dayStaticVideos.map(v => (
+                          <div key={v.id} style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 10, padding: 10, opacity: 0.85 }}>
+                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4 }}>{v.type === "slides" ? "📊" : "🎬"} {v.title}</div>
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", fontSize: 10 }}>
+                              <BrandTags brands={v.brands} />
+                              <span style={{ color: "var(--text3)", marginLeft: "auto" }}>{v.size}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Custom DB videos */}
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)" }}>📌 自訂影片 ({dayCustomVideos.length})</div>
+                      <button onClick={() => { setAddingVideoDay(day); setAddStep(1); }} style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 8, padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        + 新增影片到 Day {day}
+                      </button>
+                    </div>
+
+                    {dayCustomVideos.length > 0 ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                        {dayCustomVideos.map(v => (
+                          <div key={v.id} style={{ background: "var(--bg2)", border: "1px solid var(--accent)30", borderRadius: 10, padding: 10 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                              <div style={{ fontWeight: 600, fontSize: 12 }}>🎬 {v.title}</div>
+                              <button onClick={() => deleteVideo(v.id)} style={{ fontSize: 10, color: "var(--red)", background: "none", border: "none", cursor: "pointer", padding: "2px 4px" }}>刪除</button>
+                            </div>
+                            {v.description && <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>{v.description}</div>}
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
+                              <BrandTags brands={v.brands} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ padding: 16, textAlign: "center", color: "var(--text3)", fontSize: 12, background: "var(--bg2)", borderRadius: 10 }}>
+                        尚無自訂影片，點擊上方按鈕新增
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Edit Modal */}
+      {/* Add Video Modal */}
+      {addingVideoDay && addStep > 0 && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={resetAddForm}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", border: "2px solid var(--accent)", borderRadius: 20, padding: 32, width: "100%", maxWidth: 560 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>新增影片到 Day {addingVideoDay}</h3>
+            <p style={{ color: "var(--text3)", fontSize: 12, marginBottom: 20 }}>{MODULE_TITLES[addingVideoDay]}</p>
+
+            {/* Progress */}
+            <div style={{ display: "flex", gap: 0, marginBottom: 20 }}>
+              {[1, 2, 3].map(s => (
+                <div key={s} style={{ flex: 1, display: "flex", alignItems: "center" }}>
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, background: addStep >= s ? "var(--accent)" : "var(--border)", color: addStep >= s ? "#fff" : "var(--text3)" }}>{s}</div>
+                  {s < 3 && <div style={{ flex: 1, height: 2, background: addStep > s ? "var(--accent)" : "var(--border)" }} />}
+                </div>
+              ))}
+            </div>
+
+            {/* Step 1: Info */}
+            {addStep === 1 && (
+              <div>
+                <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Step 1：影片資訊</h4>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>影片標題 *</label>
+                  <input value={newTitle} onChange={e => setNewTitle(e.target.value)} style={inputStyle} placeholder="例：學米 DEMO 流程教學" />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>Google Drive 檔案 ID *</label>
+                  <input value={newDriveId} onChange={e => setNewDriveId(e.target.value)} style={inputStyle} placeholder="貼上 Google Drive 檔案 ID 或完整連結" />
+                  <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>格式如：1kn-z8VXrTFhc0J5mPTlSj6IhtUBovT2r</div>
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>描述（選填）</label>
+                  <input value={newDescription} onChange={e => setNewDescription(e.target.value)} style={inputStyle} placeholder="簡短說明" />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <button onClick={resetAddForm} style={{ background: "var(--border)", color: "var(--text2)", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}>取消</button>
+                  <button disabled={!newTitle || !newDriveId} onClick={() => setAddStep(2)} style={{ background: newTitle && newDriveId ? "var(--accent)" : "var(--border)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: newTitle && newDriveId ? "pointer" : "not-allowed" }}>
+                    下一步：選擇品牌 →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Brands */}
+            {addStep === 2 && (
+              <div>
+                <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Step 2：選擇品牌</h4>
+                <p style={{ color: "var(--text3)", fontSize: 12, marginBottom: 12 }}>不選則全品牌可見</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginBottom: 16 }}>
+                  {BRAND_OPTIONS.map(b => (
+                    <button key={b.id} onClick={() => setNewBrands(toggleArr(newBrands, b.id))}
+                      style={{ padding: "12px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left",
+                        border: newBrands.includes(b.id) ? `2px solid ${b.color}` : "2px solid var(--border)",
+                        background: newBrands.includes(b.id) ? `${b.color}15` : "var(--bg2)",
+                        color: newBrands.includes(b.id) ? b.color : "var(--text3)" }}>
+                      {newBrands.includes(b.id) ? "✅ " : "⬜ "}{b.name}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ padding: "8px 12px", background: "var(--bg2)", borderRadius: 8, marginBottom: 16, fontSize: 12, color: "var(--text2)" }}>
+                  {newBrands.length === 0 ? "🌐 全品牌可見" : newBrands.map(bid => BRAND_OPTIONS.find(b => b.id === bid)?.name).join("、")}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <button onClick={() => setAddStep(1)} style={{ background: "var(--border)", color: "var(--text2)", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}>← 上一步</button>
+                  <button onClick={() => setAddStep(3)} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                    下一步：確認 →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Confirm */}
+            {addStep === 3 && (
+              <div>
+                <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Step 3：確認送出</h4>
+                <div style={{ background: "var(--bg2)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 14px", fontSize: 13 }}>
+                    <span style={{ color: "var(--text3)" }}>標題</span><span style={{ fontWeight: 600 }}>{newTitle}</span>
+                    <span style={{ color: "var(--text3)" }}>Drive ID</span><span style={{ fontFamily: "monospace", fontSize: 12 }}>{newDriveId}</span>
+                    <span style={{ color: "var(--text3)" }}>天數</span><span style={{ fontWeight: 600 }}>Day {addingVideoDay}</span>
+                    <span style={{ color: "var(--text3)" }}>品牌</span><span>{newBrands.length === 0 ? "🌐 全品牌" : newBrands.map(bid => BRAND_OPTIONS.find(b => b.id === bid)?.name).join("、")}</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <button onClick={() => setAddStep(2)} style={{ background: "var(--border)", color: "var(--text2)", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}>← 上一步</button>
+                  <button onClick={addVideo} style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: "10px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                    ✓ 確認發佈
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Content Edit Modal */}
       {editingModule && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setEditingModule(null)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: 32, width: "100%", maxWidth: 700, maxHeight: "85vh", overflowY: "auto" }}>
@@ -662,7 +886,6 @@ function ContentTab() {
             <p style={{ color: "var(--text3)", fontSize: 12, marginBottom: 20 }}>
               留空的欄位會使用預設內容。只需填寫要修改的部分。
             </p>
-
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6, fontWeight: 600 }}>前言說明</label>
@@ -685,7 +908,6 @@ function ContentTab() {
                 <textarea value={editTask} onChange={(e) => setEditTask(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="留空使用預設" />
               </div>
             </div>
-
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
               <button onClick={() => setEditingModule(null)} style={{ background: "var(--border)", color: "var(--text2)", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}>取消</button>
               <button onClick={saveOverride} disabled={saving} style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer" }}>
@@ -699,360 +921,6 @@ function ContentTab() {
   );
 }
 
-// ─── Videos Tab ────────────────────────────────────────────────────────────
-
-interface DbVideo { id: string; title: string; category: string; brands: string[]; related_days: number[]; status: string; drive_file_id: string; description?: string }
-
-function VideosTab({ token }: { token: string }) {
-  const [dbVideos, setDbVideos] = useState<DbVideo[]>([]);
-  const [loading, setLoading] = useState(true);
-  // Step form state
-  const [addStep, setAddStep] = useState(0); // 0=closed, 1=info, 2=brands, 3=days, 4=confirm
-  const [newTitle, setNewTitle] = useState("");
-  const [newDriveId, setNewDriveId] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-  const [newBrands, setNewBrands] = useState<string[]>([]);
-  const [newDays, setNewDays] = useState<number[]>([]);
-  // Filters
-  const [filterBrand, setFilterBrand] = useState("all");
-  // Editing
-  const [editingVideo, setEditingVideo] = useState<string | null>(null);
-  const [editBrands, setEditBrands] = useState<string[]>([]);
-  const [editDays, setEditDays] = useState<number[]>([]);
-
-  const BRAND_OPTIONS = [
-    { id: "ooschool", name: "OOschool 無限", color: "#4F46E5" },
-    { id: "xuemi", name: "XUEMI 學米", color: "#7c6cf0" },
-    { id: "nschool", name: "nSchool 財經", color: "#feca57" },
-    { id: "aischool", name: "AIschool AI", color: "#10B981" },
-  ];
-
-  const toggleArr = (arr: string[], item: string) => arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
-  const toggleNum = (arr: number[], item: number) => arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item].sort((a, b) => a - b);
-
-  const fetchVideos = useCallback(() => {
-    setLoading(true);
-    fetch("/api/admin/videos", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((d) => setDbVideos((d.videos || []).map((v: DbVideo) => ({ ...v, brands: v.brands || [], related_days: v.related_days || [] }))))
-      .catch(() => setDbVideos([]))
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  useEffect(() => { fetchVideos(); }, [fetchVideos]);
-
-  const resetForm = () => { setAddStep(0); setNewTitle(""); setNewDriveId(""); setNewDescription(""); setNewBrands([]); setNewDays([]); };
-
-  const addVideo = async () => {
-    if (!newTitle || !newDriveId) return;
-    await fetch("/api/admin/videos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ title: newTitle, drive_file_id: newDriveId, description: newDescription, status: "published", brands: newBrands, related_days: newDays }),
-    });
-    resetForm();
-    fetchVideos();
-  };
-
-  const updateVideo = async (videoId: string, updates: Partial<DbVideo>) => {
-    await fetch("/api/admin/videos", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ id: videoId, ...updates }),
-    });
-    setEditingVideo(null);
-    fetchVideos();
-  };
-
-  const deleteVideo = async (videoId: string) => {
-    if (!confirm("確定要刪除這部影片嗎？")) return;
-    await updateVideo(videoId, { status: "deleted" } as Partial<DbVideo>);
-  };
-
-  // Brand tag helper
-  const BrandTags = ({ brands }: { brands: string[] }) => {
-    if (!brands || brands.length === 0) return <span style={{ fontSize: 11, color: "var(--green)", background: "var(--green)15", padding: "2px 8px", borderRadius: 6, fontWeight: 600 }}>全品牌</span>;
-    return <>{brands.map((bid) => { const b = BRAND_OPTIONS.find(x => x.id === bid); return b ? <span key={bid} style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 5, background: `${b.color}18`, color: b.color }}>{b.name}</span> : null; })}</>;
-  };
-
-  const DayTags = ({ days }: { days: number[] }) => {
-    if (!days || days.length === 0) return <span style={{ fontSize: 11, color: "var(--text3)" }}>未指定天數</span>;
-    return <>{days.map(d => <span key={d} style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 5, background: "var(--accent)15", color: "var(--accent)" }}>Day {d}</span>)}</>;
-  };
-
-  // Filters
-  const activeDbVideos = dbVideos.filter(v => v.status !== "deleted");
-  const filteredStaticVideos = trainingVideos.filter(v => filterBrand === "all" || v.brands.length === 0 || v.brands.includes(filterBrand));
-  const filteredDbVideos = activeDbVideos.filter(v => filterBrand === "all" || !v.brands || v.brands.length === 0 || v.brands.includes(filterBrand));
-  const allBrandCount = (bid: string) => trainingVideos.filter(v => v.brands.length === 0 || v.brands.includes(bid)).length + activeDbVideos.filter(v => !v.brands || v.brands.length === 0 || v.brands.includes(bid)).length;
-
-  // Group static by category
-  const groupedVideos: Record<string, typeof trainingVideos> = {};
-  for (const v of filteredStaticVideos) { if (!groupedVideos[v.category]) groupedVideos[v.category] = []; groupedVideos[v.category].push(v); }
-
-  const stepLabel = ["", "Step 1：影片資訊", "Step 2：選擇品牌", "Step 3：選擇天數", "Step 4：確認送出"];
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>影片管理</h2>
-          <p style={{ color: "var(--text3)", fontSize: 13, marginTop: 4 }}>上傳影片 → 設定品牌 → 指定天數 → 發佈</p>
-        </div>
-        <button onClick={() => addStep === 0 ? setAddStep(1) : resetForm()} style={{ background: addStep > 0 ? "var(--red)" : "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: "8px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-          {addStep > 0 ? "取消" : "+ 新增影片"}
-        </button>
-      </div>
-
-      {/* Step-by-step Add Form */}
-      {addStep > 0 && (
-        <div style={{ background: "var(--card)", border: "2px solid var(--accent)", borderRadius: 16, padding: 24, marginBottom: 24 }}>
-          {/* Progress bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 20 }}>
-            {[1, 2, 3, 4].map(s => (
-              <div key={s} style={{ flex: 1, display: "flex", alignItems: "center" }}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, background: addStep >= s ? "var(--accent)" : "var(--border)", color: addStep >= s ? "#fff" : "var(--text3)" }}>{s}</div>
-                {s < 4 && <div style={{ flex: 1, height: 2, background: addStep > s ? "var(--accent)" : "var(--border)" }} />}
-              </div>
-            ))}
-          </div>
-          <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{stepLabel[addStep]}</h4>
-
-          {/* Step 1: Video Info */}
-          {addStep === 1 && (
-            <div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>影片標題 *</label>
-                <input value={newTitle} onChange={e => setNewTitle(e.target.value)} style={inputStyle} placeholder="例：學米 DEMO 流程教學" />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>Google Drive 檔案 ID *</label>
-                <input value={newDriveId} onChange={e => setNewDriveId(e.target.value)} style={inputStyle} placeholder="貼上 Google Drive 檔案 ID 或完整連結" />
-                <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>從 Google Drive 分享連結中取得，格式如：1kn-z8VXrTFhc0J5mPTlSj6IhtUBovT2r</div>
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>影片描述（選填）</label>
-                <input value={newDescription} onChange={e => setNewDescription(e.target.value)} style={inputStyle} placeholder="簡短說明這部影片的內容" />
-              </div>
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button disabled={!newTitle || !newDriveId} onClick={() => setAddStep(2)} style={{ background: newTitle && newDriveId ? "var(--accent)" : "var(--border)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: newTitle && newDriveId ? "pointer" : "not-allowed" }}>
-                  下一步：選擇品牌 →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Brand Selection */}
-          {addStep === 2 && (
-            <div>
-              <p style={{ color: "var(--text3)", fontSize: 13, marginBottom: 12 }}>選擇哪些品牌的業務人員可以看到這部影片。不選則全品牌可見。</p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
-                {BRAND_OPTIONS.map(b => (
-                  <button key={b.id} onClick={() => setNewBrands(toggleArr(newBrands, b.id))}
-                    style={{ padding: "14px 16px", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 10,
-                      border: newBrands.includes(b.id) ? `2px solid ${b.color}` : "2px solid var(--border)",
-                      background: newBrands.includes(b.id) ? `${b.color}15` : "var(--bg2)",
-                      color: newBrands.includes(b.id) ? b.color : "var(--text3)" }}>
-                    <span style={{ fontSize: 18 }}>{newBrands.includes(b.id) ? "✅" : "⬜"}</span>
-                    {b.name}
-                  </button>
-                ))}
-              </div>
-              <div style={{ padding: "10px 14px", background: "var(--bg2)", borderRadius: 8, marginBottom: 16, fontSize: 12, color: "var(--text2)" }}>
-                目前設定：{newBrands.length === 0 ? "🌐 全品牌可見" : newBrands.map(bid => BRAND_OPTIONS.find(b => b.id === bid)?.name).join("、")}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <button onClick={() => setAddStep(1)} style={{ background: "var(--bg2)", color: "var(--text2)", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}>← 上一步</button>
-                <button onClick={() => setAddStep(3)} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                  下一步：選擇天數 →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Day Selection */}
-          {addStep === 3 && (
-            <div>
-              <p style={{ color: "var(--text3)", fontSize: 13, marginBottom: 12 }}>選擇這部影片要出現在第幾天的訓練課程中。可多選。不選則只出現在影片庫。</p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 20 }}>
-                {Array.from({ length: 9 }, (_, i) => i + 1).map(d => (
-                  <button key={d} onClick={() => setNewDays(toggleNum(newDays, d))}
-                    style={{ padding: "12px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                      border: newDays.includes(d) ? "2px solid var(--accent)" : "2px solid var(--border)",
-                      background: newDays.includes(d) ? "var(--accent)15" : "var(--bg2)",
-                      color: newDays.includes(d) ? "var(--accent)" : "var(--text3)" }}>
-                    {newDays.includes(d) ? "✅ " : ""}Day {d}
-                    <div style={{ fontSize: 10, fontWeight: 400, marginTop: 2 }}>{MODULE_TITLES[d] || ""}</div>
-                  </button>
-                ))}
-              </div>
-              <div style={{ padding: "10px 14px", background: "var(--bg2)", borderRadius: 8, marginBottom: 16, fontSize: 12, color: "var(--text2)" }}>
-                目前設定：{newDays.length === 0 ? "📚 僅影片庫（不綁定天數）" : `Day ${newDays.join(", ")}`}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <button onClick={() => setAddStep(2)} style={{ background: "var(--bg2)", color: "var(--text2)", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}>← 上一步</button>
-                <button onClick={() => setAddStep(4)} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                  下一步：確認 →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 4: Confirm */}
-          {addStep === 4 && (
-            <div>
-              <div style={{ background: "var(--bg2)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "8px 16px", fontSize: 13 }}>
-                  <span style={{ color: "var(--text3)" }}>標題</span><span style={{ fontWeight: 600 }}>{newTitle}</span>
-                  <span style={{ color: "var(--text3)" }}>Drive ID</span><span style={{ fontFamily: "monospace", fontSize: 12 }}>{newDriveId}</span>
-                  <span style={{ color: "var(--text3)" }}>描述</span><span>{newDescription || "（無）"}</span>
-                  <span style={{ color: "var(--text3)" }}>品牌</span><span>{newBrands.length === 0 ? "🌐 全品牌可見" : newBrands.map(bid => BRAND_OPTIONS.find(b => b.id === bid)?.name).join("、")}</span>
-                  <span style={{ color: "var(--text3)" }}>天數</span><span>{newDays.length === 0 ? "📚 僅影片庫" : `Day ${newDays.join(", ")}`}</span>
-                </div>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <button onClick={() => setAddStep(3)} style={{ background: "var(--bg2)", color: "var(--text2)", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}>← 上一步</button>
-                <button onClick={addVideo} style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: "10px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-                  ✓ 確認發佈
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Brand Filter Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 20 }}>
-        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", cursor: "pointer", outline: filterBrand === "all" ? "2px solid var(--accent)" : "none" }} onClick={() => setFilterBrand("all")}>
-          <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>全部影片</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "var(--accent)" }}>{trainingVideos.length + activeDbVideos.length}</div>
-        </div>
-        {BRAND_OPTIONS.map(b => (
-          <div key={b.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", cursor: "pointer", outline: filterBrand === b.id ? `2px solid ${b.color}` : "none" }} onClick={() => setFilterBrand(filterBrand === b.id ? "all" : b.id)}>
-            <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>{b.name}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: b.color }}>{allBrandCount(b.id)}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* DB Custom Videos - show first since these are admin-managed */}
-      {filteredDbVideos.length > 0 && (
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>📌 後台管理影片</h3>
-            <span style={{ fontSize: 12, color: "var(--text3)" }}>({filteredDbVideos.length} 部)</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-            {filteredDbVideos.map(v => (
-              <div key={v.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 6 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🎬 {v.title}</div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <span style={{ background: v.status === "published" ? "var(--green)22" : "var(--gold)22", color: v.status === "published" ? "var(--green)" : "var(--gold)", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>
-                      {v.status === "published" ? "已發佈" : "草稿"}
-                    </span>
-                    <button onClick={() => deleteVideo(v.id)} style={{ fontSize: 11, color: "var(--red)", background: "none", border: "none", cursor: "pointer" }}>刪除</button>
-                  </div>
-                </div>
-                {v.description && <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 6 }}>{v.description}</div>}
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", marginBottom: 4 }}>
-                  <span style={{ fontSize: 10, color: "var(--text3)", marginRight: 2 }}>品牌：</span><BrandTags brands={v.brands} />
-                </div>
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ fontSize: 10, color: "var(--text3)", marginRight: 2 }}>天數：</span><DayTags days={v.related_days} />
-                </div>
-
-                {/* Edit button */}
-                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: editingVideo === v.id ? 8 : 0 }}>
-                  <button onClick={() => { if (editingVideo === v.id) { setEditingVideo(null); } else { setEditingVideo(v.id); setEditBrands(v.brands || []); setEditDays(v.related_days || []); } }}
-                    style={{ fontSize: 12, color: "var(--accent)", background: "var(--accent)10", border: "none", borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontWeight: 600 }}>
-                    {editingVideo === v.id ? "取消編輯" : "✏️ 編輯設定"}
-                  </button>
-                  {v.drive_file_id && (
-                    <a href={`https://drive.google.com/file/d/${v.drive_file_id}/view`} target="_blank" rel="noopener" style={{ color: "var(--accent)", fontSize: 11, textDecoration: "none" }}>開啟影片 ↗</a>
-                  )}
-                </div>
-
-                {/* Edit panel */}
-                {editingVideo === v.id && (
-                  <div style={{ background: "var(--bg2)", borderRadius: 10, padding: 14 }}>
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>品牌設定（不選 = 全品牌）</div>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {BRAND_OPTIONS.map(b => (
-                          <button key={b.id} onClick={() => setEditBrands(toggleArr(editBrands, b.id))}
-                            style={{ padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                              border: editBrands.includes(b.id) ? `2px solid ${b.color}` : "2px solid var(--border)",
-                              background: editBrands.includes(b.id) ? `${b.color}15` : "transparent",
-                              color: editBrands.includes(b.id) ? b.color : "var(--text3)" }}>
-                            {editBrands.includes(b.id) ? "✓ " : ""}{b.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>天數設定（不選 = 僅影片庫）</div>
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        {Array.from({ length: 9 }, (_, i) => i + 1).map(d => (
-                          <button key={d} onClick={() => setEditDays(toggleNum(editDays, d))}
-                            style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                              border: editDays.includes(d) ? "2px solid var(--accent)" : "2px solid var(--border)",
-                              background: editDays.includes(d) ? "var(--accent)15" : "transparent",
-                              color: editDays.includes(d) ? "var(--accent)" : "var(--text3)" }}>
-                            {editDays.includes(d) ? "✓ " : ""}Day {d}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <button onClick={() => updateVideo(v.id, { brands: editBrands, related_days: editDays } as Partial<DbVideo>)}
-                      style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                      儲存設定
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {filteredDbVideos.length === 0 && (
-        <div style={{ textAlign: "center", padding: 32, color: "var(--text3)", fontSize: 13, background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)", marginBottom: 28 }}>
-          尚無後台管理影片，點擊上方「+ 新增影片」按步驟新增
-        </div>
-      )}
-
-      {/* Static Videos (read-only reference) */}
-      <div style={{ marginBottom: 12 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>📋 系統內建影片（唯讀）</h3>
-        <p style={{ color: "var(--text3)", fontSize: 12 }}>以下影片為系統預設，品牌與天數已固定。如需新增同類影片請用上方新增功能。</p>
-      </div>
-      {Object.entries(groupedVideos).map(([catId, videos]) => {
-        const cat = videoCategories.find(c => c.id === catId);
-        return (
-          <div key={catId} style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{cat ? `${cat.icon} ${cat.title}` : catId}</span>
-              <span style={{ fontSize: 12, color: "var(--text3)" }}>({videos.length})</span>
-              {cat && cat.brands.length > 0 && <BrandTags brands={cat.brands} />}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-              {videos.map(v => (
-                <div key={v.id} style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 10, padding: 12, opacity: 0.85 }}>
-                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4 }}>{v.type === "slides" ? "📊 " : "🎬 "}{v.title}</div>
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", fontSize: 10 }}>
-                    <BrandTags brands={v.brands} />
-                    <span style={{ color: "var(--text3)", marginLeft: "auto" }}>Day {v.relatedDays.join(", ")} · {v.size}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ─── Mentorship Tab (師徒管理) ─────────────────────────────────────────────
 

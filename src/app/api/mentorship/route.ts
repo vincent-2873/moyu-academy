@@ -12,24 +12,35 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('user_id');
+    const userEmail = searchParams.get('user_email');
     const brand = searchParams.get('brand');
     const status = searchParams.get('status');
     const role = searchParams.get('role');
 
+    // If user_email is provided, resolve it to user_id first
+    let resolvedUserId = userId;
+    if (!resolvedUserId && userEmail) {
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', userEmail)
+        .maybeSingle();
+      if (userRow) resolvedUserId = userRow.id;
+    }
+
     let query = supabase.from('mentor_pairs').select('*');
 
     // Filter by user_id - check across trainee, mentor, and manager columns
-    if (userId) {
+    if (resolvedUserId) {
       if (role === 'trainee') {
-        query = query.eq('trainee_id', userId);
+        query = query.eq('trainee_id', resolvedUserId);
       } else if (role === 'mentor') {
-        query = query.eq('mentor_id', userId);
+        query = query.eq('mentor_id', resolvedUserId);
       } else if (role === 'manager') {
-        query = query.eq('manager_id', userId);
+        query = query.eq('manager_id', resolvedUserId);
       } else {
-        // No specific role: match any of the three
         query = query.or(
-          `trainee_id.eq.${userId},mentor_id.eq.${userId},manager_id.eq.${userId}`
+          `trainee_id.eq.${resolvedUserId},mentor_id.eq.${resolvedUserId},manager_id.eq.${resolvedUserId}`
         );
       }
     }
@@ -52,7 +63,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!pairs || pairs.length === 0) {
-      return NextResponse.json([]);
+      return NextResponse.json({ pair: null, pairs: [] });
     }
 
     // Collect all unique user IDs from pairs to batch-query names
@@ -65,30 +76,50 @@ export async function GET(request: NextRequest) {
 
     const userIds = Array.from(userIdSet);
 
-    // Batch fetch user details
-    const userMap: Record<string, string> = {};
+    // Batch fetch user details (name, email, role, brand)
+    const userMap: Record<string, { name: string; email: string; role: string; brand: string }> = {};
     if (userIds.length > 0) {
       const { data: users, error: usersError } = await supabase
         .from('users')
-        .select('id, name')
+        .select('id, name, email, role, brand')
         .in('id', userIds);
 
       if (!usersError && users) {
         for (const user of users) {
-          userMap[user.id] = user.name;
+          userMap[user.id] = { name: user.name, email: user.email, role: user.role, brand: user.brand };
         }
       }
     }
 
-    // Map names back to pairs
-    const enrichedPairs = pairs.map((pair) => ({
-      ...pair,
-      trainee_name: userMap[pair.trainee_id] || null,
-      mentor_name: userMap[pair.mentor_id] || null,
-      manager_name: pair.manager_id ? userMap[pair.manager_id] || null : null,
-    }));
+    // Enrich pairs with full user info for frontend
+    const enrichedPairs = pairs.map((pair) => {
+      const days = Math.ceil((Date.now() - new Date(pair.start_date).getTime()) / (1000 * 60 * 60 * 24));
+      const week = Math.min(4, Math.ceil(Math.max(1, days) / 7));
+      const traineeInfo = userMap[pair.trainee_id];
+      const mentorInfo = userMap[pair.mentor_id];
+      const managerInfo = pair.manager_id ? userMap[pair.manager_id] : null;
 
-    return NextResponse.json(enrichedPairs);
+      return {
+        id: pair.id,
+        trainee: traineeInfo ? { name: traineeInfo.name, email: traineeInfo.email, role: traineeInfo.role, brand: traineeInfo.brand } : { name: '未知', email: '', role: '', brand: '' },
+        mentor: mentorInfo ? { name: mentorInfo.name, email: mentorInfo.email, role: mentorInfo.role, brand: mentorInfo.brand } : { name: '未知', email: '', role: '', brand: '' },
+        manager: managerInfo ? { name: managerInfo.name, email: managerInfo.email, role: managerInfo.role, brand: managerInfo.brand } : null,
+        start_date: pair.start_date,
+        current_day: days,
+        current_week: week,
+        current_mode: week <= 1 ? 'Coach 示範' : week <= 2 ? '陪跑輔助' : week <= 3 ? '放手觀察' : '驗收結業',
+        feedback_count: 0,
+        completion_rate: Math.min(100, Math.round((days / 28) * 100)),
+        milestones: pair.milestones || [],
+        status: pair.status,
+        ceremony_completed: pair.ceremony_completed,
+      };
+    });
+
+    // Find the active pair for the requesting user (for single-user view)
+    const activePair = enrichedPairs.find(p => p.status === 'active') || enrichedPairs[0] || null;
+
+    return NextResponse.json({ pair: activePair, pairs: enrichedPairs });
   } catch (error) {
     console.error('Mentorship GET error:', error);
     return NextResponse.json(
