@@ -408,7 +408,7 @@ function DashboardTab({ token }: { token: string }) {
 // ─── Users Tab ─────────────────────────────────────────────────────────────
 
 function UsersTab({ token }: { token: string }) {
-  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; is_active: boolean; created_at: string }>>([]);
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; status: string; created_at: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [brandFilter, setBrandFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -436,8 +436,9 @@ function UsersTab({ token }: { token: string }) {
     fetchUsers();
   };
 
-  const toggleStatus = async (userId: string, currentActive: boolean) => {
-    await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, is_active: !currentActive }) });
+  const toggleStatus = async (userId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "active" ? "inactive" : "active";
+    await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, status: newStatus }) });
     fetchUsers();
   };
 
@@ -464,8 +465,8 @@ function UsersTab({ token }: { token: string }) {
     return true;
   });
 
-  const activeCount = users.filter((u) => u.is_active).length;
-  const inactiveCount = users.filter((u) => !u.is_active).length;
+  const activeCount = users.filter((u) => u.status === "active").length;
+  const inactiveCount = users.filter((u) => u.status !== "active").length;
 
   return (
     <div>
@@ -547,14 +548,14 @@ function UsersTab({ token }: { token: string }) {
                     </select>
                   </td>
                   <td style={{ padding: "12px 14px" }}>
-                    <span style={{ background: u.is_active ? "#22c55e22" : "#f8717122", color: u.is_active ? "var(--green)" : "var(--red)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
-                      {u.is_active ? "啟用" : "停用"}
+                    <span style={{ background: u.status === "active" ? "#22c55e22" : "#f8717122", color: u.status === "active" ? "var(--green)" : "var(--red)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+                      {u.status === "active" ? "啟用" : "停用"}
                     </span>
                   </td>
                   <td style={{ padding: "12px 14px", fontSize: 12, color: "var(--text3)" }}>{new Date(u.created_at).toLocaleDateString("zh-TW")}</td>
                   <td style={{ padding: "12px 14px" }}>
-                    <button onClick={() => toggleStatus(u.id, u.is_active)} style={{ background: "var(--border)", border: "none", borderRadius: 6, padding: "4px 10px", color: "var(--text2)", cursor: "pointer", fontSize: 12 }}>
-                      {u.is_active ? "停用" : "啟用"}
+                    <button onClick={() => toggleStatus(u.id, u.status)} style={{ background: "var(--border)", border: "none", borderRadius: 6, padding: "4px 10px", color: "var(--text2)", cursor: "pointer", fontSize: 12 }}>
+                      {u.status === "active" ? "停用" : "啟用"}
                     </button>
                   </td>
                 </tr>
@@ -706,8 +707,23 @@ function VideosTab({ token }: { token: string }) {
   const [newTitle, setNewTitle] = useState("");
   const [newDriveId, setNewDriveId] = useState("");
   const [newCategory, setNewCategory] = useState("新人培訓");
+  const [newBrands, setNewBrands] = useState<string[]>([]);
+  const [newDescription, setNewDescription] = useState("");
   const [filterDay, setFilterDay] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [filterBrand, setFilterBrand] = useState("all");
+  const [editingVideo, setEditingVideo] = useState<string | null>(null);
+  const [editBrands, setEditBrands] = useState<string[]>([]);
+
+  const BRAND_OPTIONS = [
+    { id: "ooschool", name: "OOschool 無限學院", color: "#4F46E5" },
+    { id: "xuemi", name: "XUEMI 學米", color: "#7c6cf0" },
+    { id: "nschool", name: "nSchool 財經學院", color: "#feca57" },
+    { id: "aischool", name: "AIschool AI 未來學院", color: "#10B981" },
+  ];
+
+  const toggleBrand = (brands: string[], brand: string) =>
+    brands.includes(brand) ? brands.filter(b => b !== brand) : [...brands, brand];
 
   const fetchVideos = useCallback(() => {
     setLoading(true);
@@ -725,9 +741,19 @@ function VideosTab({ token }: { token: string }) {
     await fetch("/api/admin/videos", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ title: newTitle, url: newDriveId, category: newCategory, status: "published", brands: [] }),
+      body: JSON.stringify({ title: newTitle, url: newDriveId, category: newCategory, description: newDescription, status: "published", brands: newBrands }),
     });
-    setNewTitle(""); setNewDriveId(""); setShowAdd(false);
+    setNewTitle(""); setNewDriveId(""); setNewDescription(""); setNewBrands([]); setShowAdd(false);
+    fetchVideos();
+  };
+
+  const updateVideoBrands = async (videoId: string, brands: string[]) => {
+    await fetch("/api/admin/videos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: videoId, brands }),
+    });
+    setEditingVideo(null);
     fetchVideos();
   };
 
@@ -812,17 +838,35 @@ function VideosTab({ token }: { token: string }) {
             </div>
             <div>
               <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>Google Drive 檔案 ID</label>
-              <input value={newDriveId} onChange={(e) => setNewDriveId(e.target.value)} style={inputStyle} placeholder="貼上 Drive 檔案 ID" />
+              <input value={newDriveId} onChange={(e) => setNewDriveId(e.target.value)} style={inputStyle} placeholder="貼上 Drive 檔案 ID 或完整連結" />
             </div>
           </div>
-          <div style={{ display: "flex", gap: 12, alignItems: "end" }}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>影片描述</label>
+            <input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} style={inputStyle} placeholder="簡短說明影片內容" />
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "end", flexWrap: "wrap" }}>
             <div>
               <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>分類</label>
               <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ ...inputStyle, maxWidth: 200 }}>
-                {["新人培訓", "銷售技巧", "產品知識", "進階課程"].map((c) => <option key={c} value={c}>{c}</option>)}
+                {["新人培訓", "銷售技巧", "產品知識", "進階課程", "DEMO 範例", "XLAB 教學"].map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <button onClick={addVideo} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>新增</button>
+            <div>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>綁定品牌（空=全品牌可見）</label>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {BRAND_OPTIONS.map((b) => (
+                  <button key={b.id} onClick={() => setNewBrands(toggleBrand(newBrands, b.id))}
+                    style={{ padding: "4px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      border: newBrands.includes(b.id) ? `2px solid ${b.color}` : "2px solid var(--border)",
+                      background: newBrands.includes(b.id) ? `${b.color}22` : "var(--bg2)",
+                      color: newBrands.includes(b.id) ? b.color : "var(--text3)" }}>
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button onClick={addVideo} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", marginLeft: "auto" }}>新增</button>
           </div>
         </div>
       )}
@@ -883,19 +927,75 @@ function VideosTab({ token }: { token: string }) {
       </div>
 
       {/* Custom DB Videos */}
-      {dbVideos.length > 0 && (
-        <>
-          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>➕ 自訂影片 ({totalDbVideos})</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            {dbVideos.map((v) => (
-              <div key={v.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>{v.title}</div>
-                <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 4 }}>分類：{v.category}</div>
-                <div style={{ fontSize: 11, color: "var(--text3)", wordBreak: "break-all" }}>ID: {v.drive_file_id || "—"}</div>
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>➕ 自訂影片 ({totalDbVideos})</h3>
+      {dbVideos.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 40, color: "var(--text3)", fontSize: 14 }}>
+          尚無自訂影片，點擊上方「+ 新增影片」來新增
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+          {dbVideos.map((v) => (
+            <div key={v.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{v.title}</div>
+                <span style={{ background: v.status === "published" ? "var(--green)22" : "var(--gold)22", color: v.status === "published" ? "var(--green)" : "var(--gold)", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                  {v.status === "published" ? "已發佈" : "草稿"}
+                </span>
               </div>
-            ))}
-          </div>
-        </>
+              <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 8 }}>分類：{v.category}</div>
+
+              {/* Brand tags */}
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+                {(!v.brands || v.brands.length === 0) ? (
+                  <span style={{ fontSize: 11, color: "var(--text3)", background: "var(--bg2)", padding: "2px 8px", borderRadius: 6 }}>全品牌可見</span>
+                ) : (
+                  v.brands.map((bid: string) => {
+                    const brand = BRAND_OPTIONS.find(b => b.id === bid);
+                    return brand ? (
+                      <span key={bid} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: `${brand.color}22`, color: brand.color }}>
+                        {brand.name}
+                      </span>
+                    ) : null;
+                  })
+                )}
+                <button onClick={() => { setEditingVideo(editingVideo === v.id ? null : v.id); setEditBrands(v.brands || []); }}
+                  style={{ fontSize: 11, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+                  {editingVideo === v.id ? "取消" : "編輯品牌"}
+                </button>
+              </div>
+
+              {/* Brand edit mode */}
+              {editingVideo === v.id && (
+                <div style={{ background: "var(--bg2)", borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+                    {BRAND_OPTIONS.map((b) => (
+                      <button key={b.id} onClick={() => setEditBrands(toggleBrand(editBrands, b.id))}
+                        style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                          border: editBrands.includes(b.id) ? `2px solid ${b.color}` : "2px solid var(--border)",
+                          background: editBrands.includes(b.id) ? `${b.color}22` : "transparent",
+                          color: editBrands.includes(b.id) ? b.color : "var(--text3)" }}>
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => updateVideoBrands(v.id, editBrands)}
+                    style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, padding: "4px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                    儲存
+                  </button>
+                </div>
+              )}
+
+              <div style={{ fontSize: 11, color: "var(--text3)", wordBreak: "break-all" }}>
+                ID: {v.drive_file_id || "—"}
+              </div>
+              {v.drive_file_id && (
+                <a href={`https://drive.google.com/file/d/${v.drive_file_id}/view`} target="_blank" rel="noopener" style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none" }}>
+                  開啟影片 ↗
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -919,7 +1019,7 @@ const MENTOR_SOP = [
 ];
 
 function MentorshipTab({ token }: { token: string }) {
-  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; is_active: boolean }>>([]);
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; status: string }>>([]);
   const [feedbacks, setFeedbacks] = useState<Array<{ id: string; trainee_email: string; mentor_email: string; day: number; date: string; actual_calls: number; call_target: number; invites: number; demos: number; strength_1: string; strength_2: string; improvement: string }>>([]);
   const [pairs, setPairs] = useState<Array<{ id: string; trainee_id: string; mentor_id: string; manager_id: string; brand: string; status: string; start_date: string; trainee_name?: string; mentor_name?: string; manager_name?: string; trainee_email?: string; mentor_email?: string; manager_email?: string; ceremony_completed?: boolean }>>([]);
   const [loading, setLoading] = useState(true);

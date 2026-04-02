@@ -97,20 +97,31 @@ export async function syncRegister(
   email: string,
   name: string,
   brand: string
-): Promise<string | null> {
-  try {
-    const res = await fetch(`${API_BASE}/api/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, name, brand }),
-    });
-    if (!res.ok) return null;
-    const { userId } = await res.json();
-    if (userId) userIdCache[email] = userId;
-    return userId;
-  } catch {
-    return null;
+): Promise<{ userId: string | null; error?: string }> {
+  const MAX_RETRIES = 2;
+  let lastError = "";
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}/api/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name, brand }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        lastError = data.error || `HTTP ${res.status}`;
+        continue;
+      }
+      const { userId } = data;
+      if (userId) userIdCache[email] = userId;
+      return { userId };
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : "Network error";
+    }
   }
+
+  return { userId: null, error: lastError || "Supabase 同步失敗，請稍後再試" };
 }
 
 /** One-time migration: push all localStorage data to Supabase */
@@ -129,7 +140,8 @@ export async function migrateLocalStorageToSupabase(user: {
     const userId = await resolveUserId(user.email);
     if (!userId) {
       // User doesn't exist in Supabase yet, create them
-      await syncRegister(user.email, "", "");
+      const result = await syncRegister(user.email, "", "");
+      if (!result.userId) return; // Can't migrate without a user ID
     }
 
     // Sync progress

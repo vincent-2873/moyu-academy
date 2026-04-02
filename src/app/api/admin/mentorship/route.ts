@@ -124,6 +124,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Auto-upgrade mentor's role to 'mentor' if they are currently sales_rep
+    const { data: mentorUser } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', mentor_id)
+      .single();
+
+    if (mentorUser && mentorUser.role === 'sales_rep') {
+      await supabase
+        .from('users')
+        .update({ role: 'mentor' })
+        .eq('id', mentor_id);
+    }
+
     return NextResponse.json({ pair: data }, { status: 201 });
   } catch (err) {
     console.error('POST /admin/mentorship error:', err);

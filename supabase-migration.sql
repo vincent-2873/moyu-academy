@@ -136,3 +136,10 @@ ALTER TABLE mentorship_milestones ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all" ON mentor_pairs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "service_role_all" ON mentor_messages FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "service_role_all" ON mentorship_milestones FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================
+-- 9. User Profile Columns (個人檔案欄位)
+-- ============================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
