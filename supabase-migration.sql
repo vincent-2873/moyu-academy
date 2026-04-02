@@ -143,3 +143,7 @@ CREATE POLICY "service_role_all" ON mentorship_milestones FOR ALL USING (true) W
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
+
+-- 10. Add status column (程式碼用 status text, 原表用 is_active boolean)
+-- ============================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
