@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await getSupabaseAdmin()
       .from("videos")
-      .select("id, title, url, drive_file_id, category, description, brands, status")
+      .select("id, title, drive_file_id, category, description, brands, related_days, status")
       .eq("status", "published")
       .order("created_at", { ascending: false });
 

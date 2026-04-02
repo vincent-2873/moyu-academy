@@ -30,16 +30,27 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    if (!body.title || !body.url) {
+    if (!body.title || (!body.drive_file_id && !body.url)) {
       return NextResponse.json(
-        { error: 'title and url are required' },
+        { error: 'title and drive_file_id are required' },
         { status: 400 }
       );
     }
 
+    // Normalize: use drive_file_id, remove url (column doesn't exist)
+    const insertData = {
+      title: body.title,
+      description: body.description || null,
+      drive_file_id: body.drive_file_id || body.url,
+      category: body.category || 'custom',
+      brands: body.brands || [],
+      related_days: body.related_days || [],
+      status: body.status ?? 'pending',
+    };
+
     const { data, error } = await getSupabaseAdmin()
       .from('videos')
-      .insert([{ ...body, status: body.status ?? 'pending' }])
+      .insert([insertData])
       .select()
       .single();
 

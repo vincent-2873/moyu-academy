@@ -147,3 +147,29 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
 -- 10. Add status column (程式碼用 status text, 原表用 is_active boolean)
 -- ============================================
 ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+
+-- ============================================
+-- 11. Videos table (影片管理)
+-- ============================================
+CREATE TABLE IF NOT EXISTS videos (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  url TEXT,
+  drive_file_id TEXT,
+  category TEXT DEFAULT 'custom',
+  video_type TEXT DEFAULT 'video' CHECK (video_type IN ('video', 'slides')),
+  brands JSONB DEFAULT '[]'::jsonb,
+  related_days JSONB DEFAULT '[]'::jsonb,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'published', 'deleted')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE videos ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_videos" ON videos FOR ALL USING (true) WITH CHECK (true);
+
+-- If table already exists, add missing columns
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS related_days JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS video_type TEXT DEFAULT 'video';
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();

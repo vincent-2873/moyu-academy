@@ -718,15 +718,15 @@ function VideosPage({ brandId, userEmail }: { brandId: string; userEmail?: strin
     fetch(`/api/videos?brand=${encodeURIComponent(brandId)}`)
       .then((r) => r.json())
       .then((d) => {
-        const converted: TrainingVideo[] = (d.videos || []).map((v: { id: string; title: string; description?: string; drive_file_id?: string; url?: string; brands?: string[] }) => ({
+        const converted: TrainingVideo[] = (d.videos || []).map((v: { id: string; title: string; description?: string; drive_file_id?: string; brands?: string[]; related_days?: number[] }) => ({
           id: `db-${v.id}`,
           title: v.title,
           description: v.description || "",
-          driveFileId: v.drive_file_id || v.url || "",
+          driveFileId: v.drive_file_id || "",
           type: "video" as const,
           size: "",
           brands: v.brands || [],
-          relatedDays: [],
+          relatedDays: v.related_days || [],
           category: "custom",
         }));
         setDbVideos(converted);
