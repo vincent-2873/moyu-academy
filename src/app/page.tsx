@@ -711,9 +711,32 @@ function VideosPage({ brandId, userEmail }: { brandId: string; userEmail?: strin
   const [selectedVideo, setSelectedVideo] = useState<TrainingVideo | null>(null);
   const videoStartTime = useRef<number>(0);
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [dbVideos, setDbVideos] = useState<TrainingVideo[]>([]);
+
+  // Fetch published DB custom videos for this brand
+  useEffect(() => {
+    fetch(`/api/videos?brand=${encodeURIComponent(brandId)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const converted: TrainingVideo[] = (d.videos || []).map((v: { id: string; title: string; description?: string; drive_file_id?: string; url?: string; brands?: string[] }) => ({
+          id: `db-${v.id}`,
+          title: v.title,
+          description: v.description || "",
+          driveFileId: v.drive_file_id || v.url || "",
+          type: "video" as const,
+          size: "",
+          brands: v.brands || [],
+          relatedDays: [],
+          category: "custom",
+        }));
+        setDbVideos(converted);
+      })
+      .catch(() => setDbVideos([]));
+  }, [brandId]);
 
   const categories = getCategoriesForBrand(brandId);
-  const allVideos = getVideosForBrand(brandId);
+  const staticVideos = getVideosForBrand(brandId);
+  const allVideos = [...staticVideos, ...dbVideos];
   const filteredVideos =
     activeCategory === "all"
       ? allVideos
@@ -754,6 +777,18 @@ function VideosPage({ brandId, userEmail }: { brandId: string; userEmail?: strin
             </button>
           );
         })}
+        {dbVideos.length > 0 && (
+          <button
+            onClick={() => setActiveCategory("custom")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeCategory === "custom"
+                ? "bg-[var(--accent)] text-white"
+                : "bg-[var(--bg2)] text-[var(--text2)] hover:bg-[var(--border)]"
+            }`}
+          >
+            ➕ 補充影片 ({dbVideos.length})
+          </button>
+        )}
       </div>
 
       {/* Selected Video Player */}

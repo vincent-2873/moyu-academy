@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { modules } from "@/data/modules";
+import { trainingVideos, videoCategories } from "@/data/videos";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -701,25 +702,24 @@ function ContentTab() {
 // ─── Videos Tab ────────────────────────────────────────────────────────────
 
 function VideosTab({ token }: { token: string }) {
-  const [dbVideos, setDbVideos] = useState<Array<{ id: string; title: string; category: string; brands: string[]; status: string; drive_file_id: string }>>([]);
+  const [dbVideos, setDbVideos] = useState<Array<{ id: string; title: string; category: string; brands: string[]; status: string; drive_file_id: string; description?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDriveId, setNewDriveId] = useState("");
-  const [newCategory, setNewCategory] = useState("新人培訓");
+  const [newCategory, setNewCategory] = useState("custom");
   const [newBrands, setNewBrands] = useState<string[]>([]);
   const [newDescription, setNewDescription] = useState("");
-  const [filterDay, setFilterDay] = useState("all");
-  const [filterType, setFilterType] = useState("all");
   const [filterBrand, setFilterBrand] = useState("all");
+  const [filterCategory, setFilterCategory] = useState("all");
   const [editingVideo, setEditingVideo] = useState<string | null>(null);
   const [editBrands, setEditBrands] = useState<string[]>([]);
 
   const BRAND_OPTIONS = [
-    { id: "ooschool", name: "OOschool 無限學院", color: "#4F46E5" },
+    { id: "ooschool", name: "OOschool 無限", color: "#4F46E5" },
     { id: "xuemi", name: "XUEMI 學米", color: "#7c6cf0" },
-    { id: "nschool", name: "nSchool 財經學院", color: "#feca57" },
-    { id: "aischool", name: "AIschool AI 未來學院", color: "#10B981" },
+    { id: "nschool", name: "nSchool 財經", color: "#feca57" },
+    { id: "aischool", name: "AIschool AI", color: "#10B981" },
   ];
 
   const toggleBrand = (brands: string[], brand: string) =>
@@ -741,7 +741,7 @@ function VideosTab({ token }: { token: string }) {
     await fetch("/api/admin/videos", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ title: newTitle, url: newDriveId, category: newCategory, description: newDescription, status: "published", brands: newBrands }),
+      body: JSON.stringify({ title: newTitle, url: newDriveId, drive_file_id: newDriveId, category: newCategory, description: newDescription, status: "published", brands: newBrands }),
     });
     setNewTitle(""); setNewDriveId(""); setNewDescription(""); setNewBrands([]); setShowAdd(false);
     fetchVideos();
@@ -757,87 +757,107 @@ function VideosTab({ token }: { token: string }) {
     fetchVideos();
   };
 
-  // Collect all resources from modules.ts
-  const allResources = modules.flatMap((m) =>
-    (m.resources || []).map((r) => ({ ...r, day: m.day, moduleTitle: m.title }))
-  );
+  const deleteVideo = async (videoId: string) => {
+    if (!confirm("確定要刪除這部影片嗎？")) return;
+    await fetch("/api/admin/videos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: videoId, status: "deleted" }),
+    });
+    fetchVideos();
+  };
 
-  const videoResources = allResources.filter((r) => r.type === "video" || r.type === "recording");
-  const notionResources = allResources.filter((r) => r.type === "notion" || r.type === "document");
+  // Brand tag helper
+  const BrandTags = ({ brands }: { brands: string[] }) => {
+    if (!brands || brands.length === 0) {
+      return <span style={{ fontSize: 11, color: "var(--green)", background: "var(--green)15", padding: "2px 8px", borderRadius: 6, fontWeight: 600 }}>全品牌</span>;
+    }
+    return (
+      <>
+        {brands.map((bid) => {
+          const b = BRAND_OPTIONS.find(x => x.id === bid);
+          return b ? (
+            <span key={bid} style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 5, background: `${b.color}18`, color: b.color }}>{b.name}</span>
+          ) : null;
+        })}
+      </>
+    );
+  };
 
-  const TYPE_ICONS: Record<string, string> = { video: "🎬", recording: "🎙️", notion: "📄", document: "📑" };
-  const TYPE_LABELS: Record<string, string> = { video: "教學影片", recording: "成交錄音", notion: "Notion 文件", document: "文件" };
-
-  const filteredVideos = videoResources.filter((r) => {
-    if (filterDay !== "all" && r.day !== Number(filterDay)) return false;
-    if (filterType !== "all" && r.type !== filterType) return false;
+  // Filter static videos by brand
+  const filteredStaticVideos = trainingVideos.filter((v) => {
+    if (filterBrand !== "all" && v.brands.length > 0 && !v.brands.includes(filterBrand)) return false;
+    if (filterCategory !== "all" && v.category !== filterCategory) return false;
     return true;
   });
 
-  const filteredDocs = notionResources.filter((r) => {
-    if (filterDay !== "all" && r.day !== Number(filterDay)) return false;
+  // Filter DB custom videos by brand
+  const filteredDbVideos = dbVideos.filter((v) => {
+    if (v.status === "deleted") return false;
+    if (filterBrand !== "all" && v.brands && v.brands.length > 0 && !v.brands.includes(filterBrand)) return false;
     return true;
   });
 
-  const totalVideos = videoResources.length;
-  const totalDocs = notionResources.length;
-  const totalDbVideos = dbVideos.length;
+  // Group static videos by category
+  const groupedVideos: Record<string, typeof trainingVideos> = {};
+  for (const v of filteredStaticVideos) {
+    if (!groupedVideos[v.category]) groupedVideos[v.category] = [];
+    groupedVideos[v.category].push(v);
+  }
+
+  // Stats
+  const allBrandCount = (bid: string) => trainingVideos.filter(v => v.brands.length === 0 || v.brands.includes(bid)).length;
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>影片與資源管理</h2>
-          <p style={{ color: "var(--text3)", fontSize: 13, marginTop: 4 }}>所有訓練影片、錄音、文件資源一覽</p>
+          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>影片管理</h2>
+          <p style={{ color: "var(--text3)", fontSize: 13, marginTop: 4 }}>管理各品牌的訓練影片，控制每部影片的品牌可見度</p>
         </div>
         <button onClick={() => setShowAdd(!showAdd)} style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: "8px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
           + 新增影片
         </button>
       </div>
 
-      {/* Summary Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-        {[
-          { label: "教學影片", value: videoResources.filter((r) => r.type === "video").length, icon: "🎬", color: "var(--accent)" },
-          { label: "成交錄音", value: videoResources.filter((r) => r.type === "recording").length, icon: "🎙️", color: "var(--teal)" },
-          { label: "Notion 文件", value: totalDocs, icon: "📄", color: "var(--gold)" },
-          { label: "自訂影片", value: totalDbVideos, icon: "➕", color: "var(--green)" },
-        ].map((s) => (
-          <div key={s.label} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 18 }}>{s.icon}</span>
-              <span style={{ color: "var(--text2)", fontSize: 12 }}>{s.label}</span>
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
+      {/* Brand Stats Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 20 }}>
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", cursor: "pointer", outline: filterBrand === "all" ? "2px solid var(--accent)" : "none" }} onClick={() => setFilterBrand("all")}>
+          <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>全部影片</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "var(--accent)" }}>{trainingVideos.length + dbVideos.filter(v => v.status !== "deleted").length}</div>
+        </div>
+        {BRAND_OPTIONS.map((b) => (
+          <div key={b.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", cursor: "pointer", outline: filterBrand === b.id ? `2px solid ${b.color}` : "none" }} onClick={() => setFilterBrand(filterBrand === b.id ? "all" : b.id)}>
+            <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>{b.name}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: b.color }}>{allBrandCount(b.id) + dbVideos.filter(v => v.status !== "deleted" && (!v.brands || v.brands.length === 0 || v.brands.includes(b.id))).length}</div>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-        <select value={filterDay} onChange={(e) => setFilterDay(e.target.value)} style={{ ...inputStyle, maxWidth: 200 }}>
-          <option value="all">全部天數</option>
-          {Array.from({ length: 9 }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={d}>Day {d}</option>
-          ))}
-        </select>
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ ...inputStyle, maxWidth: 200 }}>
-          <option value="all">全部類型</option>
-          <option value="video">教學影片</option>
-          <option value="recording">成交錄音</option>
-        </select>
+      {/* Category Filter */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        <button onClick={() => setFilterCategory("all")} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "none", background: filterCategory === "all" ? "var(--accent)" : "var(--bg2)", color: filterCategory === "all" ? "#fff" : "var(--text2)" }}>全部分類</button>
+        {videoCategories.map((cat) => (
+          <button key={cat.id} onClick={() => setFilterCategory(filterCategory === cat.id ? "all" : cat.id)} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "none", background: filterCategory === cat.id ? "var(--accent)" : "var(--bg2)", color: filterCategory === cat.id ? "#fff" : "var(--text2)" }}>
+            {cat.icon} {cat.title}
+          </button>
+        ))}
+        <button onClick={() => setFilterCategory(filterCategory === "custom" ? "all" : "custom")} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "none", background: filterCategory === "custom" ? "var(--accent)" : "var(--bg2)", color: filterCategory === "custom" ? "#fff" : "var(--text2)" }}>
+          ➕ 自訂影片
+        </button>
       </div>
 
+      {/* Add Video Form */}
       {showAdd && (
         <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 20 }}>
           <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>新增自訂影片</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div>
-              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>影片標題</label>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>影片標題 *</label>
               <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} style={inputStyle} placeholder="例：後台操作教學" />
             </div>
             <div>
-              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>Google Drive 檔案 ID</label>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>Google Drive 檔案 ID *</label>
               <input value={newDriveId} onChange={(e) => setNewDriveId(e.target.value)} style={inputStyle} placeholder="貼上 Drive 檔案 ID 或完整連結" />
             </div>
           </div>
@@ -845,158 +865,131 @@ function VideosTab({ token }: { token: string }) {
             <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>影片描述</label>
             <input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} style={inputStyle} placeholder="簡短說明影片內容" />
           </div>
-          <div style={{ display: "flex", gap: 12, alignItems: "end", flexWrap: "wrap" }}>
-            <div>
-              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>分類</label>
-              <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ ...inputStyle, maxWidth: 200 }}>
-                {["新人培訓", "銷售技巧", "產品知識", "進階課程", "DEMO 範例", "XLAB 教學"].map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>綁定品牌（空=全品牌可見）</label>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {BRAND_OPTIONS.map((b) => (
-                  <button key={b.id} onClick={() => setNewBrands(toggleBrand(newBrands, b.id))}
-                    style={{ padding: "4px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                      border: newBrands.includes(b.id) ? `2px solid ${b.color}` : "2px solid var(--border)",
-                      background: newBrands.includes(b.id) ? `${b.color}22` : "var(--bg2)",
-                      color: newBrands.includes(b.id) ? b.color : "var(--text3)" }}>
-                    {b.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button onClick={addVideo} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", marginLeft: "auto" }}>新增</button>
-          </div>
-        </div>
-      )}
-
-      {/* Videos & Recordings from modules.ts */}
-      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>🎬 訓練影片與錄音 ({totalVideos})</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 28 }}>
-        {filteredVideos.map((r, i) => (
-          <div key={`v-${i}`} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 18 }}>{TYPE_ICONS[r.type]}</span>
-                <span style={{ background: r.type === "video" ? "var(--accent)22" : "var(--teal)22", color: r.type === "video" ? "var(--accent)" : "var(--teal)", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                  {TYPE_LABELS[r.type]}
-                </span>
-              </div>
-              <span style={{ background: "var(--bg2)", padding: "2px 8px", borderRadius: 6, fontSize: 11, color: "var(--text3)", fontWeight: 600 }}>
-                Day {r.day}
-              </span>
-            </div>
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{r.title}</div>
-            {r.description && <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 8 }}>{r.description}</div>}
-            {r.driveFileId && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ fontSize: 11, color: "var(--text3)", background: "var(--bg2)", padding: "4px 8px", borderRadius: 6, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  ID: {r.driveFileId}
-                </div>
-                <a href={`https://drive.google.com/file/d/${r.driveFileId}/view`} target="_blank" rel="noopener" style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none", whiteSpace: "nowrap" }}>開啟 ↗</a>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Notion & Document resources */}
-      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>📄 文件與 Notion 資源 ({totalDocs})</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 28 }}>
-        {filteredDocs.map((r, i) => (
-          <div key={`d-${i}`} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 18 }}>{TYPE_ICONS[r.type]}</span>
-                <span style={{ background: "var(--gold)22", color: "var(--gold)", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                  {TYPE_LABELS[r.type]}
-                </span>
-              </div>
-              <span style={{ background: "var(--bg2)", padding: "2px 8px", borderRadius: 6, fontSize: 11, color: "var(--text3)", fontWeight: 600 }}>
-                Day {r.day}
-              </span>
-            </div>
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{r.title}</div>
-            {r.description && <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 8 }}>{r.description}</div>}
-            {r.url && (
-              <a href={r.url} target="_blank" rel="noopener" style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none" }}>開啟連結 ↗</a>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Custom DB Videos */}
-      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>➕ 自訂影片 ({totalDbVideos})</h3>
-      {dbVideos.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--text3)", fontSize: 14 }}>
-          尚無自訂影片，點擊上方「+ 新增影片」來新增
-        </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-          {dbVideos.map((v) => (
-            <div key={v.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{v.title}</div>
-                <span style={{ background: v.status === "published" ? "var(--green)22" : "var(--gold)22", color: v.status === "published" ? "var(--green)" : "var(--gold)", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                  {v.status === "published" ? "已發佈" : "草稿"}
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 8 }}>分類：{v.category}</div>
-
-              {/* Brand tags */}
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
-                {(!v.brands || v.brands.length === 0) ? (
-                  <span style={{ fontSize: 11, color: "var(--text3)", background: "var(--bg2)", padding: "2px 8px", borderRadius: 6 }}>全品牌可見</span>
-                ) : (
-                  v.brands.map((bid: string) => {
-                    const brand = BRAND_OPTIONS.find(b => b.id === bid);
-                    return brand ? (
-                      <span key={bid} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: `${brand.color}22`, color: brand.color }}>
-                        {brand.name}
-                      </span>
-                    ) : null;
-                  })
-                )}
-                <button onClick={() => { setEditingVideo(editingVideo === v.id ? null : v.id); setEditBrands(v.brands || []); }}
-                  style={{ fontSize: 11, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
-                  {editingVideo === v.id ? "取消" : "編輯品牌"}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 8 }}>指定品牌（不選 = 全品牌可見）</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {BRAND_OPTIONS.map((b) => (
+                <button key={b.id} onClick={() => setNewBrands(toggleBrand(newBrands, b.id))}
+                  style={{ padding: "6px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    border: newBrands.includes(b.id) ? `2px solid ${b.color}` : "2px solid var(--border)",
+                    background: newBrands.includes(b.id) ? `${b.color}22` : "var(--bg2)",
+                    color: newBrands.includes(b.id) ? b.color : "var(--text3)" }}>
+                  {newBrands.includes(b.id) ? "✓ " : ""}{b.name}
                 </button>
-              </div>
-
-              {/* Brand edit mode */}
-              {editingVideo === v.id && (
-                <div style={{ background: "var(--bg2)", borderRadius: 8, padding: 10, marginBottom: 8 }}>
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
-                    {BRAND_OPTIONS.map((b) => (
-                      <button key={b.id} onClick={() => setEditBrands(toggleBrand(editBrands, b.id))}
-                        style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                          border: editBrands.includes(b.id) ? `2px solid ${b.color}` : "2px solid var(--border)",
-                          background: editBrands.includes(b.id) ? `${b.color}22` : "transparent",
-                          color: editBrands.includes(b.id) ? b.color : "var(--text3)" }}>
-                        {b.name}
-                      </button>
-                    ))}
-                  </div>
-                  <button onClick={() => updateVideoBrands(v.id, editBrands)}
-                    style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, padding: "4px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                    儲存
-                  </button>
-                </div>
-              )}
-
-              <div style={{ fontSize: 11, color: "var(--text3)", wordBreak: "break-all" }}>
-                ID: {v.drive_file_id || "—"}
-              </div>
-              {v.drive_file_id && (
-                <a href={`https://drive.google.com/file/d/${v.drive_file_id}/view`} target="_blank" rel="noopener" style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none" }}>
-                  開啟影片 ↗
-                </a>
-              )}
+              ))}
             </div>
-          ))}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button onClick={addVideo} disabled={!newTitle || !newDriveId} style={{ background: newTitle && newDriveId ? "var(--accent)" : "var(--border)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: newTitle && newDriveId ? "pointer" : "not-allowed" }}>新增影片</button>
+          </div>
         </div>
       )}
+
+      {/* Static Videos by Category */}
+      {filterCategory !== "custom" && Object.entries(groupedVideos).map(([catId, videos]) => {
+        const cat = videoCategories.find(c => c.id === catId);
+        return (
+          <div key={catId} style={{ marginBottom: 28 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{cat ? `${cat.icon} ${cat.title}` : catId}</h3>
+              <span style={{ fontSize: 12, color: "var(--text3)" }}>({videos.length} 部)</span>
+              {cat && cat.brands.length > 0 && (
+                <div style={{ display: "flex", gap: 4 }}>
+                  <BrandTags brands={cat.brands} />
+                </div>
+              )}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+              {videos.map((v) => (
+                <div key={v.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 6 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{v.type === "slides" ? "📊 " : "🎬 "}{v.title}</div>
+                    <span style={{ fontSize: 10, color: "var(--text3)", background: "var(--bg2)", padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>{v.size}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 6 }}>{v.description}</div>
+                  {v.presenter && <div style={{ fontSize: 11, color: "var(--accent)", marginBottom: 6 }}>講者：{v.presenter}</div>}
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+                    <BrandTags brands={v.brands} />
+                    <span style={{ fontSize: 10, color: "var(--text3)", marginLeft: "auto" }}>Day {v.relatedDays.join(", ")}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* DB Custom Videos */}
+      {filterCategory === "all" || filterCategory === "custom" ? (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>➕ 後台自訂影片</h3>
+            <span style={{ fontSize: 12, color: "var(--text3)" }}>({filteredDbVideos.length} 部)</span>
+          </div>
+          {filteredDbVideos.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 32, color: "var(--text3)", fontSize: 13, background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)" }}>
+              {filterBrand !== "all" ? "該品牌尚無自訂影片" : "尚無自訂影片，點擊上方「+ 新增影片」來新增"}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+              {filteredDbVideos.map((v) => (
+                <div key={v.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 6 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🎬 {v.title}</div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <span style={{ background: v.status === "published" ? "var(--green)22" : "var(--gold)22", color: v.status === "published" ? "var(--green)" : "var(--gold)", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>
+                        {v.status === "published" ? "已發佈" : "草稿"}
+                      </span>
+                      <button onClick={() => deleteVideo(v.id)} style={{ fontSize: 11, color: "var(--red)", background: "none", border: "none", cursor: "pointer" }}>刪除</button>
+                    </div>
+                  </div>
+                  {v.description && <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 6 }}>{v.description}</div>}
+
+                  {/* Brand tags + edit */}
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+                    <BrandTags brands={v.brands || []} />
+                    <button onClick={() => { setEditingVideo(editingVideo === v.id ? null : v.id); setEditBrands(v.brands || []); }}
+                      style={{ fontSize: 11, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginLeft: 4 }}>
+                      {editingVideo === v.id ? "取消" : "編輯品牌"}
+                    </button>
+                  </div>
+
+                  {/* Brand edit mode */}
+                  {editingVideo === v.id && (
+                    <div style={{ background: "var(--bg2)", borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 6 }}>不選 = 全品牌可見</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                        {BRAND_OPTIONS.map((b) => (
+                          <button key={b.id} onClick={() => setEditBrands(toggleBrand(editBrands, b.id))}
+                            style={{ padding: "4px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                              border: editBrands.includes(b.id) ? `2px solid ${b.color}` : "2px solid var(--border)",
+                              background: editBrands.includes(b.id) ? `${b.color}22` : "transparent",
+                              color: editBrands.includes(b.id) ? b.color : "var(--text3)" }}>
+                            {editBrands.includes(b.id) ? "✓ " : ""}{b.name}
+                          </button>
+                        ))}
+                      </div>
+                      <button onClick={() => updateVideoBrands(v.id, editBrands)}
+                        style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, padding: "5px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        儲存品牌設定
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    <div style={{ fontSize: 10, color: "var(--text3)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      ID: {v.drive_file_id || "—"}
+                    </div>
+                    {v.drive_file_id && (
+                      <a href={`https://drive.google.com/file/d/${v.drive_file_id}/view`} target="_blank" rel="noopener" style={{ color: "var(--accent)", fontSize: 11, textDecoration: "none", whiteSpace: "nowrap" }}>開啟 ↗</a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
