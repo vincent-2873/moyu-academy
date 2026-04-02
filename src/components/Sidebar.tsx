@@ -63,8 +63,8 @@ export default function Sidebar({
 
   const roleLabels: Record<UserRole, string> = {
     admin: "管理員",
-    manager: "據點主管",
-    mentor: "師父",
+    manager: "老祖宗",
+    mentor: "師傅",
     sales_rep: "業務",
   };
 

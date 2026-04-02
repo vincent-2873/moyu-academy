@@ -35,8 +35,8 @@ const BRAND_LABELS: Record<string, string> = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  super_admin: "超級管理員", brand_manager: "品牌主管", team_leader: "業務主管",
-  trainer: "培訓師", reserve_cadre: "儲備幹部", mentor: "師父（帶訓）", sales_rep: "業務人員",
+  super_admin: "超級管理員", brand_manager: "品牌主管", team_leader: "老祖宗",
+  trainer: "武公", reserve_cadre: "師傅", mentor: "師傅（帶訓）", sales_rep: "業務人員",
 };
 
 const MODULE_TITLES: Record<number, string> = {
