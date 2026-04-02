@@ -14,7 +14,7 @@ import {
 } from "@/lib/store";
 import { syncProgress, syncQuizScore, syncKpiEntry, syncRegister, migrateLocalStorageToSupabase, syncVideoProgress } from "@/lib/sync";
 import { brands } from "@/data/brands";
-import { modules, TASK_ICONS } from "@/data/modules";
+import { modules, TASK_ICONS, getModulesForBrand } from "@/data/modules";
 import { personas, getPersonasByBrand } from "@/data/personas";
 import Sidebar from "@/components/Sidebar";
 import CalendarDashboard from "@/components/CalendarDashboard";
@@ -435,7 +435,8 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
 /* ===================== DASHBOARD ===================== */
 function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: string) => void }) {
   const brand = brands[user.brand];
-  const progress = Math.round((user.completedModules.length / 9) * 100);
+  const brandModules = getModulesForBrand(user.brand);
+  const progress = Math.round((user.completedModules.length / brandModules.length) * 100);
   const avgScore =
     user.sparringRecords.length > 0
       ? Math.round(
@@ -453,14 +454,14 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
   });
 
   const stats = [
-    { label: "課程進度", value: `${progress}%`, sub: `${user.completedModules.length}/9 完成`, color: brand.color },
+    { label: "課程進度", value: `${progress}%`, sub: `${user.completedModules.length}/${brandModules.length} 完成`, color: brand.color },
     { label: "對練平均分", value: avgScore || "—", sub: `${user.sparringRecords.length} 次對練`, color: "var(--teal)" },
     { label: "本週對練", value: weekRecords.length, sub: "次", color: "var(--gold)" },
     { label: "今日撥打", value: todayKpi?.calls || 0, sub: `有效 ${todayKpi?.validCalls || 0}`, color: "var(--green)" },
   ];
 
   // Determine next recommended action
-  const nextModule = modules.find((m) => !user.completedModules.includes(m.id));
+  const nextModule = brandModules.find((m) => !user.completedModules.includes(m.id));
   const weakestDimension = user.sparringRecords.length > 0
     ? (() => {
         const latest = user.sparringRecords[user.sparringRecords.length - 1];
@@ -482,7 +483,7 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
       let overdue = 0;
       // Count incomplete tasks from past days
       for (let d = 1; d < currentDay; d++) {
-        const mod = modules.find((m) => m.day === d);
+        const mod = brandModules.find((m) => m.day === d);
         if (mod) {
           mod.tasks.forEach((_, idx) => {
             const taskId = `day${d}_task${idx}`;
@@ -863,8 +864,9 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [taskDone, setTaskDone] = useState<Record<string, boolean>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const brandModules = getModulesForBrand(user.brand);
 
-  const mod = selectedModule !== null ? modules.find((m) => m.id === selectedModule) : null;
+  const mod = selectedModule !== null ? brandModules.find((m) => m.id === selectedModule) : null;
 
   // Load task completions from localStorage
   useEffect(() => {
@@ -1208,12 +1210,12 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
           <div className="flex-1 h-2.5 bg-[var(--bg2)] rounded-full overflow-hidden">
             <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.round((user.completedModules.length / 9) * 100)}%`, background: "linear-gradient(90deg, var(--accent), var(--teal), var(--green))" }} />
           </div>
-          <span className="text-sm font-bold text-[var(--accent)]">{user.completedModules.length}/9</span>
+          <span className="text-sm font-bold text-[var(--accent)]">{user.completedModules.length}/{brandModules.length}</span>
         </div>
       </div>
 
       <div className="space-y-3">
-        {modules.map((m) => {
+        {brandModules.map((m) => {
           const completed = user.completedModules.includes(m.id);
           const prevCompleted = m.id === 1 || user.completedModules.includes(m.id - 1);
           const locked = !completed && !prevCompleted;

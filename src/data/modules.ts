@@ -44,6 +44,8 @@ export interface TrainingModule {
   day: number;
   title: string;
   subtitle: string;
+  /** 品牌歸屬：空陣列或不設 = 全品牌通用，指定品牌ID則僅該品牌可見 */
+  brand?: string;
   /** 前言：告訴新人今天要做什麼、為什麼做 */
   description: string;
   /** 每日行程表 */
@@ -60,6 +62,21 @@ export interface TrainingModule {
   quiz: QuizQuestion[];
   /** 任務清單：遊戲化步驟引導 */
   tasks: ModuleTask[];
+}
+
+/** 依品牌取得模組：有品牌專屬版就用專屬版，否則用通用版 */
+export function getModulesForBrand(brandId: string): TrainingModule[] {
+  const brandModules = modules.filter(m => m.brand === brandId);
+  const genericModules = modules.filter(m => !m.brand || m.brand === 'nschool');
+  // 如果該品牌有專屬模組，用專屬的；否則 fallback 到通用（nschool）
+  if (brandModules.length > 0) {
+    // 用品牌模組覆蓋對應的 day，沒有的 day 用通用版
+    const dayMap = new Map<number, TrainingModule>();
+    genericModules.forEach(m => dayMap.set(m.day, m));
+    brandModules.forEach(m => dayMap.set(m.day, m));
+    return Array.from(dayMap.values()).sort((a, b) => a.day - b.day);
+  }
+  return genericModules;
 }
 
 export const modules: TrainingModule[] = [

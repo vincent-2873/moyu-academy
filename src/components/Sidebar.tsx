@@ -1,6 +1,7 @@
 "use client";
 
 import { brands } from "@/data/brands";
+import { getModulesForBrand } from "@/data/modules";
 
 interface SidebarProps {
   currentPage: string;
@@ -40,7 +41,8 @@ export default function Sidebar({
   onCloseMobile,
 }: SidebarProps) {
   const brand = brands[brandId];
-  const progress = Math.round((completedModules.length / 9) * 100);
+  const brandModules = getModulesForBrand(brandId);
+  const progress = Math.round((completedModules.length / brandModules.length) * 100);
 
   return (
     <>
@@ -94,7 +96,7 @@ export default function Sidebar({
           />
         </div>
         <p className="text-[10px] text-[var(--text3)] mt-1">
-          {completedModules.length}/9 模組完成
+          {completedModules.length}/{brandModules.length} 模組完成
         </p>
       </div>
 
