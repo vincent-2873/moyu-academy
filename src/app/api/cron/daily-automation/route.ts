@@ -19,11 +19,10 @@ interface QuizQuestion {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getAnthropicClient() {
+async function getAnthropicClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Anthropic = require("@anthropic-ai/sdk");
+  const { default: Anthropic } = await import("@anthropic-ai/sdk");
   return new Anthropic({ apiKey });
 }
 
@@ -32,7 +31,7 @@ async function callClaude(
   userPrompt: string,
   maxTokens = 2000
 ): Promise<string> {
-  const client = getAnthropicClient();
+  const client = await getAnthropicClient();
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: maxTokens,
