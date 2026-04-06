@@ -9,6 +9,7 @@ import {
   updateUser,
   addKpiEntry,
   addSparringRecord,
+  restoreUserFromCloud,
   type User,
   type SparringRecord,
 } from "@/lib/store";
@@ -41,6 +42,7 @@ type Page =
   | "training"
   | "videos"
   | "sparring"
+  | "courses"
   | "sop"
   | "knowledge"
   | "pricing"
@@ -106,6 +108,7 @@ export default function Home() {
         {page === "training" && <TrainingPage user={user} onUpdate={refreshUser} />}
         {page === "videos" && <VideosPage brandId={user.brand} userEmail={user.email} />}
         {page === "sparring" && <SparringPage user={user} onUpdate={refreshUser} />}
+        {page === "courses" && <CoursesPage />}
         {page === "sop" && <SOPPage brandId={user.brand} />}
         {page === "knowledge" && <KnowledgePage brandId={user.brand} />}
         {page === "pricing" && <PricingPage brandId={user.brand} />}
@@ -304,11 +307,31 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
       if (loginRes.success) onLogin();
     } else {
       const res = loginUser(email, password);
-      if (!res.success) {
-        setError(res.error || "登入失敗");
+      if (res.success) {
+        onLogin();
         return;
       }
-      onLogin();
+      // If not found locally, check Supabase (user may have cleared cache)
+      if (res.error === "LOCAL_NOT_FOUND") {
+        try {
+          const cloudRes = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          if (cloudRes.ok) {
+            const { user: cloudUser } = await cloudRes.json();
+            restoreUserFromCloud(email, password, cloudUser);
+            onLogin();
+            return;
+          }
+        } catch {
+          // Fall through to error
+        }
+        setError("找不到此帳號，請先註冊");
+        return;
+      }
+      setError(res.error || "登入失敗");
     }
   };
 
@@ -2261,6 +2284,206 @@ function KpiPage({ user, onUpdate }: { user: User; onUpdate: () => void }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ===================== COURSES (業務力課程) ===================== */
+
+interface CourseArticle {
+  id: string;
+  title: string;
+  category: string;
+  summary: string;
+  content: string;
+  source: string;
+  source_url?: string;
+  source_language?: string;
+  key_takeaways: string[];
+  tags: string[];
+  ai_analysis?: string;
+  created_at: string;
+  is_ai_generated: boolean;
+}
+
+const COURSE_CAT_LABELS: Record<string, { label: string; color: string; icon: string }> = {
+  sales_technique: { label: "銷售技巧", color: "var(--teal)", icon: "🎯" },
+  mindset: { label: "心態成長", color: "var(--gold)", icon: "🧠" },
+  industry_trend: { label: "產業趨勢", color: "var(--accent)", icon: "📈" },
+  negotiation: { label: "談判溝通", color: "var(--orange, #fb923c)", icon: "🤝" },
+  client_management: { label: "客戶經營", color: "var(--green)", icon: "👥" },
+  financial_news: { label: "財經時事", color: "#60a5fa", icon: "💰" },
+  success_story: { label: "成功案例", color: "#f472b6", icon: "⭐" },
+};
+
+function CoursesPage() {
+  const [articles, setArticles] = useState<CourseArticle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("all");
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/articles?limit=50");
+        if (res.ok) {
+          const data = await res.json();
+          setArticles(data.articles || []);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    })();
+  }, []);
+
+  const filtered = filter === "all" ? articles : articles.filter(a => a.category === filter);
+
+  const categories = ["all", ...new Set(articles.map(a => a.category))];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="text-4xl mb-4 animate-pulse">🔥</div>
+          <p className="text-[var(--text2)]">載入業務力課程...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-1">🔥 業務力課程</h1>
+        <p className="text-[var(--text2)] text-sm">
+          AI 每半天自動更新 — 精選全球業務銷售文章與影片，附 AI 深度分析
+        </p>
+      </div>
+
+      {/* Category filter */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {categories.map(cat => {
+          const info = COURSE_CAT_LABELS[cat];
+          const isActive = filter === cat;
+          return (
+            <button
+              key={cat}
+              onClick={() => setFilter(cat)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              style={{
+                background: isActive
+                  ? (info?.color || "var(--accent)")
+                  : "var(--bg2)",
+                color: isActive ? "#fff" : "var(--text2)",
+                border: `1px solid ${isActive ? "transparent" : "var(--border)"}`,
+              }}
+            >
+              {cat === "all" ? "📋 全部" : `${info?.icon || "📄"} ${info?.label || cat}`}
+            </button>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-16 text-[var(--text3)]">
+          <p className="text-4xl mb-3">📭</p>
+          <p>尚無課程文章，AI 將在下次更新時自動產生</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map(article => {
+            const catInfo = COURSE_CAT_LABELS[article.category];
+            const isOpen = expanded === article.id;
+            const date = new Date(article.created_at);
+            const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours().toString().padStart(2,"0")}:${date.getMinutes().toString().padStart(2,"0")}`;
+
+            return (
+              <div
+                key={article.id}
+                className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden transition-all hover:border-[var(--accent)]"
+              >
+                {/* Header */}
+                <button
+                  onClick={() => setExpanded(isOpen ? null : article.id)}
+                  className="w-full text-left p-5 flex items-start gap-4"
+                >
+                  <span className="text-2xl flex-shrink-0 mt-1">{catInfo?.icon || "📄"}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <span
+                        className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: `${catInfo?.color || "var(--accent)"}20`, color: catInfo?.color || "var(--accent)" }}
+                      >
+                        {catInfo?.label || article.category}
+                      </span>
+                      {article.source_language === "en" && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">🌐 國際</span>
+                      )}
+                      {article.is_ai_generated && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">🤖 AI 分析</span>
+                      )}
+                      <span className="text-[10px] text-[var(--text3)] ml-auto">{dateStr}</span>
+                    </div>
+                    <h3 className="font-bold text-[var(--text)] mb-1">{article.title}</h3>
+                    <p className="text-sm text-[var(--text2)] line-clamp-2">{article.summary}</p>
+                    {!isOpen && article.key_takeaways.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {article.key_takeaways.slice(0, 3).map((t, i) => (
+                          <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-[var(--bg2)] text-[var(--text3)]">
+                            💡 {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[var(--text3)] text-sm mt-2 flex-shrink-0">
+                    {isOpen ? "▲" : "▼"}
+                  </span>
+                </button>
+
+                {/* Expanded content */}
+                {isOpen && (
+                  <div className="border-t border-[var(--border)] p-5 space-y-5">
+                    {/* Key takeaways */}
+                    <div className="bg-[var(--bg2)] rounded-lg p-4">
+                      <h4 className="text-sm font-bold mb-2">📌 重點摘要</h4>
+                      <ul className="space-y-1.5">
+                        {article.key_takeaways.map((t, i) => (
+                          <li key={i} className="text-sm text-[var(--text2)] flex items-start gap-2">
+                            <span className="text-green-400 mt-0.5">✓</span> {t}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Main content */}
+                    <div className="prose prose-invert max-w-none text-sm text-[var(--text2)] leading-relaxed whitespace-pre-wrap">
+                      {article.content}
+                    </div>
+
+                    {/* AI Analysis */}
+                    {article.ai_analysis && (
+                      <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                        <h4 className="text-sm font-bold text-purple-400 mb-2">🤖 AI 深度分析</h4>
+                        <p className="text-sm text-[var(--text2)] leading-relaxed">{article.ai_analysis}</p>
+                      </div>
+                    )}
+
+                    {/* Meta */}
+                    <div className="flex items-center justify-between text-[10px] text-[var(--text3)] pt-2 border-t border-[var(--border)]">
+                      <span>來源：{article.source}</span>
+                      <div className="flex gap-2">
+                        {article.tags?.map((tag, i) => (
+                          <span key={i} className="px-2 py-0.5 rounded bg-[var(--bg2)]">#{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

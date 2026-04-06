@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { id: "training", icon: "📚", label: "課程訓練" },
   { id: "videos", icon: "🎬", label: "影片教學" },
   { id: "sparring", icon: "🎯", label: "AI 對練", badge: "核心" },
+  { id: "courses", icon: "🔥", label: "業務力課程", badge: "AI" },
   { id: "sop", icon: "📋", label: "SOP 規範", badge: "NEW" },
   { id: "knowledge", icon: "📖", label: "品牌知識庫" },
   { id: "pricing", icon: "💰", label: "報價方案" },

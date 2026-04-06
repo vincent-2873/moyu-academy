@@ -104,10 +104,36 @@ export function loginUser(
 ): { success: boolean; error?: string } {
   const users = getUsers();
   const user = users.find((u) => u.email === email);
-  if (!user) return { success: false, error: "找不到此帳號" };
+  if (!user) return { success: false, error: "LOCAL_NOT_FOUND" };
   if (user.password !== password) return { success: false, error: "密碼錯誤" };
   setCurrentUser(email);
   return { success: true };
+}
+
+/** Restore user from Supabase into localStorage so subsequent logins work */
+export function restoreUserFromCloud(
+  email: string,
+  password: string,
+  cloudUser: { name: string; brand: string; role?: string }
+) {
+  const users = getUsers();
+  if (users.find((u) => u.email === email)) return; // already exists
+  const newUser: User = {
+    email,
+    password,
+    name: cloudUser.name,
+    brand: cloudUser.brand,
+    role: cloudUser.role,
+    joinDate: new Date().toISOString(),
+    progress: 0,
+    completedModules: [],
+    quizScores: [],
+    kpiData: [],
+    sparringRecords: [],
+  };
+  users.push(newUser);
+  saveUsers(users);
+  setCurrentUser(email);
 }
 
 export function updateUser(email: string, updates: Partial<User>) {
