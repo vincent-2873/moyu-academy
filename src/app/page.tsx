@@ -2316,6 +2316,19 @@ const COURSE_CAT_LABELS: Record<string, { label: string; color: string; icon: st
   success_story: { label: "成功案例", color: "#f472b6", icon: "⭐" },
 };
 
+function renderMarkdown(md: string): string {
+  return md
+    .replace(/### (.+)/g, '<h4 class="text-base font-bold text-[var(--text)] mt-4 mb-1">$1</h4>')
+    .replace(/## (.+)/g, '<h3 class="text-lg font-bold text-[var(--text)] mt-5 mb-2">$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-[var(--text)]">$1</strong>')
+    .replace(/> (.+)/g, '<blockquote class="border-l-2 border-[var(--accent)] pl-3 py-1 my-2 text-[var(--text2)] italic">$1</blockquote>')
+    .replace(/^- (.+)/gm, '<li class="ml-4 list-disc">$1</li>')
+    .replace(/^\d+\. (.+)/gm, '<li class="ml-4 list-decimal">$1</li>')
+    .replace(/❌ (.+)/g, '<span class="text-red-400">❌ $1</span>')
+    .replace(/\n\n/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+}
+
 function CoursesPage() {
   const [articles, setArticles] = useState<CourseArticle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2456,9 +2469,10 @@ function CoursesPage() {
                     </div>
 
                     {/* Main content */}
-                    <div className="prose prose-invert max-w-none text-sm text-[var(--text2)] leading-relaxed whitespace-pre-wrap">
-                      {article.content}
-                    </div>
+                    <div
+                      className="text-sm text-[var(--text2)] leading-relaxed space-y-3"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(article.content) }}
+                    />
 
                     {/* AI Analysis */}
                     {article.ai_analysis && (
