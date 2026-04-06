@@ -46,7 +46,7 @@ async function searchAndAnalyze(): Promise<GeneratedArticle[] | null> {
 
     // Pick 3-5 categories for this batch
     const shuffled = [...CATEGORIES].sort(() => Math.random() - 0.5);
-    const batchSize = 3 + Math.floor(Math.random() * 3); // 3-5
+    const batchSize = 4 + Math.floor(Math.random() * 2); // 4-5
     const todayCategories = shuffled.slice(0, batchSize);
 
     const searchQueries = [
