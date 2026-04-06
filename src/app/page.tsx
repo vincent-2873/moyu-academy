@@ -2317,16 +2317,24 @@ const COURSE_CAT_LABELS: Record<string, { label: string; color: string; icon: st
 };
 
 function renderMarkdown(md: string): string {
-  return md
-    .replace(/### (.+)/g, '<h4 class="text-base font-bold text-[var(--text)] mt-4 mb-1">$1</h4>')
-    .replace(/## (.+)/g, '<h3 class="text-lg font-bold text-[var(--text)] mt-5 mb-2">$1</h3>')
+  const lines = md.split('\n');
+  const html: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { html.push('<div class="h-2"></div>'); continue; }
+    if (trimmed.startsWith('### ')) { html.push(`<h4 class="text-base font-bold text-[var(--text)] mt-4 mb-1">${trimmed.slice(4)}</h4>`); continue; }
+    if (trimmed.startsWith('## ')) { html.push(`<h3 class="text-lg font-bold text-[var(--text)] mt-5 mb-2">${trimmed.slice(3)}</h3>`); continue; }
+    if (trimmed.startsWith('> ')) { html.push(`<blockquote class="border-l-2 border-[var(--accent)] pl-3 py-1 my-1 text-[var(--text2)] italic">${trimmed.slice(2)}</blockquote>`); continue; }
+    if (trimmed.startsWith('- ')) { html.push(`<div class="ml-4 flex gap-1"><span>•</span><span>${applyInline(trimmed.slice(2))}</span></div>`); continue; }
+    if (/^\d+\. /.test(trimmed)) { html.push(`<div class="ml-4">${applyInline(trimmed)}</div>`); continue; }
+    html.push(`<p class="my-0.5">${applyInline(trimmed)}</p>`);
+  }
+  return html.join('');
+}
+function applyInline(text: string): string {
+  return text
     .replace(/\*\*(.+?)\*\*/g, '<strong class="text-[var(--text)]">$1</strong>')
-    .replace(/> (.+)/g, '<blockquote class="border-l-2 border-[var(--accent)] pl-3 py-1 my-2 text-[var(--text2)] italic">$1</blockquote>')
-    .replace(/^- (.+)/gm, '<li class="ml-4 list-disc">$1</li>')
-    .replace(/^\d+\. (.+)/gm, '<li class="ml-4 list-decimal">$1</li>')
-    .replace(/❌ (.+)/g, '<span class="text-red-400">❌ $1</span>')
-    .replace(/\n\n/g, '<br/><br/>')
-    .replace(/\n/g, '<br/>');
+    .replace(/❌/g, '<span class="text-red-400">❌</span>');
 }
 
 function CoursesPage() {
