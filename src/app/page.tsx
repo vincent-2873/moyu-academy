@@ -499,6 +499,35 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
   const [overdueCount, setOverdueCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  // Announcements & AI notifications
+  interface Announcement { id: string; title: string; content: string; type: string; is_pinned: boolean; is_ai_generated: boolean; created_at: string; }
+  interface AiNotification { id: string; type: string; title: string; message: string; severity: string; is_read: boolean; created_at: string; }
+  interface DailyQuiz { id: string; date: string; questions: { question: string; options: string[]; correct: number; explanation: string }[]; }
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [aiNotifs, setAiNotifs] = useState<AiNotification[]>([]);
+  const [dailyQuiz, setDailyQuiz] = useState<DailyQuiz | null>(null);
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScore, setQuizScore] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Fetch announcements
+    fetch(`/api/announcements?role=${user.role || "sales_rep"}&brand=${user.brand}`)
+      .then(r => r.ok ? r.json() : { announcements: [] })
+      .then(d => setAnnouncements(d.announcements || []))
+      .catch(() => {});
+    // Fetch AI notifications
+    fetch(`/api/notifications?user_email=${encodeURIComponent(user.email)}`)
+      .then(r => r.ok ? r.json() : { notifications: [] })
+      .then(d => setAiNotifs(d.notifications || []))
+      .catch(() => {});
+    // Fetch daily quiz
+    fetch("/api/daily-quiz")
+      .then(r => r.ok ? r.json() : { quiz: null })
+      .then(d => setDailyQuiz(d.quiz || null))
+      .catch(() => {});
+  }, [user.email, user.role, user.brand]);
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem(`moyu_tasks_${user.email}`);
@@ -582,6 +611,52 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
         </div>
       </div>
 
+      {/* Announcement Board */}
+      {announcements.length > 0 && (
+        <div className="mb-6 space-y-3">
+          {announcements.slice(0, 3).map(a => (
+            <div key={a.id} className={`rounded-xl p-4 border ${a.is_pinned ? "border-[var(--gold)] bg-[rgba(254,202,87,0.06)]" : "border-[var(--border)] bg-[var(--card)]"}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-base">{a.type === "morning" ? "☀️" : a.is_pinned ? "📌" : "📢"}</span>
+                <span className="font-bold text-sm">{a.title}</span>
+                {a.is_ai_generated && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">AI</span>}
+                <span className="text-[10px] text-[var(--text3)] ml-auto">{new Date(a.created_at).toLocaleDateString("zh-TW")}</span>
+              </div>
+              <p className="text-sm text-[var(--text2)] ml-6">{a.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* AI Notifications Bar */}
+      {aiNotifs.filter(n => !n.is_read).length > 0 && (
+        <div className="mb-6 bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-base">🤖</span>
+            <span className="font-bold text-sm">AI 智慧提醒</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent)]/20 text-[var(--accent)]">{aiNotifs.filter(n => !n.is_read).length} 則</span>
+          </div>
+          <div className="space-y-2">
+            {aiNotifs.filter(n => !n.is_read).slice(0, 3).map(n => (
+              <div key={n.id} className="flex items-start gap-3 p-3 rounded-lg" style={{
+                background: n.severity === "warning" ? "rgba(255,77,77,0.06)" : n.severity === "success" ? "rgba(46,213,115,0.06)" : "rgba(124,108,240,0.06)",
+                border: `1px solid ${n.severity === "warning" ? "rgba(255,77,77,0.2)" : n.severity === "success" ? "rgba(46,213,115,0.2)" : "rgba(124,108,240,0.2)"}`
+              }}>
+                <span className="text-sm">{n.severity === "warning" ? "⚠️" : n.severity === "success" ? "✅" : "💡"}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold">{n.title}</p>
+                  <p className="text-xs text-[var(--text2)] mt-0.5">{n.message}</p>
+                </div>
+                <button onClick={async () => {
+                  await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: n.id }) });
+                  setAiNotifs(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+                }} className="text-[10px] text-[var(--text3)] hover:text-[var(--text)] flex-shrink-0">已讀</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {stats.map((s, i) => (
@@ -627,6 +702,73 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
           }}
         />
       </div>
+
+      {/* Daily Quiz */}
+      {dailyQuiz && dailyQuiz.questions && dailyQuiz.questions.length > 0 && (
+        <div className="mb-8 bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xl">📝</span>
+            <h3 className="text-lg font-bold">今日 AI 測驗</h3>
+            {quizSubmitted && <span className="ml-auto text-sm font-bold" style={{ color: (quizScore || 0) >= 80 ? "var(--green)" : (quizScore || 0) >= 60 ? "var(--gold)" : "var(--red)" }}>{quizScore}分</span>}
+          </div>
+          {!quizSubmitted ? (
+            <div className="space-y-4">
+              {dailyQuiz.questions.map((q, qi) => (
+                <div key={qi} className="p-4 bg-[var(--bg2)] rounded-lg">
+                  <p className="text-sm font-semibold mb-3">{qi + 1}. {q.question}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {q.options.map((opt, oi) => (
+                      <button key={oi} onClick={() => setQuizAnswers(prev => ({ ...prev, [qi]: oi }))}
+                        className="text-left text-sm px-3 py-2 rounded-lg border transition-all"
+                        style={{
+                          background: quizAnswers[qi] === oi ? "rgba(124,108,240,0.15)" : "transparent",
+                          borderColor: quizAnswers[qi] === oi ? "var(--accent)" : "var(--border)",
+                          color: quizAnswers[qi] === oi ? "var(--text)" : "var(--text2)",
+                        }}
+                      >{String.fromCharCode(65 + oi)}. {opt}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={async () => {
+                  const answers = dailyQuiz.questions.map((_, i) => quizAnswers[i] ?? -1);
+                  try {
+                    const res = await fetch("/api/daily-quiz", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ quiz_id: dailyQuiz.id, user_email: user.email, answers }),
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setQuizScore(data.attempt?.score ?? 0);
+                    }
+                  } catch { /* ignore */ }
+                  setQuizSubmitted(true);
+                }}
+                disabled={Object.keys(quizAnswers).length < dailyQuiz.questions.length}
+                className="w-full py-3 rounded-lg font-bold text-white transition-all disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}
+              >交卷</button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {dailyQuiz.questions.map((q, qi) => {
+                const userAns = quizAnswers[qi] ?? -1;
+                const correct = q.correct;
+                return (
+                  <div key={qi} className="p-3 rounded-lg" style={{ background: userAns === correct ? "rgba(46,213,115,0.08)" : "rgba(255,77,77,0.08)" }}>
+                    <p className="text-sm font-semibold mb-1">{qi + 1}. {q.question}</p>
+                    <p className="text-xs">{userAns === correct ? "✅" : "❌"} 你的答案：{userAns >= 0 ? q.options[userAns] : "未作答"}</p>
+                    {userAns !== correct && <p className="text-xs text-green-400 mt-0.5">正確答案：{q.options[correct]}</p>}
+                    <p className="text-xs text-[var(--text3)] mt-1">💡 {q.explanation}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Recommended Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

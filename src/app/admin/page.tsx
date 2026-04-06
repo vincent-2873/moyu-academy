@@ -6,7 +6,7 @@ import { trainingVideos, videoCategories } from "@/data/videos";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "dashboard" | "users" | "training" | "mentorship" | "approvals";
+type AdminTab = "dashboard" | "users" | "training" | "mentorship" | "approvals" | "system";
 
 interface AdminSession { name: string; email: string; token: string; }
 
@@ -80,6 +80,7 @@ export default function AdminPage() {
     { id: "training", label: "訓練管理", icon: "📝" },
     { id: "mentorship", label: "師徒管理", icon: "🤝" },
     { id: "approvals", label: "審核中心", icon: "✅" },
+    { id: "system", label: "系統控制", icon: "⚙️" },
   ];
 
   return (
@@ -122,6 +123,7 @@ export default function AdminPage() {
         {tab === "training" && <TrainingTab token={session.token} />}
         {tab === "mentorship" && <MentorshipTab token={session.token} />}
         {tab === "approvals" && <ApprovalsTab token={session.token} />}
+        {tab === "system" && <SystemTab />}
       </main>
     </div>
   );
@@ -1363,6 +1365,174 @@ function ApprovalsTab({ token }: { token: string }) {
       {approvals.length === 0 && (
         <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>目前沒有審核項目</div>
       )}
+    </div>
+  );
+}
+
+/* ─── System Control Tab ─────────────────────────────────────────── */
+
+interface SystemSetting { key: string; value: string; description: string; updated_at: string; }
+interface AnnouncementItem { id: string; title: string; content: string; type: string; is_pinned: boolean; created_at: string; }
+
+function SystemTab() {
+  const [settings, setSettings] = useState<SystemSetting[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [newType, setNewType] = useState("info");
+  const [newPinned, setNewPinned] = useState(false);
+  const [cronResult, setCronResult] = useState<string | null>(null);
+  const [cronRunning, setCronRunning] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [settingsRes, announcementsRes] = await Promise.all([
+        fetch("/api/admin/settings"),
+        fetch("/api/announcements"),
+      ]);
+      if (settingsRes.ok) { const d = await settingsRes.json(); setSettings(d.settings || []); }
+      if (announcementsRes.ok) { const d = await announcementsRes.json(); setAnnouncements(d.announcements || []); }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const updateSetting = async (key: string, value: string) => {
+    await fetch("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value: JSON.parse(value), updated_by: "admin" }),
+    });
+    loadData();
+  };
+
+  const createAnnouncement = async () => {
+    if (!newTitle || !newContent) return;
+    await fetch("/api/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: newTitle, content: newContent, type: newType, is_pinned: newPinned, created_by: "admin" }),
+    });
+    setNewTitle(""); setNewContent(""); setNewPinned(false);
+    loadData();
+  };
+
+  const triggerCron = async (endpoint: string) => {
+    setCronRunning(true); setCronResult(null);
+    try {
+      const res = await fetch(endpoint);
+      const data = await res.json();
+      setCronResult(JSON.stringify(data, null, 2));
+    } catch (err) { setCronResult("Error: " + String(err)); }
+    setCronRunning(false);
+  };
+
+  const settingLabels: Record<string, { label: string; type: "toggle" | "number" }> = {
+    auto_article_enabled: { label: "AI 自動文章生成", type: "toggle" },
+    auto_quiz_enabled: { label: "AI 每日自動測驗", type: "toggle" },
+    auto_notification_enabled: { label: "AI 異常警報通知", type: "toggle" },
+    auto_weekly_report_enabled: { label: "AI 週報自動生成", type: "toggle" },
+    inactive_days_threshold: { label: "未登入警報天數", type: "number" },
+    low_kpi_threshold: { label: "KPI 低標（通數）", type: "number" },
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>⚙️ 系統控制中心</h2>
+
+      {/* AI Automation Toggles */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 24, marginBottom: 24 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>🤖 AI 自動化開關</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {settings.map(s => {
+            const info = settingLabels[s.key];
+            if (!info) return null;
+            const val = typeof s.value === "string" ? s.value : JSON.stringify(s.value);
+            return (
+              <div key={s.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "var(--bg2)", borderRadius: 12, border: "1px solid var(--border)" }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{info.label}</div>
+                  <div style={{ fontSize: 10, color: "var(--text3)" }}>{s.description}</div>
+                </div>
+                {info.type === "toggle" ? (
+                  <button
+                    onClick={() => updateSetting(s.key, val === "true" ? '"false"' : '"true"')}
+                    style={{
+                      width: 48, height: 26, borderRadius: 13, border: "none", cursor: "pointer", position: "relative",
+                      background: val === "true" ? "var(--accent)" : "var(--border)", transition: "all 0.3s",
+                    }}
+                  >
+                    <div style={{
+                      width: 20, height: 20, borderRadius: 10, background: "white", position: "absolute", top: 3,
+                      left: val === "true" ? 25 : 3, transition: "all 0.3s",
+                    }} />
+                  </button>
+                ) : (
+                  <input type="number" value={val.replace(/"/g, "")} onChange={e => updateSetting(s.key, `"${e.target.value}"`)}
+                    style={{ width: 60, padding: "4px 8px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", textAlign: "center" as const, fontSize: 14 }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Manual Cron Trigger */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 24, marginBottom: 24 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>🔧 手動觸發</h3>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+          <button onClick={() => triggerCron("/api/cron/update-articles")} disabled={cronRunning}
+            style={{ padding: "8px 16px", background: "var(--accent)", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, opacity: cronRunning ? 0.5 : 1 }}>
+            📰 生成文章
+          </button>
+          <button onClick={() => triggerCron("/api/cron/daily-automation")} disabled={cronRunning}
+            style={{ padding: "8px 16px", background: "var(--teal)", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, opacity: cronRunning ? 0.5 : 1 }}>
+            🤖 執行每日自動化
+          </button>
+        </div>
+        {cronResult && (
+          <pre style={{ marginTop: 12, padding: 12, background: "var(--bg)", borderRadius: 8, fontSize: 11, color: "var(--text2)", overflowX: "auto" as const, maxHeight: 200 }}>
+            {cronResult}
+          </pre>
+        )}
+      </div>
+
+      {/* Announcement Management */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 24, marginBottom: 24 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>📢 公告管理</h3>
+        <div style={{ display: "flex", flexDirection: "column" as const, gap: 8, marginBottom: 16 }}>
+          <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="公告標題"
+            style={{ ...inputStyle, padding: "8px 12px" }} />
+          <textarea value={newContent} onChange={e => setNewContent(e.target.value)} placeholder="公告內容"
+            style={{ ...inputStyle, padding: "8px 12px", minHeight: 80, resize: "vertical" as const }} />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select value={newType} onChange={e => setNewType(e.target.value)}
+              style={{ ...inputStyle, width: "auto", padding: "6px 12px" }}>
+              <option value="info">一般公告</option>
+              <option value="important">重要公告</option>
+              <option value="update">系統更新</option>
+            </select>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--text2)", cursor: "pointer" }}>
+              <input type="checkbox" checked={newPinned} onChange={e => setNewPinned(e.target.checked)} /> 置頂
+            </label>
+            <button onClick={createAnnouncement}
+              style={{ marginLeft: "auto", padding: "8px 20px", background: "var(--accent)", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+              發布
+            </button>
+          </div>
+        </div>
+        {/* Existing announcements */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          {announcements.map(a => (
+            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid var(--border)" }}>
+              <span>{a.is_pinned ? "📌" : "📢"}</span>
+              <span style={{ flex: 1, fontSize: 13 }}>{a.title}</span>
+              <span style={{ fontSize: 10, color: "var(--text3)" }}>{new Date(a.created_at).toLocaleDateString("zh-TW")}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

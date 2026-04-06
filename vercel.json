@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/update-articles",
-      "schedule": "0 2 * * *"
+      "path": "/api/cron/daily-automation",
+      "schedule": "0 0 * * *"
     }
   ]
 }
