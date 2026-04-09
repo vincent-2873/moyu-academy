@@ -103,7 +103,7 @@ export default function Home() {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-2xl font-bold animate-pulse" style={{ color: "var(--accent)" }}>
-          墨宇學院 2.0
+          墨宇戰情中樞
         </div>
       </div>
     );
@@ -483,9 +483,9 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
               WebkitTextFillColor: "transparent",
             }}
           >
-            墨宇學院 2.0
+            墨宇戰情中樞
           </h1>
-          <p className="text-[var(--text3)]">AI 驅動的業務培訓與對練系統</p>
+          <p className="text-[var(--text3)]">業務戰力 × 招聘漏斗 即時監測系統</p>
         </div>
 
         <form

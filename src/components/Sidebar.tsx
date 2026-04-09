@@ -98,10 +98,10 @@ export default function Sidebar({
             WebkitTextFillColor: "transparent",
           }}
         >
-          {brand?.fullName || "墨宇學院 2.0"}
+          {brand?.fullName || "墨宇戰情中樞"}
         </h2>
         <p className="text-xs text-[var(--text3)] mt-1">
-          教育訓練系統
+          戰情即時監測
         </p>
       </div>
 

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "墨宇學院 2.0 | MOYU Academy",
-  description: "AI 驅動的業務培訓與對練系統",
+  title: "墨宇戰情中樞 | MOYU OPS",
+  description: "業務戰力 × 招聘漏斗 即時監測系統",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 };
 
