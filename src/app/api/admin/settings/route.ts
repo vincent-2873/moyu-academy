@@ -14,7 +14,7 @@ export async function GET() {
       return Response.json({ error: error.message }, { status: 500 });
     }
 
-    return Response.json({ data });
+    return Response.json({ settings: data, data });
   } catch (err) {
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -33,22 +33,57 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
+    const payload = {
+      key,
+      value,
+      updated_by,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Try upsert first (works if table has unique constraint on key)
+    const { data: upsertData, error: upsertError } = await supabase
       .from("system_settings")
-      .update({
-        value,
-        updated_by,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("key", key)
+      .upsert(payload, { onConflict: "key" })
       .select()
       .single();
 
-    if (error) {
-      return Response.json({ error: error.message }, { status: 500 });
+    if (!upsertError) {
+      return Response.json({ data: upsertData });
     }
 
-    return Response.json({ data });
+    // Fallback: check if row exists, then update or insert
+    const { data: existing } = await supabase
+      .from("system_settings")
+      .select("id")
+      .eq("key", key)
+      .maybeSingle();
+
+    if (existing) {
+      // Row exists - update it
+      const { data, error } = await supabase
+        .from("system_settings")
+        .update({ value, updated_by, updated_at: new Date().toISOString() })
+        .eq("key", key)
+        .select()
+        .single();
+
+      if (error) {
+        return Response.json({ error: error.message }, { status: 500 });
+      }
+      return Response.json({ data });
+    } else {
+      // Row doesn't exist - insert it
+      const { data, error } = await supabase
+        .from("system_settings")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) {
+        return Response.json({ error: error.message }, { status: 500 });
+      }
+      return Response.json({ data });
+    }
   } catch (err) {
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }

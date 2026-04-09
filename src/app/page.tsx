@@ -15,7 +15,7 @@ import {
 } from "@/lib/store";
 import { syncProgress, syncQuizScore, syncKpiEntry, syncRegister, migrateLocalStorageToSupabase, syncVideoProgress } from "@/lib/sync";
 import { brands } from "@/data/brands";
-import { modules, TASK_ICONS, getModulesForBrand } from "@/data/modules";
+import { modules, TASK_ICONS, getModulesForBrand, type TrainingResource, type DailyScheduleItem } from "@/data/modules";
 import { personas, getPersonasByBrand } from "@/data/personas";
 import Sidebar, { type UserRole } from "@/components/Sidebar";
 import SOPPage from "@/components/SOPPage";
@@ -24,6 +24,7 @@ import MentorTeamCard from "@/components/MentorTeamCard";
 import MentorshipPage from "@/components/MentorshipPage";
 import ProfilePage from "@/components/ProfilePage";
 import CeremonyOverlay from "@/components/CeremonyOverlay";
+import DailyFeedbackModal, { shouldShowFeedback } from "@/components/DailyFeedbackModal";
 import ScoreRadar from "@/components/ScoreRadar";
 import { scoreConversation, getScoreColor, getScoreLabel, SCORE_LABELS } from "@/lib/scoring";
 import {
@@ -55,6 +56,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<Page>("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [cohortStartDate, setCohortStartDate] = useState<string | null>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [workSchedule, setWorkSchedule] = useState<{ endTime: string; workDays: number[] } | null>(null);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -62,7 +66,36 @@ export default function Home() {
     setLoading(false);
     // Migrate localStorage data to Supabase on login
     if (u) migrateLocalStorageToSupabase(u);
+    // Fetch cohort start date
+    fetch("/api/cohort").then(r => r.json()).then(d => setCohortStartDate(d.cohort_start_date)).catch(() => {});
+    // Fetch work schedule for feedback modal
+    if (u) {
+      fetch(`/api/work-schedule?brand=${u.brand}`).then(r => r.json()).then(d => {
+        if (d.schedule) {
+          setWorkSchedule({ endTime: d.schedule.endTime, workDays: d.schedule.workDays });
+          // Check if we should show feedback modal
+          if (shouldShowFeedback(u.email, d.schedule.endTime, d.schedule.workDays)) {
+            setShowFeedbackModal(true);
+          }
+        }
+      }).catch(() => {});
+    }
   }, []);
+
+  // Activity heartbeat — send every 60s so admin can see who is online
+  useEffect(() => {
+    if (!user) return;
+    const sendHeartbeat = () => {
+      fetch("/api/activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email, page }),
+      }).catch(() => {});
+    };
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 60000);
+    return () => clearInterval(interval);
+  }, [user, page]);
 
   const refreshUser = () => setUser(getCurrentUser());
 
@@ -104,7 +137,7 @@ export default function Home() {
         ☰
       </button>
       <main className="flex-1 ml-0 md:ml-[260px] p-4 md:p-8 animate-fade-in" key={page}>
-        {page === "dashboard" && <DashboardPage user={user} onNavigate={(p) => setPage(p as Page)} />}
+        {page === "dashboard" && <DashboardPage user={user} onNavigate={(p) => setPage(p as Page)} cohortStartDate={cohortStartDate} />}
         {page === "training" && <TrainingPage user={user} onUpdate={refreshUser} />}
         {page === "videos" && <VideosPage brandId={user.brand} userEmail={user.email} />}
         {page === "sparring" && <SparringPage user={user} onUpdate={refreshUser} />}
@@ -117,6 +150,28 @@ export default function Home() {
         {page === "profile" && <ProfilePage userEmail={user.email} userName={user.name} brandId={user.brand} brandColor={brands[user.brand]?.color} onNameChange={(newName) => { updateUser(user.email, { name: newName }); refreshUser(); }} />}
       </main>
       <HelpBot />
+      {/* Manual feedback button — always visible */}
+      {workSchedule && !showFeedbackModal && (
+        <button
+          onClick={() => setShowFeedbackModal(true)}
+          className="fixed bottom-6 left-6 md:left-[276px] px-4 py-2.5 rounded-full text-white text-sm font-bold shadow-lg z-40 transition-all hover:scale-105 flex items-center gap-2"
+          style={{ background: "linear-gradient(135deg, var(--gold), #f59e0b)" }}
+          title="填寫今日回饋"
+        >
+          <span>📝</span>
+          <span className="hidden sm:inline">今日回饋</span>
+        </button>
+      )}
+      {showFeedbackModal && workSchedule && (
+        <DailyFeedbackModal
+          userEmail={user.email}
+          userName={user.name}
+          brandId={user.brand}
+          workEndTime={workSchedule.endTime}
+          onSubmitted={() => setShowFeedbackModal(false)}
+          onSkip={() => setShowFeedbackModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -282,6 +337,11 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
   const [brand, setBrand] = useState("nschool");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
+  const [lineBinding, setLineBinding] = useState<{
+    code: string;
+    expiresAt?: string;
+    friendUrl?: string | null;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -302,6 +362,16 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
       const syncResult = await syncRegister(email, name, brand);
       if (syncResult.error) {
         setError(`註冊成功但雲端同步失敗: ${syncResult.error}，管理員可能暫時看不到您的帳號。`);
+        return;
+      }
+      // 如果需要綁定 LINE，先顯示綁定畫面，不讓他登入
+      if (syncResult.lineBindingRequired && syncResult.lineBindingCode) {
+        setLineBinding({
+          code: syncResult.lineBindingCode,
+          expiresAt: syncResult.lineBindingExpiresAt,
+          friendUrl: syncResult.lineFriendUrl,
+        });
+        return;
       }
       const loginRes = loginUser(email, password);
       if (loginRes.success) onLogin();
@@ -334,6 +404,72 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
       setError(res.error || "登入失敗");
     }
   };
+
+  // 綁定 LINE 畫面：註冊成功但還沒綁 LINE 時擋在這裡
+  if (lineBinding) {
+    return (
+      <div className="h-screen flex items-center justify-center px-4">
+        <div className="w-full max-w-md bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 sm:p-8 text-center">
+          <div className="text-5xl mb-4">📱</div>
+          <h2 className="text-2xl font-bold mb-2">綁定墨宇小精靈</h2>
+          <p className="text-sm text-[var(--text2)] mb-6">
+            註冊已完成。請加入 LINE@「墨宇小精靈」並輸入下方綁定碼，<br />
+            完成後系統的緊急通知就會直接推到你的 LINE。
+          </p>
+
+          <div className="bg-[var(--bg2)] border border-[var(--border)] rounded-xl p-4 mb-4">
+            <div className="text-xs text-[var(--text3)] mb-1">你的綁定碼</div>
+            <div
+              className="text-4xl font-mono font-bold tracking-widest"
+              style={{ color: "var(--accent)" }}
+            >
+              {lineBinding.code}
+            </div>
+            <div className="text-xs text-[var(--text3)] mt-2">
+              {lineBinding.expiresAt
+                ? `24 小時內有效（至 ${new Date(lineBinding.expiresAt).toLocaleString()}）`
+                : "24 小時內有效"}
+            </div>
+          </div>
+
+          {lineBinding.friendUrl ? (
+            <a
+              href={lineBinding.friendUrl}
+              target="_blank"
+              rel="noopener"
+              className="block w-full py-3 mb-3 rounded-lg font-bold text-white"
+              style={{ background: "#06C755" }}
+            >
+              💬 加入墨宇小精靈
+            </a>
+          ) : (
+            <div className="text-xs text-[var(--text3)] mb-3">
+              （管理者尚未設定 LINE@ 加好友連結）
+            </div>
+          )}
+
+          <ol className="text-left text-sm text-[var(--text2)] space-y-1 mb-6 px-2">
+            <li>1. 點上方按鈕加入墨宇小精靈為好友</li>
+            <li>2. 在 LINE 對話視窗輸入綁定碼：<b>{lineBinding.code}</b></li>
+            <li>3. 收到「綁定成功」訊息後回到這裡點下方按鈕</li>
+          </ol>
+
+          <button
+            type="button"
+            onClick={() => {
+              setLineBinding(null);
+              const loginRes = loginUser(email, password);
+              if (loginRes.success) onLogin();
+            }}
+            className="w-full py-3 rounded-lg font-bold text-white"
+            style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}
+          >
+            ✅ 我已綁定，進入系統
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex items-center justify-center px-4">
@@ -456,7 +592,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
 }
 
 /* ===================== DASHBOARD ===================== */
-function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: string) => void }) {
+function DashboardPage({ user, onNavigate, cohortStartDate }: { user: User; onNavigate: (p: string) => void; cohortStartDate?: string | null }) {
   const brand = brands[user.brand];
   const brandModules = getModulesForBrand(user.brand);
   const progress = Math.round((user.completedModules.length / brandModules.length) * 100);
@@ -494,8 +630,9 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
       })()
     : null;
 
-  // Calculate overdue tasks for notification bell
-  const currentDay = Math.min(22, Math.max(1, Math.ceil((Date.now() - new Date(user.joinDate).getTime()) / (1000 * 60 * 60 * 24))));
+  // Calculate training day: use cohort start date if set, otherwise user's join date
+  const trainingStartDate = cohortStartDate || user.joinDate;
+  const currentDay = Math.min(22, Math.max(1, Math.ceil((Date.now() - new Date(trainingStartDate).getTime()) / (1000 * 60 * 60 * 24))));
   const [overdueCount, setOverdueCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -555,7 +692,7 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
             歡迎回來，{user.name}
           </h1>
           <p className="text-[var(--text2)]">
-            {brand.fullName} | 加入 {Math.ceil((Date.now() - new Date(user.joinDate).getTime()) / (1000 * 60 * 60 * 24))} 天 | 訓練第 {currentDay} 天
+            {brand.fullName} | 訓練第 {currentDay} 天
           </p>
         </div>
         {/* Notification Bell */}
@@ -683,7 +820,7 @@ function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: strin
       <div className="mb-8">
         <CalendarDashboard
           userEmail={user.email}
-          currentDay={Math.min(22, Math.max(1, Math.ceil((Date.now() - new Date(user.joinDate).getTime()) / (1000 * 60 * 60 * 24))))}
+          currentDay={currentDay}
           startDate={user.joinDate}
           completedTasks={(() => {
             try {
@@ -1064,9 +1201,34 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [taskDone, setTaskDone] = useState<Record<string, boolean>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [moduleOverrides, setModuleOverrides] = useState<Record<number, { resources?: TrainingResource[]; schedule?: DailyScheduleItem[] }>>({});
   const brandModules = getModulesForBrand(user.brand);
 
-  const mod = selectedModule !== null ? brandModules.find((m) => m.id === selectedModule) : null;
+  // Fetch module overrides (resources & schedule) from admin
+  useEffect(() => {
+    fetch(`/api/admin/module-overrides?brand=${user.brand}`).then(r => r.json()).then(d => {
+      const map: Record<number, { resources?: TrainingResource[]; schedule?: DailyScheduleItem[] }> = {};
+      for (const o of (d.overrides || [])) {
+        const entry: { resources?: TrainingResource[]; schedule?: DailyScheduleItem[] } = {};
+        if (o.resources_override) entry.resources = o.resources_override;
+        if (o.schedule_override) entry.schedule = o.schedule_override;
+        if (entry.resources || entry.schedule) map[o.module_id] = entry;
+      }
+      setModuleOverrides(map);
+    }).catch(() => {});
+  }, [user.brand]);
+
+  // Merge overrides into the selected module
+  const rawMod = selectedModule !== null ? brandModules.find((m) => m.id === selectedModule) : null;
+  const mod = rawMod ? (() => {
+    const ov = moduleOverrides[rawMod.day];
+    if (!ov) return rawMod;
+    return {
+      ...rawMod,
+      ...(ov.resources ? { resources: ov.resources } : {}),
+      ...(ov.schedule ? { schedule: ov.schedule } : {}),
+    };
+  })() : null;
 
   // Load task completions from localStorage
   useEffect(() => {
@@ -1101,7 +1263,7 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
       ? [...new Set([...user.completedModules, mod.id])]
       : user.completedModules;
 
-    const newProgress = Math.round((newCompleted.length / 9) * 100);
+    const newProgress = Math.round((newCompleted.length / brandModules.length) * 100);
     updateUser(user.email, {
       quizScores: newScores,
       completedModules: newCompleted,
@@ -1170,6 +1332,24 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
           {/* Description */}
           <p className="text-sm text-[var(--text2)] mt-4 leading-relaxed">{mod.description}</p>
         </div>
+
+        {/* Daily Schedule */}
+        {mod.schedule && mod.schedule.length > 0 && (
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mb-4">
+            <h3 className="font-bold mb-3 text-sm" style={{ color: "var(--teal)" }}>📅 今日行程</h3>
+            <div className="space-y-2">
+              {mod.schedule.map((item, si) => (
+                <div key={si} className="flex items-start gap-3 p-2.5 bg-[var(--bg2)] rounded-lg">
+                  <span className="text-xs font-bold text-[var(--accent)] whitespace-nowrap mt-0.5" style={{ minWidth: 85 }}>{item.time}</span>
+                  <div>
+                    <p className="text-sm font-semibold">{item.task}</p>
+                    {item.description && <p className="text-xs text-[var(--text3)] mt-0.5">{item.description}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {!quizMode ? (
           <div className="space-y-3">
@@ -1408,7 +1588,7 @@ function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
         {/* Overall progress */}
         <div className="mt-4 flex items-center gap-3">
           <div className="flex-1 h-2.5 bg-[var(--bg2)] rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.round((user.completedModules.length / 9) * 100)}%`, background: "linear-gradient(90deg, var(--accent), var(--teal), var(--green))" }} />
+            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.round((user.completedModules.length / brandModules.length) * 100)}%`, background: "linear-gradient(90deg, var(--accent), var(--teal), var(--green))" }} />
           </div>
           <span className="text-sm font-bold text-[var(--accent)]">{user.completedModules.length}/{brandModules.length}</span>
         </div>
@@ -1523,6 +1703,8 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
   const transcriptRef = useRef("");
   const sendingRef = useRef(false);
   sendingRef.current = sending;
+  const sendMessageRef = useRef<(text?: string) => void>(() => {});
+  const startListeningRef = useRef<() => void>(() => {});
 
   const brandPersonas = getPersonasByBrand(user.brand);
   const persona = personas.find((p) => p.id === selectedPersona);
@@ -1572,7 +1754,7 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
       // Auto-start listening after AI finishes speaking (phone-call flow)
       if (voiceEnabled && sessionActive) {
         setTimeout(() => {
-          if (!sendingRef.current) startListening();
+          if (!sendingRef.current) startListeningRef.current();
         }, 200);
       }
     };
@@ -1596,7 +1778,7 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
     setInterimText("");
     setInput("");
     transcriptRef.current = "";
-    sendMessage(text);
+    sendMessageRef.current(text);
   }, []);
 
   // Start voice recognition — fresh transcript each time
@@ -1667,6 +1849,7 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
       setIsListening(false);
     }
   }, [isSpeaking, autoSendVoice]);
+  startListeningRef.current = startListening;
 
   // Stop voice recognition
   const stopListening = useCallback(() => {
@@ -1765,6 +1948,7 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
       setSending(false);
     }
   };
+  sendMessageRef.current = sendMessage;
 
   // Handle voice send: stop listening, then send what we have
   const handleVoiceSend = () => {
@@ -2658,6 +2842,55 @@ function KnowledgePage({ brandId }: { brandId: string }) {
   const brand = brands[brandId];
   const [activeSection, setActiveSection] = useState(0);
   const [activeTopic, setActiveTopic] = useState(0);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const isFinance = brandId === "nschool";
+  const botName = isFinance ? "財經知識通" : "職能知識通";
+  const category = isFinance ? "財經" : "職能";
+
+  const quickQuestions = isFinance
+    ? ["新手該怎麼開始學投資？", "ETF 跟個股差在哪？", "技術分析入門建議？"]
+    : brandId === "xuemi"
+    ? ["UI/UX 設計需要什麼基礎？", "前端跟後端差在哪？", "轉職設計師要多久？"]
+    : brandId === "aischool"
+    ? ["AI 工具能做什麼？", "學 AI 需要會寫程式嗎？", "AI 自動化怎麼應用？"]
+    : ["Python 零基礎能學嗎？", "學程式多久能轉職？", "AI 工程師薪水多少？"];
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  // Reset chat when brand changes
+  useEffect(() => {
+    setChatMessages([]);
+    setChatOpen(false);
+  }, [brandId]);
+
+  const sendChat = async (overrideMsg?: string) => {
+    const msg = overrideMsg || chatInput.trim();
+    if (!msg || chatSending) return;
+    const userMsg = { role: "user" as const, content: msg };
+    const newMsgs = [...chatMessages, userMsg];
+    setChatMessages(newMsgs);
+    setChatInput("");
+    setChatSending(true);
+    try {
+      const res = await fetch("/api/knowledge-bot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: newMsgs, brandId }),
+      });
+      const data = await res.json();
+      setChatMessages([...newMsgs, { role: "assistant", content: data.reply }]);
+    } catch {
+      setChatMessages([...newMsgs, { role: "assistant", content: "抱歉，暫時無法回覆，請稍後再試！" }]);
+    }
+    setChatSending(false);
+  };
 
   // Dynamic import to keep page.tsx clean
   const knowledgeData = (() => {
@@ -2673,115 +2906,249 @@ function KnowledgePage({ brandId }: { brandId: string }) {
 
   return (
     <div className="animate-fade-in max-w-4xl">
-      <h1 className="text-2xl font-bold mb-1" style={{
-        background: `linear-gradient(135deg, ${brand.color}, var(--teal))`,
-        WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-      }}>品牌知識庫</h1>
-      <p className="text-sm text-[var(--text3)] mb-6">{brand.fullName} — 領域知識與品牌資訊</p>
-
-      {/* Brand Info Card */}
-      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mb-6">
-        <div className="flex flex-wrap items-center gap-4 mb-3">
-          <div>
-            <h3 className="font-bold" style={{ color: brand.color }}>{brand.fullName}</h3>
-            <p className="text-xs text-[var(--text3)]">{brand.description}</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-          <div className="p-2 bg-[var(--bg2)] rounded-lg">🌐 {brand.website}</div>
-          <div className="p-2 bg-[var(--bg2)] rounded-lg">💬 {brand.line}</div>
-          <div className="p-2 bg-[var(--bg2)] rounded-lg">📷 {brand.instagram}</div>
-          <div className="p-2 bg-[var(--bg2)] rounded-lg">📧 {brand.email}</div>
-        </div>
-        <div className="flex flex-wrap gap-2 mt-3">
-          {brand.courses.map((c, i) => (
-            <span key={i} className="text-xs px-2 py-1 rounded-full" style={{
-              color: brand.color, backgroundColor: brand.colorLight,
-            }}>{c}</span>
-          ))}
-        </div>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-2xl font-bold" style={{
+          background: `linear-gradient(135deg, ${brand.color}, var(--teal))`,
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        }}>品牌知識庫</h1>
+        <button
+          onClick={() => setChatOpen(!chatOpen)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105"
+          style={{ background: `linear-gradient(135deg, ${brand.color}, var(--teal))` }}
+        >
+          <span>{chatOpen ? "📖" : "🤖"}</span>
+          {chatOpen ? "返回知識庫" : `問 ${botName}`}
+        </button>
       </div>
+      <p className="text-sm text-[var(--text3)] mb-6">{brand.fullName} — {chatOpen ? `${category}知識 AI 助手` : "領域知識與品牌資訊"}</p>
 
-      {/* Domain Knowledge Sections */}
-      {sections.length > 0 && (
-        <>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {sections.map((s: any, i: number) => (
-              <button key={s.id} onClick={() => { setActiveSection(i); setActiveTopic(0); }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activeSection === i ? "text-white shadow-lg" : "bg-[var(--card)] text-[var(--text2)] border border-[var(--border)]"
-                }`}
-                style={activeSection === i ? { background: brand.color } : undefined}
-              >{s.icon} {s.title}</button>
-            ))}
+      {/* ── Knowledge Chatbot ── */}
+      {chatOpen ? (
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden" style={{ height: "calc(100vh - 200px)", maxHeight: 700 }}>
+          {/* Chat Header */}
+          <div className="px-5 py-4 text-white font-bold flex items-center gap-3" style={{ background: `linear-gradient(135deg, ${brand.color}, var(--teal))` }}>
+            <span className="text-2xl">🧠</span>
+            <div>
+              <p className="text-sm font-bold">{botName}</p>
+              <p className="text-[10px] opacity-80">{isFinance ? "投資理財知識問答" : "職能技術知識問答"} — AI 即時回覆</p>
+            </div>
           </div>
 
-          {currentSection && (
-            <div className="flex gap-4 flex-col md:flex-row">
-              {/* Topic sidebar */}
-              <div className="md:w-48 flex-shrink-0 space-y-1">
-                {currentSection.topics.map((t: any, i: number) => (
-                  <button key={t.id} onClick={() => setActiveTopic(i)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${
-                      activeTopic === i ? "font-bold" : "text-[var(--text3)] hover:text-[var(--text2)]"
+          {/* Chat Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ height: "calc(100% - 140px)" }}>
+            {chatMessages.length === 0 && (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-3">🧠</div>
+                <h3 className="font-bold text-lg mb-2">嗨！我是{botName}</h3>
+                <p className="text-sm text-[var(--text3)] mb-4">
+                  {isFinance ? "投資理財、股票、ETF、技術分析...有什麼問題儘管問！" : "程式設計、AI 應用、UI/UX、轉職規劃...有什麼問題儘管問！"}
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {quickQuestions.map((q) => (
+                    <button key={q} onClick={() => { sendChat(q); }} className="text-xs px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg2)] hover:border-[var(--accent)] transition-all text-[var(--text2)]">
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {chatMessages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[85%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed ${
+                  m.role === "user"
+                    ? "text-white rounded-br-sm"
+                    : "bg-[var(--bg2)] text-[var(--text)] rounded-bl-sm"
+                }`} style={m.role === "user" ? { background: brand.color } : undefined}>
+                  <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>
+                </div>
+              </div>
+            ))}
+            {chatSending && (
+              <div className="flex justify-start">
+                <div className="bg-[var(--bg2)] px-3.5 py-2.5 rounded-xl rounded-bl-sm text-sm animate-pulse">{botName}思考中...</div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Chat Input */}
+          <div className="p-3 border-t border-[var(--border)]">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendChat(); } }}
+                placeholder={isFinance ? "問投資理財相關問題..." : "問技術或職能相關問題..."}
+                className="flex-1 px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] text-sm outline-none focus:border-[var(--accent)]"
+                disabled={chatSending}
+              />
+              <button onClick={() => sendChat()} disabled={!chatInput.trim() || chatSending}
+                className="px-4 py-2.5 rounded-lg text-white text-sm font-bold disabled:opacity-40"
+                style={{ background: `linear-gradient(135deg, ${brand.color}, var(--teal))` }}
+              >送出</button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Brand Info Card */}
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mb-6">
+            <div className="flex flex-wrap items-center gap-4 mb-3">
+              <div>
+                <h3 className="font-bold" style={{ color: brand.color }}>{brand.fullName}</h3>
+                <p className="text-xs text-[var(--text3)]">{brand.description}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div className="p-2 bg-[var(--bg2)] rounded-lg">🌐 {brand.website}</div>
+              <div className="p-2 bg-[var(--bg2)] rounded-lg">💬 {brand.line}</div>
+              <div className="p-2 bg-[var(--bg2)] rounded-lg">📷 {brand.instagram}</div>
+              <div className="p-2 bg-[var(--bg2)] rounded-lg">📧 {brand.email}</div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {brand.courses.map((c, i) => (
+                <span key={i} className="text-xs px-2 py-1 rounded-full" style={{
+                  color: brand.color, backgroundColor: brand.colorLight,
+                }}>{c}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* AI Bot Banner */}
+          <div
+            onClick={() => setChatOpen(true)}
+            className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-6 cursor-pointer transition-all hover:shadow-lg hover:border-[var(--accent)]"
+            style={{ background: `linear-gradient(135deg, ${brand.colorLight}, transparent)` }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">🧠</span>
+              <div className="flex-1">
+                <h3 className="font-bold text-sm" style={{ color: brand.color }}>{botName} — AI 知識問答</h3>
+                <p className="text-xs text-[var(--text3)]">{isFinance ? "投資理財有疑問？問我就對了！" : "技術轉職有疑問？問我就對了！"}</p>
+              </div>
+              <span className="text-lg">→</span>
+            </div>
+          </div>
+
+          {/* Domain Knowledge Sections */}
+          {sections.length > 0 && (
+            <>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {sections.map((s: any, i: number) => (
+                  <button key={s.id} onClick={() => { setActiveSection(i); setActiveTopic(0); }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activeSection === i ? "text-white shadow-lg" : "bg-[var(--card)] text-[var(--text2)] border border-[var(--border)]"
                     }`}
-                    style={activeTopic === i ? { color: brand.color, backgroundColor: brand.colorLight } : undefined}
-                  >{t.title}</button>
+                    style={activeSection === i ? { background: brand.color } : undefined}
+                  >{s.icon} {s.title}</button>
                 ))}
               </div>
 
-              {/* Topic content */}
-              {currentTopic && (
-                <div className="flex-1 space-y-4">
-                  <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-                    <h3 className="font-bold text-lg mb-3">{currentTopic.title}</h3>
-                    {currentTopic.subtitle && <p className="text-sm text-[var(--text3)] mb-3">{currentTopic.subtitle}</p>}
-                    {currentTopic.content?.map((c: string, i: number) => (
-                      <p key={i} className="text-sm text-[var(--text2)] mb-2 leading-relaxed">{c}</p>
+              {currentSection && (
+                <div className="flex gap-4 flex-col md:flex-row">
+                  {/* Topic sidebar */}
+                  <div className="md:w-48 flex-shrink-0 space-y-1">
+                    {currentSection.topics.map((t: any, i: number) => (
+                      <button key={t.id} onClick={() => setActiveTopic(i)}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${
+                          activeTopic === i ? "font-bold" : "text-[var(--text3)] hover:text-[var(--text2)]"
+                        }`}
+                        style={activeTopic === i ? { color: brand.color, backgroundColor: brand.colorLight } : undefined}
+                      >{t.title}</button>
                     ))}
                   </div>
 
-                  {currentTopic.examples && (
-                    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-                      <h4 className="font-bold text-sm mb-3 text-[var(--teal)]">實際應用案例</h4>
-                      <div className="space-y-2">
-                        {currentTopic.examples.map((e: any, i: number) => (
-                          <div key={i} className="flex gap-2 text-sm p-2 bg-[var(--bg2)] rounded-lg">
-                            <span className="text-[var(--text3)] flex-shrink-0">💡</span>
-                            <div><span className="text-[var(--text2)]">{e.scenario}</span> → <span className="font-medium" style={{ color: brand.color }}>{e.solution}</span></div>
-                          </div>
+                  {/* Topic content */}
+                  {currentTopic && (
+                    <div className="flex-1 space-y-4">
+                      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
+                        <h3 className="font-bold text-lg mb-3">{currentTopic.title}</h3>
+                        {currentTopic.subtitle && <p className="text-sm text-[var(--text3)] mb-3">{currentTopic.subtitle}</p>}
+                        {currentTopic.content?.map((c: string, i: number) => (
+                          <p key={i} className="text-sm text-[var(--text2)] mb-2 leading-relaxed">{c}</p>
                         ))}
                       </div>
-                    </div>
-                  )}
 
-                  {currentTopic.salaryInfo && (
-                    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-                      <h4 className="font-bold text-sm mb-3 text-[var(--gold)]">正職薪資行情</h4>
-                      <div className="space-y-2">
-                        {currentTopic.salaryInfo.map((s: any, i: number) => (
-                          <div key={i} className="flex justify-between items-center p-2 bg-[var(--bg2)] rounded-lg text-sm">
-                            <span className="font-medium">{s.position}</span>
-                            <span style={{ color: brand.color }}>{s.salary}</span>
+                      {currentTopic.examples && (
+                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
+                          <h4 className="font-bold text-sm mb-3 text-[var(--teal)]">實際應用案例</h4>
+                          <div className="space-y-2">
+                            {currentTopic.examples.map((e: any, i: number) => (
+                              <div key={i} className="flex gap-2 text-sm p-2 bg-[var(--bg2)] rounded-lg">
+                                <span className="text-[var(--text3)] flex-shrink-0">💡</span>
+                                <div><span className="text-[var(--text2)]">{e.scenario}</span> → <span className="font-medium" style={{ color: brand.color }}>{e.solution}</span></div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                      {currentTopic.freelanceInfo && (
-                        <>
-                          <h4 className="font-bold text-sm mb-2 mt-4 text-[var(--teal)]">接案收入</h4>
-                          {currentTopic.freelanceInfo.map((f: any, i: number) => (
-                            <div key={i} className="flex justify-between items-center p-2 bg-[var(--bg2)] rounded-lg text-sm mb-1">
-                              <span>{f.type}</span>
-                              <span style={{ color: "var(--teal)" }}>{f.income}</span>
-                            </div>
-                          ))}
-                        </>
+                        </div>
+                      )}
+
+                      {currentTopic.salaryInfo && (
+                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
+                          <h4 className="font-bold text-sm mb-3 text-[var(--gold)]">正職薪資行情</h4>
+                          <div className="space-y-2">
+                            {currentTopic.salaryInfo.map((s: any, i: number) => (
+                              <div key={i} className="flex justify-between items-center p-2 bg-[var(--bg2)] rounded-lg text-sm">
+                                <span className="font-medium">{s.position}</span>
+                                <span style={{ color: brand.color }}>{s.salary}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {currentTopic.freelanceInfo && (
+                            <>
+                              <h4 className="font-bold text-sm mb-2 mt-4 text-[var(--teal)]">接案收入</h4>
+                              {currentTopic.freelanceInfo.map((f: any, i: number) => (
+                                <div key={i} className="flex justify-between items-center p-2 bg-[var(--bg2)] rounded-lg text-sm mb-1">
+                                  <span>{f.type}</span>
+                                  <span style={{ color: "var(--teal)" }}>{f.income}</span>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Memory Tips - Psychology-based learning */}
+                      {currentTopic.memoryTips && currentTopic.memoryTips.length > 0 && (
+                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5" style={{ borderLeft: `3px solid var(--accent)` }}>
+                          <h4 className="font-bold text-sm mb-3" style={{ color: "var(--accent)" }}>記憶技巧 & 溝通話術</h4>
+                          <div className="space-y-3">
+                            {currentTopic.memoryTips.map((tip: string, i: number) => (
+                              <div key={i} className="text-sm text-[var(--text2)] leading-relaxed p-3 bg-[var(--bg2)] rounded-lg">
+                                {tip}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Video Links */}
+                      {currentTopic.videoLinks && currentTopic.videoLinks.length > 0 && (
+                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
+                          <h4 className="font-bold text-sm mb-3 text-[var(--red)]">補充學習影片</h4>
+                          <div className="space-y-2">
+                            {currentTopic.videoLinks.map((v: any, i: number) => (
+                              <a key={i} href={v.url} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 bg-[var(--bg2)] rounded-lg text-sm hover:bg-[var(--border)] transition-all cursor-pointer"
+                              >
+                                <span className="text-lg flex-shrink-0">▶️</span>
+                                <div className="flex-1">
+                                  <div className="font-medium text-[var(--text)]">{v.title}</div>
+                                  {v.duration && <div className="text-xs text-[var(--text3)] mt-0.5">{v.duration}</div>}
+                                </div>
+                                <span className="text-xs text-[var(--text3)]">→</span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
                 </div>
               )}
-            </div>
+            </>
           )}
         </>
       )}

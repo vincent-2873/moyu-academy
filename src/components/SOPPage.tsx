@@ -52,7 +52,7 @@ export default function SOPPage({ brandId }: SOPPageProps) {
             }`}
             style={
               activeSection === s.id
-                ? { background: "var(--accent)", boxShadow: "0 4px 20px var(--accent)40" }
+                ? { background: "var(--accent)", boxShadow: "0 4px 20px rgba(102,126,234,0.25)" }
                 : undefined
             }
           >

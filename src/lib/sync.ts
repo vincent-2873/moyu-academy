@@ -93,11 +93,20 @@ export async function syncVideoProgress(
 }
 
 /** Register user in Supabase (called during registration) */
+export interface SyncRegisterResult {
+  userId: string | null;
+  error?: string;
+  lineBindingRequired?: boolean;
+  lineBindingCode?: string;
+  lineBindingExpiresAt?: string;
+  lineFriendUrl?: string | null;
+}
+
 export async function syncRegister(
   email: string,
   name: string,
   brand: string
-): Promise<{ userId: string | null; error?: string }> {
+): Promise<SyncRegisterResult> {
   const MAX_RETRIES = 2;
   let lastError = "";
 
@@ -113,9 +122,9 @@ export async function syncRegister(
         lastError = data.error || `HTTP ${res.status}`;
         continue;
       }
-      const { userId } = data;
+      const { userId, lineBindingRequired, lineBindingCode, lineBindingExpiresAt, lineFriendUrl } = data;
       if (userId) userIdCache[email] = userId;
-      return { userId };
+      return { userId, lineBindingRequired, lineBindingCode, lineBindingExpiresAt, lineFriendUrl };
     } catch (err) {
       lastError = err instanceof Error ? err.message : "Network error";
     }

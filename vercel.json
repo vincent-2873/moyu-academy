@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/daily-automation",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/claude-autoscan",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/breakthrough-engine",
+      "schedule": "0 2 * * *"
     }
   ]
 }

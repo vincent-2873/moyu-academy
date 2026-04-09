@@ -301,7 +301,7 @@ export default function MentorTeamCard({ userEmail, onNavigate }: MentorTeamCard
               style={{
                 fontSize: "0.6875rem",
                 color: "var(--accent-light)",
-                backgroundColor: "var(--accent-light)15",
+                backgroundColor: "rgba(143,164,240,0.08)",
                 padding: "0.125rem 0.5rem",
                 borderRadius: "9999px",
                 fontWeight: 500,

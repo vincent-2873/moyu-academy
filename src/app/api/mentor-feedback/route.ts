@@ -64,19 +64,21 @@ export async function POST(req: NextRequest) {
       strength_1,
       strength_2,
       improvement,
+      mood,
+      notes,
     } = body;
 
-    // Basic validation
-    if (!trainee_email || !mentor_email || !day || !date) {
+    // Basic validation — mentor_email can be empty for self-reported feedback
+    if (!trainee_email || !day || !date) {
       return NextResponse.json(
-        { error: "Missing required fields: trainee_email, mentor_email, day, date" },
+        { error: "Missing required fields: trainee_email, day, date" },
         { status: 400 }
       );
     }
 
-    const record = {
+    const record: Record<string, unknown> = {
       trainee_email,
-      mentor_email,
+      mentor_email: mentor_email || "",
       day: Number(day),
       date,
       call_target: Number(call_target) || 0,
@@ -88,6 +90,9 @@ export async function POST(req: NextRequest) {
       strength_2: strength_2 || "",
       improvement: improvement || "",
     };
+    // Add mood and notes if provided (these columns may or may not exist in DB)
+    if (mood !== undefined) record.mood = Number(mood);
+    if (notes !== undefined) record.notes = notes || "";
 
     const { data, error } = await supabase
       .from(TABLE)
