@@ -56,6 +56,18 @@ export default function Home() {
         return [k, v.join("=")];
       })
     );
+    // 檢查 URL 上的 line_oauth_error 並 alert 出來
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const oauthErr = urlParams.get("line_oauth_error");
+      if (oauthErr) {
+        // 清掉 URL query，避免重新整理又彈
+        const clean = window.location.pathname;
+        window.history.replaceState({}, "", clean);
+        setTimeout(() => alert("LINE 登入失敗：" + oauthErr), 200);
+      }
+    }
+
     if (cookieMap.moyu_oauth_session) {
       try {
         const json = JSON.parse(
@@ -732,19 +744,39 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
             {isRegister ? "註冊" : "登入"}
           </button>
 
-          {/* 或用 LINE 一鍵登入／註冊 — 放在 email 之後，為懶得填表的人準備 */}
+          {/* 或用 LINE 一鍵登入／註冊 — 註冊時必須先填 email + 姓名 */}
           <div className="flex items-center gap-3 my-5">
             <div className="flex-1 h-px bg-[var(--border)]" />
             <span className="text-xs text-[var(--text3)]">或</span>
             <div className="flex-1 h-px bg-[var(--border)]" />
           </div>
-          <a
-            href={`/api/line/oauth/start?mode=${isRegister ? "register" : "login"}`}
-            className="auth-btn-line flex items-center justify-center gap-2 no-underline"
-          >
-            <span style={{ fontSize: 22 }}>📱</span>
-            <span>用 LINE 一鍵{isRegister ? "註冊" : "登入"}</span>
-          </a>
+          {(() => {
+            const canLineRegister = !isRegister || (email.trim() && name.trim());
+            const qs = isRegister
+              ? `mode=register&registerEmail=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&brand=${encodeURIComponent(companyType === "recruit" ? "moyuhunt" : companyType === "hq" ? "hq" : companyType === "legal" ? "legal" : brand)}`
+              : "mode=login";
+            if (!canLineRegister) {
+              return (
+                <div
+                  className="auth-btn-line flex items-center justify-center gap-2 no-underline"
+                  style={{ opacity: 0.5, cursor: "not-allowed", pointerEvents: "none" }}
+                  aria-disabled
+                >
+                  <span style={{ fontSize: 22 }}>📱</span>
+                  <span>請先填姓名 + Email 再用 LINE 註冊</span>
+                </div>
+              );
+            }
+            return (
+              <a
+                href={`/api/line/oauth/start?${qs}`}
+                className="auth-btn-line flex items-center justify-center gap-2 no-underline"
+              >
+                <span style={{ fontSize: 22 }}>📱</span>
+                <span>用 LINE 一鍵{isRegister ? "註冊" : "登入"}</span>
+              </a>
+            );
+          })()}
 
           <p className="text-center text-sm text-[var(--text2)] mt-4">
             {isRegister ? "已有帳號？" : "還沒有帳號？"}

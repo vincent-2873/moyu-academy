@@ -29,7 +29,21 @@ export async function GET(req: NextRequest) {
   const mode = (url.searchParams.get("mode") || "login") as "login" | "register" | "bind";
   const brand = url.searchParams.get("brand") || "";
   const name = url.searchParams.get("name") || "";
-  const bindEmail = url.searchParams.get("email") || "";
+  const bindEmail = url.searchParams.get("email") || ""; // mode=bind 用
+  const registerEmail = url.searchParams.get("registerEmail") || ""; // mode=register 用
+
+  // mode=register 要求必填 email + 姓名，避免 callback 建爛帳號
+  if (mode === "register") {
+    if (!registerEmail || !/@/.test(registerEmail)) {
+      return new Response("register mode 需要 registerEmail", { status: 400 });
+    }
+    if (!name.trim()) {
+      return new Response("register mode 需要 name", { status: 400 });
+    }
+  }
+  if (mode === "bind" && !bindEmail) {
+    return new Response("bind mode 需要 email", { status: 400 });
+  }
 
   // state 同時兼 CSRF 與 intent carrier — 只把關鍵欄位放進去，不放敏感資料
   const stateRaw = {
@@ -37,7 +51,8 @@ export async function GET(req: NextRequest) {
     mode,
     brand,
     name,
-    bindEmail, // mode=bind 時把要補綁的 email 帶在這裡
+    bindEmail,
+    registerEmail,
     ts: Date.now(),
   };
   const state = Buffer.from(JSON.stringify(stateRaw)).toString("base64url");

@@ -23,6 +23,7 @@ interface LineStateRaw {
   brand: string;
   name: string;
   bindEmail?: string;
+  registerEmail?: string;
   ts: number;
 }
 
@@ -189,22 +190,87 @@ export async function GET(req: NextRequest) {
     return buildRedirect(origin, userRecord);
   }
 
-  // ── mode=login/register：原本流程（line_user_id 查 → 找不到就建新 user）──
-  const { data: existingByLine } = await supabase
-    .from("users")
-    .select("id, email, name, brand, role, status")
-    .eq("line_user_id", profile.userId)
-    .maybeSingle();
+  // ── mode=login：只查既有帳號，找不到不建新，避免搶走別人 email ──
+  if (state.mode === "login") {
+    const { data: existingByLine } = await supabase
+      .from("users")
+      .select("id, email, name, brand, role, status")
+      .eq("line_user_id", profile.userId)
+      .maybeSingle();
 
-  if (existingByLine) {
+    if (!existingByLine) {
+      return Response.redirect(
+        `${origin}/?line_oauth_error=${encodeURIComponent(
+          "這個 LINE 還沒綁定任何帳號。請先用 email 登入既有帳號再綁定 LINE，或用『註冊』流程建立新帳號。"
+        )}`,
+        302
+      );
+    }
     userRecord = existingByLine;
-  } else {
-    // 新用戶 — 用 LINE userId 當 email-like identifier（LINE 沒給 email 的情況下）
-    // 如果 state 裡有 brand / name，用那個；沒的話用 LINE profile
+    return buildRedirect(origin, userRecord);
+  }
+
+  // ── mode=register：必須帶真 email 進來，不接受亂造 ──
+  if (state.mode === "register") {
+    // 先查同 line_user_id 是否已有人綁走
+    const { data: existingByLine } = await supabase
+      .from("users")
+      .select("id, email, name, brand, role, status")
+      .eq("line_user_id", profile.userId)
+      .maybeSingle();
+    if (existingByLine) {
+      // 這個 LINE 已經綁過某個帳號 → 直接當登入處理
+      userRecord = existingByLine;
+      return buildRedirect(origin, userRecord);
+    }
+
+    // 必須帶 email 進 state（新的前台強制先填）
+    const registerEmail = state.registerEmail || "";
+    if (!registerEmail || !/@/.test(registerEmail)) {
+      return Response.redirect(
+        `${origin}/?line_oauth_error=${encodeURIComponent(
+          "註冊需要先填寫 email 與姓名，請回到註冊頁重新操作。"
+        )}`,
+        302
+      );
+    }
+
+    // 檢查這個 email 是否已存在 — 若存在就改為補綁（避免重複建帳號）
+    const { data: existingByEmail } = await supabase
+      .from("users")
+      .select("id, email, name, brand, role, status, line_user_id")
+      .eq("email", registerEmail)
+      .maybeSingle();
+
+    if (existingByEmail) {
+      if (existingByEmail.line_user_id && existingByEmail.line_user_id !== profile.userId) {
+        return Response.redirect(
+          `${origin}/?line_oauth_error=${encodeURIComponent(
+            `email ${registerEmail} 已綁定另一個 LINE，請改用 email 登入後再解除重新綁定。`
+          )}`,
+          302
+        );
+      }
+      // 補綁既有帳號
+      const { data: updated } = await supabase
+        .from("users")
+        .update({
+          line_user_id: profile.userId,
+          line_bound_at: new Date().toISOString(),
+        })
+        .eq("id", existingByEmail.id)
+        .select("id, email, name, brand, role, status")
+        .single();
+      if (updated) {
+        userRecord = updated;
+        return buildRedirect(origin, userRecord);
+      }
+    }
+
+    // 建新 user — 用前台填的 email / name，而不是 fake line-*@moyu.line
     const brand = state.brand || "nschool";
-    const fallbackEmail = `line-${profile.userId}@moyu.line`;
     const insertPayload = {
-      email: fallbackEmail,
+      email: registerEmail,
       name: state.name || profile.displayName || "未命名",
       brand,
       role: brand === "hq" || brand === "legal" ? "super_admin" : "sales_rep",
@@ -218,12 +284,22 @@ export async function GET(req: NextRequest) {
       .select("id, email, name, brand, role, status")
       .single();
     if (insErr || !newUser) {
-      return new Response(`insert user failed: ${insErr?.message || "unknown"}`, { status: 500 });
+      return Response.redirect(
+        `${origin}/?line_oauth_error=${encodeURIComponent(
+          "建立帳號失敗：" + (insErr?.message || "unknown")
+        )}`,
+        302
+      );
     }
     userRecord = newUser;
+    return buildRedirect(origin, userRecord);
   }
 
-  return buildRedirect(origin, userRecord);
+  // 未知 mode
+  return Response.redirect(
+    `${origin}/?line_oauth_error=${encodeURIComponent("未知的登入模式")}`,
+    302
+  );
 }
 
 /** 共用：302 回首頁 + 清 oauth cookie + 放 session cookie 讓前台 bootstrap */

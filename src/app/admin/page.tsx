@@ -4386,7 +4386,7 @@ function DashboardTab({ token }: { token: string }) {
 // ─── Users Tab ─────────────────────────────────────────────────────────────
 
 function UsersTab({ token }: { token: string }) {
-  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; status: string; created_at: string }>>([]);
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; brand: string; role: string; status: string; created_at: string; line_user_id?: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [brandFilter, setBrandFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -4416,6 +4416,26 @@ function UsersTab({ token }: { token: string }) {
       if (!json.user) alert(json.error || "更新角色失敗");
     } catch { alert("網路錯誤"); }
     fetchUsers();
+  };
+
+  const unbindLine = async (email: string) => {
+    if (!confirm(`確定要解除 ${email} 的 LINE 綁定嗎？\n\n解除後該用戶需要重新綁定才能收到 LINE 推播。`)) return;
+    try {
+      const res = await fetch("/api/admin/line-bind", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        alert(json.error || "解除失敗");
+        return;
+      }
+      alert(json.message || "已解除綁定");
+      fetchUsers();
+    } catch {
+      alert("網路錯誤");
+    }
   };
 
   const toggleStatus = async (userId: string, currentStatus: string) => {
@@ -4541,7 +4561,7 @@ function UsersTab({ token }: { token: string }) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["姓名", "Email", "品牌", "角色", "狀態", "加入日期", "操作"].map((h) => (
+                {["姓名", "Email", "品牌", "角色", "狀態", "LINE", "加入日期", "操作"].map((h) => (
                   <th key={h} style={{ padding: "12px 14px", textAlign: "left", fontSize: 12, color: "var(--text3)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -4563,6 +4583,28 @@ function UsersTab({ token }: { token: string }) {
                     <span style={{ background: u.status === "active" ? "#22c55e22" : "#f8717122", color: u.status === "active" ? "var(--green)" : "var(--red)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
                       {u.status === "active" ? "啟用" : "停用"}
                     </span>
+                  </td>
+                  <td style={{ padding: "12px 14px" }}>
+                    {u.line_user_id ? (
+                      <button
+                        onClick={() => unbindLine(u.email)}
+                        title={`已綁定 ${u.line_user_id.slice(0, 10)}... 點擊解除`}
+                        style={{
+                          background: "rgba(6,199,85,0.12)",
+                          color: "#06C755",
+                          border: "1px solid rgba(6,199,85,0.35)",
+                          borderRadius: 6,
+                          padding: "4px 10px",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        🔗 已綁定 · 解除
+                      </button>
+                    ) : (
+                      <span style={{ color: "var(--text3)", fontSize: 11 }}>未綁定</span>
+                    )}
                   </td>
                   <td style={{ padding: "12px 14px", fontSize: 12, color: "var(--text3)" }}>{new Date(u.created_at).toLocaleDateString("zh-TW")}</td>
                   <td style={{ padding: "12px 14px" }}>
