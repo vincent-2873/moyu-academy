@@ -11,7 +11,7 @@ type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool"
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
   { id: "all", label: "🌐 全集團視角", color: "#8b5cf6" },
-  { id: "hq", label: "🏛️ 總公司", color: "#dc2626" },
+  { id: "hq", label: "🏛️ 墨宇股份有限公司", color: "#dc2626" },
   { id: "nschool", label: "nSchool 財經", color: "#feca57" },
   { id: "xuemi", label: "XUEMI 學米", color: "#7c6cf0" },
   { id: "ooschool", label: "OOschool 無限", color: "#4F46E5" },
@@ -149,7 +149,7 @@ interface ModuleOverride {
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 const BRAND_LABELS: Record<string, string> = {
-  hq: "總公司", nschool: "nSchool 財經", xuemi: "XUEMI 學米", ooschool: "OOschool 無限", aischool: "AIschool 智能", moyuhunt: "墨宇獵頭",
+  hq: "墨宇股份有限公司", nschool: "nSchool 財經", xuemi: "XUEMI 學米", ooschool: "OOschool 無限", aischool: "AIschool 智能", moyuhunt: "墨宇獵頭", legal: "法務顧問事務所",
 };
 
 const ROLE_LABELS: Record<string, string> = {

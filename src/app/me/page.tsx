@@ -94,7 +94,7 @@ const HEALTH_META: Record<string, { color: string; label: string }> = {
 };
 
 const BRAND_OPTIONS: { id: string; label: string; inviteCode: string }[] = [
-  { id: "hq", label: "🏛️ 總公司", inviteCode: "MOYUHQ2026" },
+  { id: "hq", label: "🏛️ 墨宇股份有限公司", inviteCode: "MOYUHQ2026" },
   { id: "nschool", label: "💼 nSchool 財經學院", inviteCode: "NS2026" },
   { id: "xuemi", label: "💼 XUEMI 學米", inviteCode: "XM2026" },
   { id: "ooschool", label: "💼 OOschool 無限學院", inviteCode: "OO2026" },

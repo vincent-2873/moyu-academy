@@ -58,7 +58,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 const COMPANY_LABELS: Record<CompanyType, string> = {
   sales: "業務戰線",
   recruit: "獵頭戰線",
-  hq: "總公司",
+  hq: "墨宇股份有限公司",
   legal: "法務顧問事務所",
 };
 

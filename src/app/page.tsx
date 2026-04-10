@@ -371,7 +371,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
         }
       } else if (companyType === "hq") {
         if (inviteCode !== brands.hq.inviteCode) {
-          setError("總公司邀請碼錯誤");
+          setError("墨宇股份有限公司邀請碼錯誤");
           return;
         }
       } else if (companyType === "legal") {
@@ -463,7 +463,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                   onChange={(e) => setCompanyType(e.target.value as CompanyType)}
                   className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
                 >
-                  <option value="hq">🏛️ 總公司</option>
+                  <option value="hq">🏛️ 墨宇股份有限公司</option>
                   <option value="sales">💼 業務公司</option>
                   <option value="recruit">🎯 獵頭公司</option>
                   <option value="legal">⚖️ 法務顧問事務所</option>
@@ -503,7 +503,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                   className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
                   placeholder={
-                    companyType === "hq" ? "總公司邀請碼" :
+                    companyType === "hq" ? "墨宇股份有限公司邀請碼" :
                     companyType === "recruit" ? "獵頭邀請碼" :
                     companyType === "legal" ? "法務顧問事務所邀請碼" :
                     "品牌邀請碼"
