@@ -119,30 +119,48 @@ export function loginUser(
   return { success: true };
 }
 
-/** Restore user from Supabase into localStorage so subsequent logins work */
+/**
+ * Restore user from Supabase into localStorage so subsequent logins work.
+ * 如果已有本地紀錄：更新雲端欄位 + 設為目前登入者
+ * 如果沒有本地紀錄：新建 + 設為目前登入者
+ * (舊版 bug：本地已存在時會提早 return 沒呼叫 setCurrentUser，
+ *  導致 LINE OAuth 成功回來後 sessionStorage 沒設，永遠卡登入頁)
+ */
 export function restoreUserFromCloud(
   email: string,
   password: string,
   cloudUser: { name: string; brand: string; role?: string; companyType?: CompanyType }
 ) {
   const users = getUsers();
-  if (users.find((u) => u.email === email)) return; // already exists
-  const newUser: User = {
-    email,
-    password,
-    name: cloudUser.name,
-    brand: cloudUser.brand,
-    role: cloudUser.role,
-    companyType: cloudUser.companyType || "sales",
-    joinDate: new Date().toISOString(),
-    progress: 0,
-    completedModules: [],
-    quizScores: [],
-    kpiData: [],
-    sparringRecords: [],
-  };
-  users.push(newUser);
+  const existingIdx = users.findIndex((u) => u.email === email);
+  if (existingIdx >= 0) {
+    // 已存在：更新雲端欄位，保留 kpiData / progress 等本地累積的東西
+    users[existingIdx] = {
+      ...users[existingIdx],
+      name: cloudUser.name || users[existingIdx].name,
+      brand: cloudUser.brand || users[existingIdx].brand,
+      role: cloudUser.role || users[existingIdx].role,
+      companyType: cloudUser.companyType || users[existingIdx].companyType || "sales",
+    };
+  } else {
+    // 新建
+    users.push({
+      email,
+      password,
+      name: cloudUser.name,
+      brand: cloudUser.brand,
+      role: cloudUser.role,
+      companyType: cloudUser.companyType || "sales",
+      joinDate: new Date().toISOString(),
+      progress: 0,
+      completedModules: [],
+      quizScores: [],
+      kpiData: [],
+      sparringRecords: [],
+    });
+  }
   saveUsers(users);
+  // 無論新建還舊帳號都要設為目前登入者
   setCurrentUser(email);
 }
 
