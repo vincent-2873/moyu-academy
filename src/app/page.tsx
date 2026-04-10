@@ -351,11 +351,6 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
   const [companyType, setCompanyType] = useState<CompanyType>("sales");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
-  const [lineBinding, setLineBinding] = useState<{
-    code: string;
-    expiresAt?: string;
-    friendUrl?: string | null;
-  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -392,15 +387,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
         setError(`註冊成功但雲端同步失敗: ${syncResult.error}，管理員可能暫時看不到您的帳號。`);
         return;
       }
-      // 如果需要綁定 LINE，先顯示綁定畫面，不讓他登入
-      if (syncResult.lineBindingRequired && syncResult.lineBindingCode) {
-        setLineBinding({
-          code: syncResult.lineBindingCode,
-          expiresAt: syncResult.lineBindingExpiresAt,
-          friendUrl: syncResult.lineFriendUrl,
-        });
-        return;
-      }
+      // LINE 綁定改為選用，註冊後直接登入
       const loginRes = loginUser(email, password);
       if (loginRes.success) onLogin();
     } else {
@@ -432,72 +419,6 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
       setError(res.error || "登入失敗");
     }
   };
-
-  // 綁定 LINE 畫面：註冊成功但還沒綁 LINE 時擋在這裡
-  if (lineBinding) {
-    return (
-      <div className="h-screen flex items-center justify-center px-4">
-        <div className="w-full max-w-md bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 sm:p-8 text-center">
-          <div className="text-5xl mb-4">📱</div>
-          <h2 className="text-2xl font-bold mb-2">綁定墨宇小精靈</h2>
-          <p className="text-sm text-[var(--text2)] mb-6">
-            註冊已完成。請加入 LINE@「墨宇小精靈」並輸入下方綁定碼，<br />
-            完成後系統的緊急通知就會直接推到你的 LINE。
-          </p>
-
-          <div className="bg-[var(--bg2)] border border-[var(--border)] rounded-xl p-4 mb-4">
-            <div className="text-xs text-[var(--text3)] mb-1">你的綁定碼</div>
-            <div
-              className="text-4xl font-mono font-bold tracking-widest"
-              style={{ color: "var(--accent)" }}
-            >
-              {lineBinding.code}
-            </div>
-            <div className="text-xs text-[var(--text3)] mt-2">
-              {lineBinding.expiresAt
-                ? `24 小時內有效（至 ${new Date(lineBinding.expiresAt).toLocaleString()}）`
-                : "24 小時內有效"}
-            </div>
-          </div>
-
-          {lineBinding.friendUrl ? (
-            <a
-              href={lineBinding.friendUrl}
-              target="_blank"
-              rel="noopener"
-              className="block w-full py-3 mb-3 rounded-lg font-bold text-white"
-              style={{ background: "#06C755" }}
-            >
-              💬 加入墨宇小精靈
-            </a>
-          ) : (
-            <div className="text-xs text-[var(--text3)] mb-3">
-              （管理者尚未設定 LINE@ 加好友連結）
-            </div>
-          )}
-
-          <ol className="text-left text-sm text-[var(--text2)] space-y-1 mb-6 px-2">
-            <li>1. 點上方按鈕加入墨宇小精靈為好友</li>
-            <li>2. 在 LINE 對話視窗輸入綁定碼：<b>{lineBinding.code}</b></li>
-            <li>3. 收到「綁定成功」訊息後回到這裡點下方按鈕</li>
-          </ol>
-
-          <button
-            type="button"
-            onClick={() => {
-              setLineBinding(null);
-              const loginRes = loginUser(email, password);
-              if (loginRes.success) onLogin();
-            }}
-            className="w-full py-3 rounded-lg font-bold text-white"
-            style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}
-          >
-            ✅ 我已綁定，進入系統
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="h-screen flex items-center justify-center px-4">
@@ -563,7 +484,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                     }}
                   >
                     🏛️ 總公司
-                    <p className="text-[10px] text-[var(--text3)] font-normal mt-0.5">高階管理層</p>
+                    <p className="text-[10px] text-[var(--text3)] font-normal mt-0.5">總公司</p>
                   </button>
                 </div>
               </div>

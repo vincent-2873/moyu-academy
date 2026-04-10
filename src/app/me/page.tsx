@@ -93,12 +93,29 @@ const HEALTH_META: Record<string, { color: string; label: string }> = {
   unknown: { color: "#94a3b8", label: "⚪ 未知" },
 };
 
+const BRAND_OPTIONS: { id: string; label: string; inviteCode: string }[] = [
+  { id: "nschool", label: "nSchool 財經學院", inviteCode: "NS2026" },
+  { id: "xuemi", label: "XUEMI 學米", inviteCode: "XM2026" },
+  { id: "ooschool", label: "OOschool 無限學院", inviteCode: "OO2026" },
+  { id: "aischool", label: "AIschool AI 未來學院", inviteCode: "AS2026" },
+  { id: "moyuhunt", label: "墨宇獵頭", inviteCode: "MOYUHUNT" },
+  { id: "hq", label: "總公司", inviteCode: "MOYUHQ2026" },
+];
+
 export default function MePage() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [data, setData] = useState<MeData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ─── Register form state ────
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [regName, setRegName] = useState("");
+  const [regBrand, setRegBrand] = useState("nschool");
+  const [regInvite, setRegInvite] = useState("");
+  const [regError, setRegError] = useState<string | null>(null);
+  const [regBusy, setRegBusy] = useState(false);
 
   // 從 localStorage 還原 email
   useEffect(() => {
@@ -140,6 +157,47 @@ export default function MePage() {
     setSubmitted(true);
   };
 
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError(null);
+    if (!email.includes("@")) {
+      setRegError("請輸入有效 email");
+      return;
+    }
+    if (!regName.trim()) {
+      setRegError("請輸入姓名");
+      return;
+    }
+    const brandMeta = BRAND_OPTIONS.find((b) => b.id === regBrand);
+    if (!brandMeta) {
+      setRegError("請選擇品牌");
+      return;
+    }
+    if (regInvite.trim() !== brandMeta.inviteCode) {
+      setRegError(`邀請碼錯誤（${brandMeta.label}）`);
+      return;
+    }
+    setRegBusy(true);
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name: regName.trim(), brand: regBrand }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setRegError(json.error || "註冊失敗");
+        return;
+      }
+      localStorage.setItem("moyu_employee_email", email);
+      setSubmitted(true);
+    } catch {
+      setRegError("網路錯誤，請稍後重試");
+    } finally {
+      setRegBusy(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("moyu_employee_email");
     setEmail("");
@@ -168,24 +226,89 @@ export default function MePage() {
     }
   };
 
-  // ─── Login screen ────
+  // ─── Login / Register screen ────
   if (!submitted) {
+    const tabBtn = (active: boolean): React.CSSProperties => ({
+      flex: 1,
+      padding: "10px 0",
+      background: active ? "rgba(124,108,240,0.18)" : "transparent",
+      color: active ? "#fff" : "#94a3b8",
+      border: "1px solid",
+      borderColor: active ? "rgba(124,108,240,0.6)" : "rgba(255,255,255,0.1)",
+      borderRadius: 10,
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: "pointer",
+    });
     return (
       <div style={loginWrap}>
-        <form onSubmit={handleLogin} style={loginCard}>
+        <div style={loginCard}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>👋</div>
           <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, color: "#fff" }}>墨宇學院 · 我的工作台</h1>
-          <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 24 }}>輸入你的工作 email，看看今天 Claude 給你什麼任務</p>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@company.com"
-            required
-            style={loginInput}
-          />
-          <button type="submit" style={loginBtn}>進入工作台 →</button>
-        </form>
+          <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 20 }}>
+            {mode === "login" ? "輸入你的工作 email，看看今天 Claude 給你什麼任務" : "首次加入請填寫下方資料"}
+          </p>
+          <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+            <button type="button" style={tabBtn(mode === "login")} onClick={() => { setMode("login"); setRegError(null); }}>登入</button>
+            <button type="button" style={tabBtn(mode === "register")} onClick={() => { setMode("register"); setRegError(null); }}>註冊</button>
+          </div>
+
+          {mode === "login" ? (
+            <form onSubmit={handleLogin}>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                required
+                style={loginInput}
+              />
+              <button type="submit" style={loginBtn}>進入工作台 →</button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister}>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="工作 email"
+                required
+                style={loginInput}
+              />
+              <input
+                type="text"
+                value={regName}
+                onChange={(e) => setRegName(e.target.value)}
+                placeholder="姓名"
+                required
+                style={loginInput}
+              />
+              <select
+                value={regBrand}
+                onChange={(e) => setRegBrand(e.target.value)}
+                style={{ ...loginInput, appearance: "none" }}
+              >
+                {BRAND_OPTIONS.map((b) => (
+                  <option key={b.id} value={b.id} style={{ background: "#0f172a" }}>{b.label}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={regInvite}
+                onChange={(e) => setRegInvite(e.target.value)}
+                placeholder="邀請碼"
+                required
+                style={loginInput}
+              />
+              {regError && (
+                <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 10, textAlign: "left" }}>⚠️ {regError}</div>
+              )}
+              <button type="submit" disabled={regBusy} style={{ ...loginBtn, opacity: regBusy ? 0.6 : 1 }}>
+                {regBusy ? "註冊中..." : "建立帳號 →"}
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     );
   }
