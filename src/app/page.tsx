@@ -49,6 +49,36 @@ export default function Home() {
   const [workSchedule, setWorkSchedule] = useState<{ endTime: string; workDays: number[] } | null>(null);
 
   useEffect(() => {
+    // 1. 先檢查是否剛從 LINE OAuth 回來 — 有 moyu_oauth_session cookie 就 bootstrap local session
+    const cookieMap = Object.fromEntries(
+      document.cookie.split(";").map((c) => {
+        const [k, ...v] = c.trim().split("=");
+        return [k, v.join("=")];
+      })
+    );
+    if (cookieMap.moyu_oauth_session) {
+      try {
+        const json = JSON.parse(
+          atob(cookieMap.moyu_oauth_session.replace(/-/g, "+").replace(/_/g, "/"))
+        );
+        restoreUserFromCloud(json.email, json.email, {
+          name: json.name,
+          brand: json.brand,
+          role: json.role,
+          companyType: json.brand === "moyuhunt" ? "recruit" : json.brand === "hq" ? "hq" : json.brand === "legal" ? "legal" : "sales",
+        });
+        // 清掉 cookie
+        document.cookie = "moyu_oauth_session=; Path=/; Max-Age=0";
+        // 清掉 URL 上的 ?line_oauth_success=1
+        if (window.location.search.includes("line_oauth_success")) {
+          const clean = window.location.pathname;
+          window.history.replaceState({}, "", clean);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
     const u = getCurrentUser();
     setUser(u);
     setLoading(false);
@@ -608,6 +638,20 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
           <h2 className="text-xl font-bold mb-6">
             {isRegister ? "建立帳號" : "登入"}
           </h2>
+
+          {/* 一鍵 LINE 登入 — 最大的入口 */}
+          <a
+            href={`/api/line/oauth/start?mode=${isRegister ? "register" : "login"}`}
+            className="auth-btn-line flex items-center justify-center gap-2 mb-4 no-underline"
+          >
+            <span style={{ fontSize: 22 }}>📱</span>
+            <span>用 LINE 一鍵{isRegister ? "註冊" : "登入"}</span>
+          </a>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex-1 h-px bg-[var(--border)]" />
+            <span className="text-xs text-[var(--text3)]">或用 email</span>
+            <div className="flex-1 h-px bg-[var(--border)]" />
+          </div>
 
           {isRegister && (
             <>
