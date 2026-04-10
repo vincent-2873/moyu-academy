@@ -1,6 +1,6 @@
 // Client-side store using localStorage
 
-export type CompanyType = "sales" | "recruit" | "hq";
+export type CompanyType = "sales" | "recruit" | "hq" | "legal";
 
 export interface User {
   email: string;

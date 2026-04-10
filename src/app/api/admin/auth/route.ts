@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 
 const ADMIN_PASSWORD = 'moyu2024admin';
-const ALLOWED_ROLES = ['super_admin', 'brand_manager', 'team_leader', 'trainer'];
+// HQ roles (ceo/coo/cfo/director) can see ALL subsidiaries; brand-level roles only see their own.
+const ALLOWED_ROLES = ['super_admin', 'ceo', 'coo', 'cfo', 'director', 'brand_manager', 'team_leader', 'trainer'];
 
 export async function POST(req: NextRequest) {
   try {

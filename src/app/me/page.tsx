@@ -94,12 +94,13 @@ const HEALTH_META: Record<string, { color: string; label: string }> = {
 };
 
 const BRAND_OPTIONS: { id: string; label: string; inviteCode: string }[] = [
-  { id: "nschool", label: "nSchool 財經學院", inviteCode: "NS2026" },
-  { id: "xuemi", label: "XUEMI 學米", inviteCode: "XM2026" },
-  { id: "ooschool", label: "OOschool 無限學院", inviteCode: "OO2026" },
-  { id: "aischool", label: "AIschool AI 未來學院", inviteCode: "AS2026" },
-  { id: "moyuhunt", label: "墨宇獵頭", inviteCode: "MOYUHUNT" },
-  { id: "hq", label: "總公司", inviteCode: "MOYUHQ2026" },
+  { id: "hq", label: "🏛️ 總公司（母公司）", inviteCode: "MOYUHQ2026" },
+  { id: "nschool", label: "　💼 nSchool 財經學院（業務子公司）", inviteCode: "NS2026" },
+  { id: "xuemi", label: "　💼 XUEMI 學米（業務子公司）", inviteCode: "XM2026" },
+  { id: "ooschool", label: "　💼 OOschool 無限學院（業務子公司）", inviteCode: "OO2026" },
+  { id: "aischool", label: "　💼 AIschool AI 未來學院（業務子公司）", inviteCode: "AS2026" },
+  { id: "moyuhunt", label: "　🎯 墨宇獵頭（招聘子公司）", inviteCode: "MOYUHUNT" },
+  { id: "legal", label: "　⚖️ 法務顧問事務所（子公司）", inviteCode: "MOYULAW2026" },
 ];
 
 export default function MePage() {
@@ -112,7 +113,7 @@ export default function MePage() {
   // ─── Register form state ────
   const [mode, setMode] = useState<"login" | "register">("login");
   const [regName, setRegName] = useState("");
-  const [regBrand, setRegBrand] = useState("nschool");
+  const [regBrand, setRegBrand] = useState("hq");
   const [regInvite, setRegInvite] = useState("");
   const [regError, setRegError] = useState<string | null>(null);
   const [regBusy, setRegBusy] = useState(false);

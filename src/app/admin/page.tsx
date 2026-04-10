@@ -7,15 +7,17 @@ import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 type AdminTab = "pillars" | "commands" | "org" | "people" | "system-hub";
-type CompanyScope = "all" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt";
+type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
   { id: "all", label: "🌐 全集團視角", color: "#8b5cf6" },
-  { id: "nschool", label: "nSchool 財經", color: "#feca57" },
-  { id: "xuemi", label: "XUEMI 學米", color: "#7c6cf0" },
-  { id: "ooschool", label: "OOschool 無限", color: "#4F46E5" },
-  { id: "aischool", label: "AIschool 智能", color: "#10B981" },
-  { id: "moyuhunt", label: "墨宇獵頭", color: "#fb923c" },
+  { id: "hq", label: "🏛️ 總公司", color: "#dc2626" },
+  { id: "nschool", label: "　nSchool 財經", color: "#feca57" },
+  { id: "xuemi", label: "　XUEMI 學米", color: "#7c6cf0" },
+  { id: "ooschool", label: "　OOschool 無限", color: "#4F46E5" },
+  { id: "aischool", label: "　AIschool 智能", color: "#10B981" },
+  { id: "moyuhunt", label: "　墨宇獵頭", color: "#fb923c" },
+  { id: "legal", label: "　法務顧問事務所", color: "#7c6cf0" },
 ];
 
 // ─── v3 3 大支柱（業務 / 法務 / 招聘） ───────────────────────────────────────

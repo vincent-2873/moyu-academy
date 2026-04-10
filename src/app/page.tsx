@@ -348,7 +348,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("nschool");
-  const [companyType, setCompanyType] = useState<CompanyType>("sales");
+  const [companyType, setCompanyType] = useState<CompanyType>("hq");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
 
@@ -374,8 +374,17 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
           setError("總公司邀請碼錯誤");
           return;
         }
+      } else if (companyType === "legal") {
+        if (inviteCode !== brands.legal.inviteCode) {
+          setError("法務顧問事務所邀請碼錯誤");
+          return;
+        }
       }
-      const targetBrand = companyType === "recruit" ? "moyuhunt" : companyType === "hq" ? "hq" : brand;
+      const targetBrand =
+        companyType === "recruit" ? "moyuhunt" :
+        companyType === "hq" ? "hq" :
+        companyType === "legal" ? "legal" :
+        brand;
       const res = registerUser(email, password, name, targetBrand, companyType);
       if (!res.success) {
         setError(res.error || "註冊失敗");
@@ -454,14 +463,11 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                   onChange={(e) => setCompanyType(e.target.value as CompanyType)}
                   className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
                 >
-                  <optgroup label="── 業務體系 ──">
-                    <option value="sales">💼 業務公司 — 賣課程的業務員</option>
-                  </optgroup>
-                  <optgroup label="── 招聘體系 ──">
-                    <option value="recruit">🎯 獵頭公司 — 招聘業務員的獵頭</option>
-                  </optgroup>
-                  <optgroup label="── 集團管理 ──">
-                    <option value="hq">🏛️ 總公司</option>
+                  <option value="hq">🏛️ 總公司（母公司）</option>
+                  <optgroup label="└ 子公司">
+                    <option value="sales">　💼 業務公司</option>
+                    <option value="recruit">　🎯 獵頭公司</option>
+                    <option value="legal">　⚖️ 法務顧問事務所</option>
                   </optgroup>
                 </select>
               </div>
@@ -498,7 +504,12 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                   className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
-                  placeholder={companyType === "hq" ? "總公司邀請碼" : companyType === "recruit" ? "獵頭邀請碼" : "品牌邀請碼"}
+                  placeholder={
+                    companyType === "hq" ? "總公司邀請碼" :
+                    companyType === "recruit" ? "獵頭邀請碼" :
+                    companyType === "legal" ? "法務顧問事務所邀請碼" :
+                    "品牌邀請碼"
+                  }
                   required
                 />
               </div>
