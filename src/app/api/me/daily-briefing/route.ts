@@ -165,8 +165,9 @@ export async function GET(req: NextRequest) {
   };
 
   // 今日 metrics
+  type TodayM = { calls: number; connected: number; call_minutes: number; raw_appointments: number; appointments_show: number; raw_demos: number; closures: number; net_revenue_daily: number };
   const todayRows = allRows.filter((r) => r.date === today);
-  const todayM = todayRows.reduce(
+  const todayM: TodayM = todayRows.reduce<TodayM>(
     (acc, r) => ({
       calls: acc.calls + (Number(r.calls) || 0),
       connected: acc.connected + (Number(r.connected) || 0),
@@ -193,9 +194,10 @@ export async function GET(req: NextRequest) {
     : null;
 
   // 本週累計
-  const weekM = allRows
+  type WeekM = { calls: number; closures: number; net_revenue_daily: number };
+  const weekM: WeekM = allRows
     .filter((r) => (r.date as string) >= wk)
-    .reduce(
+    .reduce<WeekM>(
       (acc, r) => ({
         calls: acc.calls + (Number(r.calls) || 0),
         closures: acc.closures + (Number(r.closures) || 0),
