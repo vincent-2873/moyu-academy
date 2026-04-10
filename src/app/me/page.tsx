@@ -360,6 +360,9 @@ export default function MePage() {
       {/* 未綁定 LINE 時自動顯示補綁 banner */}
       {data.profile?.email && <LineBindBanner email={data.profile.email} />}
 
+      {/* 個人業務數據卡片 — 對應 Metabase 同步進來的即時數字 */}
+      {data.profile?.email && <MySalesMetricsCard email={data.profile.email} />}
+
       {/* Identity card */}
       {data.assigned && data.department && data.position ? (
         (() => {
@@ -734,3 +737,253 @@ const actionBtn: React.CSSProperties = {
   cursor: "pointer",
   border: "none",
 };
+
+// ─── 個人業務數據卡片（即時數據 + 今日/本週/本月 + 達標警示）──────────────────
+
+interface MyMetric {
+  calls: number;
+  call_minutes: number;
+  connected: number;
+  raw_appointments: number;
+  appointments_show: number;
+  raw_demos: number;
+  closures: number;
+  net_revenue_daily: number;
+}
+interface MyShortfall {
+  metric: "calls" | "call_minutes" | "raw_appointments";
+  actual: number;
+  min: number;
+  delta: number;
+}
+interface MySalesResponse {
+  ok: boolean;
+  bound: boolean;
+  message?: string;
+  profile?: {
+    name: string | null;
+    team: string | null;
+    org: string | null;
+    brand: string;
+    level: string | null;
+  };
+  today?: MyMetric;
+  week?: MyMetric;
+  month?: MyMetric;
+  dailyTrend?: Array<{ date: string; calls: number; closures: number; net_revenue_daily: number; appointments_show: number }>;
+  rule?: {
+    name: string;
+    min_calls: number | null;
+    min_call_minutes: number | null;
+    min_appointments: number | null;
+    severity: string;
+  } | null;
+  shortfalls?: MyShortfall[];
+}
+
+const BRAND_CN: Record<string, string> = {
+  nschool: "nSchool 財經學院",
+  xuemi: "XUEMI 學米",
+  sixdigital: "無限學院",
+  ooschool: "無限學院",
+  xlab: "XLAB AI 實驗室",
+  aischool: "AI 未來學院",
+};
+
+function MySalesMetricsCard({ email }: { email: string }) {
+  const [data, setData] = useState<MySalesResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/me/sales-metrics?email=${encodeURIComponent(email)}`, { cache: "no-store" });
+        const json = (await res.json()) as MySalesResponse;
+        if (!cancelled) setData(json);
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    // Auto refresh every 2 minutes
+    const interval = setInterval(load, 120000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [email]);
+
+  if (loading) return null;
+  if (!data || !data.ok) return null;
+
+  // 沒綁定業務資料 — 可能是管理員、還沒匯入、或 email 不在 Metabase 名單
+  if (!data.bound) {
+    return (
+      <div
+        style={{
+          margin: "16px 0",
+          padding: "14px 18px",
+          background: "#f8fafc",
+          border: "1px dashed #e2e8f0",
+          borderRadius: 14,
+          color: "#64748b",
+          fontSize: 12,
+        }}
+      >
+        📊 你這個信箱還沒有業務即時數據。可能原因：(1) 今天還沒同步 (2) 你不是電銷業務 (3) email 跟 Metabase 名單對不起來。
+      </div>
+    );
+  }
+
+  const today = data.today!;
+  const week = data.week!;
+  const month = data.month!;
+  const profile = data.profile!;
+  const rule = data.rule;
+  const shortfalls = data.shortfalls || [];
+
+  return (
+    <div
+      style={{
+        margin: "20px 0",
+        padding: 24,
+        background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+        border: "1px solid #e2e8f0",
+        borderRadius: 18,
+        boxShadow: "0 12px 40px -18px rgba(79,70,229,0.18)",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700 }}>📞 我的即時業務數據</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: "#0f172a", marginTop: 4 }}>
+            {profile.name || "(未命名)"}
+            {profile.level === "新人" && (
+              <span style={{ marginLeft: 8, background: "rgba(14,165,233,0.13)", color: "#0ea5e9", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                新人
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+            {BRAND_CN[profile.brand] || profile.brand}
+            {profile.org && ` · 📍 ${profile.org}`}
+            {profile.team && ` · 🎯 ${profile.team}`}
+          </div>
+        </div>
+      </div>
+
+      {/* Rule / shortfall alert */}
+      {rule && shortfalls.length > 0 && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "12px 16px",
+            background:
+              rule.severity === "critical"
+                ? "rgba(239,68,68,0.08)"
+                : rule.severity === "high"
+                ? "rgba(249,115,22,0.08)"
+                : "rgba(251,191,36,0.08)",
+            border: `1.5px solid ${
+              rule.severity === "critical"
+                ? "rgba(239,68,68,0.4)"
+                : rule.severity === "high"
+                ? "rgba(249,115,22,0.4)"
+                : "rgba(251,191,36,0.4)"
+            }`,
+            borderRadius: 12,
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>
+            {rule.severity === "critical" ? "🔴" : rule.severity === "high" ? "🟠" : "🟡"} {rule.name}
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: "#0f172a" }}>
+            {shortfalls.map((s) => (
+              <div key={s.metric}>
+                {s.metric === "calls" ? "通次" : s.metric === "call_minutes" ? "通時" : "邀約"}{" "}
+                <strong>{s.actual}</strong> / <strong>{s.min}</strong>
+                <span style={{ color: "#dc2626", marginLeft: 4 }}>(差 {s.delta})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Period tabs */}
+      <PeriodGrid label="今天" metric={today} tone="#4f46e5" />
+      <PeriodGrid label="本週" metric={week} tone="#0891b2" />
+      <PeriodGrid label="本月" metric={month} tone="#db2777" />
+    </div>
+  );
+}
+
+function PeriodGrid({
+  label,
+  metric,
+  tone,
+}: {
+  label: string;
+  metric: MyMetric;
+  tone: string;
+}) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: tone, marginBottom: 6 }}>{label}</div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))",
+          gap: 8,
+        }}
+      >
+        <StatCell label="通次" value={metric.calls} />
+        <StatCell label="接通" value={metric.connected} />
+        <StatCell label="通時" value={`${Math.round(metric.call_minutes)}分`} />
+        <StatCell label="邀約" value={metric.raw_appointments} />
+        <StatCell label="出席" value={metric.appointments_show} accent={metric.appointments_show > 0 ? "#ea580c" : undefined} />
+        <StatCell label="DEMO" value={metric.raw_demos} />
+        <StatCell label="成交" value={metric.closures} accent={metric.closures > 0 ? "#16a34a" : undefined} />
+        <StatCell label="淨業績" value={`$${Math.round(metric.net_revenue_daily).toLocaleString()}`} accent={metric.net_revenue_daily > 0 ? "#db2777" : undefined} wide />
+      </div>
+    </div>
+  );
+}
+
+function StatCell({
+  label,
+  value,
+  accent,
+  wide,
+}: {
+  label: string;
+  value: string | number;
+  accent?: string;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: "#ffffff",
+        border: "1px solid #e2e8f0",
+        borderRadius: 10,
+        padding: "10px 12px",
+        gridColumn: wide ? "span 2" : undefined,
+      }}
+    >
+      <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 700, marginBottom: 2 }}>{label}</div>
+      <div
+        style={{
+          fontSize: 18,
+          fontWeight: 900,
+          color: accent || "#0f172a",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
