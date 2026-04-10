@@ -7,7 +7,7 @@ import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "commands" | "org" | "people" | "system-hub";
+type AdminTab = "pillars" | "sales" | "commands" | "org" | "people" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -212,6 +212,7 @@ export default function AdminPage() {
 
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
     { id: "pillars", label: "指揮中心", icon: "👁️" },
+    { id: "sales", label: "業務數據", icon: "📞" },
     { id: "commands", label: "命令中心", icon: "⚡" },
     { id: "org", label: "組織架構", icon: "🏢" },
     { id: "people", label: "人員管理", icon: "👥" },
@@ -306,6 +307,7 @@ export default function AdminPage() {
 
         <div style={{ padding: "28px 36px" }}>
           {tab === "pillars" && <V3PillarsBoard />}
+          {tab === "sales" && <SalesMetricsTab token={session.token} />}
           {tab === "commands" && <V3CommandsHub />}
           {tab === "org" && <V3OrgChartTab />}
           {tab === "people" && <PeopleHubTab token={session.token} scope={scope} />}
@@ -6208,6 +6210,399 @@ function SystemTab() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── 業務數據 Tab (Metabase 即時同步) ────────────────────────────────────────
+
+interface SalesMetricsRow {
+  date: string;
+  salesperson_id: string;
+  brand: string;
+  team: string | null;
+  org: string | null;
+  name: string | null;
+  email: string | null;
+  level: string | null;
+  calls: number;
+  call_minutes: number;
+  connected: number;
+  raw_appointments: number;
+  appointments_show: number;
+  raw_demos: number;
+  closures: number;
+  net_revenue_daily: number;
+  net_revenue_contract: number;
+  last_synced_at: string;
+}
+interface TeamAggregate {
+  team: string;
+  count: number;
+  metric: {
+    calls: number;
+    connected: number;
+    raw_appointments: number;
+    appointments_show: number;
+    raw_demos: number;
+    closures: number;
+    net_revenue_daily: number;
+  };
+}
+interface SalesSource {
+  brand: string;
+  question_id: number;
+  question_name: string | null;
+  last_sync_at: string | null;
+  last_sync_rows: number | null;
+  last_sync_status: string | null;
+  last_sync_error: string | null;
+  enabled: boolean;
+}
+interface SalesMetricsResponse {
+  ok: boolean;
+  date: string;
+  brand: string;
+  count: number;
+  rows: SalesMetricsRow[];
+  teamAggregate: TeamAggregate[];
+  brandSummary: TeamAggregate["metric"] & { call_minutes: number };
+  sources: SalesSource[];
+}
+
+function SalesMetricsTab({ token: _token }: { token: string }) {
+  void _token;
+  const [selectedBrand, setSelectedBrand] = useState<string>("");
+  const [data, setData] = useState<SalesMetricsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = useCallback(async (brand?: string) => {
+    setLoading(true);
+    setMsg(null);
+    try {
+      const qs = brand ? `?brand=${encodeURIComponent(brand)}` : "";
+      const res = await fetch(`/api/admin/sales-metrics${qs}`, { cache: "no-store" });
+      const json = (await res.json()) as SalesMetricsResponse;
+      setData(json);
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "載入失敗");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load(selectedBrand || undefined);
+  }, [selectedBrand, load]);
+
+  const triggerSync = async () => {
+    setSyncing(true);
+    setMsg(null);
+    try {
+      const body = selectedBrand ? { brand: selectedBrand } : {};
+      const res = await fetch("/api/admin/metabase-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok || json.ok === false) {
+        setMsg("同步失敗：" + (json.error || json.result?.error || "unknown"));
+      } else {
+        const totalRows =
+          json.result?.rows ??
+          json.summary?.totalRows ??
+          (Array.isArray(json.results) ? json.results.reduce((s: number, r: { rows: number }) => s + r.rows, 0) : 0);
+        setMsg(`✅ 同步完成：${totalRows} 筆`);
+      }
+      await load(selectedBrand || undefined);
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "同步失敗");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const brands = data?.sources || [];
+  const rows = data?.rows || [];
+  const teams = data?.teamAggregate || [];
+  const summary = data?.brandSummary;
+
+  const lastSyncSource = selectedBrand
+    ? brands.find((b) => b.brand === selectedBrand)
+    : brands.find((b) => b.last_sync_at); // 任何有同步的
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: "var(--text)" }}>📞 業務即時數據</h2>
+          <p style={{ color: "var(--text3)", fontSize: 13, marginTop: 4 }}>
+            {data?.date} · Metabase 同步 · 每 15 分自動更新
+          </p>
+        </div>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={triggerSync}
+          disabled={syncing}
+          style={{
+            background: syncing ? "var(--border)" : "linear-gradient(135deg, var(--accent), var(--teal))",
+            color: "#fff",
+            border: "none",
+            borderRadius: 10,
+            padding: "10px 20px",
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: syncing ? "not-allowed" : "pointer",
+            boxShadow: "0 8px 20px -10px rgba(79,70,229,0.4)",
+          }}
+        >
+          {syncing ? "同步中..." : "⚡ 立即同步"}
+        </button>
+      </div>
+
+      {msg && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "10px 14px",
+            background: msg.startsWith("✅")
+              ? "rgba(34,197,94,0.08)"
+              : "rgba(239,68,68,0.08)",
+            border: `1px solid ${msg.startsWith("✅") ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
+            borderRadius: 10,
+            fontSize: 13,
+            color: msg.startsWith("✅") ? "var(--green)" : "var(--red)",
+          }}
+        >
+          {msg}
+        </div>
+      )}
+
+      {/* Brand tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        <button
+          onClick={() => setSelectedBrand("")}
+          style={{
+            padding: "8px 16px",
+            borderRadius: 10,
+            border: `1.5px solid ${selectedBrand === "" ? "var(--accent)" : "var(--border)"}`,
+            background: selectedBrand === "" ? "rgba(79,70,229,0.08)" : "var(--card)",
+            color: selectedBrand === "" ? "var(--accent)" : "var(--text2)",
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          🌐 全集團
+        </button>
+        {brands.map((src) => (
+          <button
+            key={src.brand}
+            onClick={() => setSelectedBrand(src.brand)}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 10,
+              border: `1.5px solid ${selectedBrand === src.brand ? "var(--accent)" : "var(--border)"}`,
+              background: selectedBrand === src.brand ? "rgba(79,70,229,0.08)" : "var(--card)",
+              color: selectedBrand === src.brand ? "var(--accent)" : "var(--text2)",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            {src.brand}
+            {src.last_sync_status === "failed" && <span style={{ color: "var(--red)" }}>⚠️</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Last sync status */}
+      {lastSyncSource && (
+        <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 20 }}>
+          最後同步：{lastSyncSource.last_sync_at ? new Date(lastSyncSource.last_sync_at).toLocaleString("zh-TW") : "從未"}
+          {lastSyncSource.last_sync_rows != null && ` · ${lastSyncSource.last_sync_rows} 筆`}
+          {lastSyncSource.last_sync_status && ` · ${lastSyncSource.last_sync_status}`}
+          {lastSyncSource.last_sync_error && (
+            <span style={{ color: "var(--red)", marginLeft: 8 }}>· {lastSyncSource.last_sync_error.slice(0, 80)}</span>
+          )}
+        </div>
+      )}
+
+      {loading && <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>載入中...</div>}
+
+      {!loading && data && rows.length === 0 && (
+        <div style={{
+          padding: 40,
+          textAlign: "center",
+          border: "1px dashed var(--border)",
+          borderRadius: 14,
+          color: "var(--text3)",
+        }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>📭</div>
+          <div style={{ fontWeight: 700, marginBottom: 4, color: "var(--text2)" }}>今日還沒有資料</div>
+          <div style={{ fontSize: 12 }}>
+            可能原因：(1) Metabase 同步還沒跑 (2) 今天業務還沒開始撥 (3) 認證還沒設好<br />
+            點「⚡ 立即同步」試一下
+          </div>
+        </div>
+      )}
+
+      {!loading && summary && rows.length > 0 && (
+        <>
+          {/* Summary cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
+            <MetricCard label="通次" value={summary.calls} color="#4f46e5" />
+            <MetricCard label="接通" value={summary.connected} color="#0891b2" />
+            <MetricCard label="通時(分)" value={Math.round(summary.call_minutes)} color="#0d9488" />
+            <MetricCard label="原始邀約" value={summary.raw_appointments} color="#d97706" />
+            <MetricCard label="邀約出席" value={summary.appointments_show} color="#ea580c" />
+            <MetricCard label="DEMO" value={summary.raw_demos} color="#7c3aed" />
+            <MetricCard label="成交" value={summary.closures} color="#16a34a" highlight />
+            <MetricCard label="淨業績(日)" value={`$${Math.round(summary.net_revenue_daily).toLocaleString()}`} color="#db2777" highlight />
+          </div>
+
+          {/* Team aggregate */}
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 24 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14, color: "var(--text)" }}>
+              📊 組別戰況（{teams.length} 組 · {data.count} 人）
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text3)" }}>
+                    <th style={{ textAlign: "left", padding: 8 }}>組別</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>人</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>通次</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>接通</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>邀約</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>出席</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>DEMO</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>成交</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>淨業績</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teams.map((t) => (
+                    <tr key={t.team} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td style={{ padding: 8, fontWeight: 700 }}>{t.team}</td>
+                      <td style={{ padding: 8, textAlign: "right", color: "var(--text2)" }}>{t.count}</td>
+                      <td style={{ padding: 8, textAlign: "right" }}>{t.metric.calls}</td>
+                      <td style={{ padding: 8, textAlign: "right" }}>{t.metric.connected}</td>
+                      <td style={{ padding: 8, textAlign: "right" }}>{t.metric.raw_appointments}</td>
+                      <td style={{ padding: 8, textAlign: "right" }}>{t.metric.appointments_show}</td>
+                      <td style={{ padding: 8, textAlign: "right" }}>{t.metric.raw_demos}</td>
+                      <td style={{ padding: 8, textAlign: "right", color: t.metric.closures > 0 ? "var(--green)" : "var(--text3)", fontWeight: t.metric.closures > 0 ? 700 : 400 }}>
+                        {t.metric.closures}
+                      </td>
+                      <td style={{ padding: 8, textAlign: "right", color: t.metric.net_revenue_daily > 0 ? "var(--pink)" : "var(--text3)", fontWeight: t.metric.net_revenue_daily > 0 ? 700 : 400 }}>
+                        ${Math.round(t.metric.net_revenue_daily).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Individual rows */}
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14, color: "var(--text)" }}>
+              👤 個人戰況（依淨業績降冪）
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text3)" }}>
+                    <th style={{ textAlign: "left", padding: 8 }}>姓名</th>
+                    <th style={{ textAlign: "left", padding: 8 }}>組別</th>
+                    <th style={{ textAlign: "left", padding: 8 }}>等級</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>通次</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>通時</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>接通</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>邀約</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>成交</th>
+                    <th style={{ textAlign: "right", padding: 8 }}>淨業績</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const isSilent = r.calls === 0;
+                    const isClosed = r.closures > 0;
+                    return (
+                      <tr
+                        key={r.salesperson_id}
+                        style={{
+                          borderBottom: "1px solid var(--border)",
+                          background: isSilent ? "rgba(239,68,68,0.04)" : isClosed ? "rgba(34,197,94,0.04)" : "transparent",
+                        }}
+                      >
+                        <td style={{ padding: 8, fontWeight: 700 }}>{r.name || "(未命名)"}</td>
+                        <td style={{ padding: 8, color: "var(--text2)" }}>{r.team || "-"}</td>
+                        <td style={{ padding: 8 }}>
+                          {r.level === "新人" ? <span style={{ background: "rgba(14,165,233,0.13)", color: "#0ea5e9", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>新人</span> : r.level || "-"}
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", color: isSilent ? "var(--red)" : undefined, fontWeight: isSilent ? 700 : 400 }}>{r.calls}</td>
+                        <td style={{ padding: 8, textAlign: "right" }}>{Number(r.call_minutes).toFixed(0)}</td>
+                        <td style={{ padding: 8, textAlign: "right" }}>{r.connected}</td>
+                        <td style={{ padding: 8, textAlign: "right" }}>{r.raw_appointments}</td>
+                        <td style={{ padding: 8, textAlign: "right", color: isClosed ? "var(--green)" : undefined, fontWeight: isClosed ? 700 : 400 }}>{r.closures}</td>
+                        <td style={{ padding: 8, textAlign: "right", color: r.net_revenue_daily > 0 ? "var(--pink)" : "var(--text3)", fontWeight: r.net_revenue_daily > 0 ? 700 : 400 }}>
+                          ${Math.round(r.net_revenue_daily).toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  color,
+  highlight,
+}: {
+  label: string;
+  value: string | number;
+  color: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: "var(--card)",
+        border: `1px solid ${highlight ? color : "var(--border)"}`,
+        borderRadius: 14,
+        padding: "14px 16px",
+        position: "relative",
+        overflow: "hidden",
+        boxShadow: highlight ? `0 8px 24px -10px ${color}33` : "0 4px 16px -10px rgba(15,23,42,0.08)",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: color,
+        }}
+      />
+      <div style={{ fontSize: 11, color: "var(--text3)", fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 900, color: highlight ? color : "var(--text)" }}>{value}</div>
     </div>
   );
 }
