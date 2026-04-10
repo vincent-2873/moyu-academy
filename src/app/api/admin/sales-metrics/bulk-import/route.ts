@@ -2,6 +2,17 @@ import { normaliseRow, upsertDaily } from "@/lib/metabase";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
 /**
  * 手動匯入 Metabase query 結果
  *
@@ -30,7 +41,7 @@ export async function POST(req: NextRequest) {
   if (!brand || !date || !Array.isArray(cols) || !Array.isArray(rows)) {
     return Response.json(
       { ok: false, error: "require brand, date, cols, rows" },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -61,14 +72,17 @@ export async function POST(req: NextRequest) {
     error: up.error || null,
   });
 
-  return Response.json({
-    ok: !up.error,
-    brand,
-    date,
-    rowsReceived: rows.length,
-    rowsNormalised: normalised.length,
-    rowsInserted: up.inserted,
-    error: up.error,
-    duration_ms: Date.now() - started,
-  });
+  return Response.json(
+    {
+      ok: !up.error,
+      brand,
+      date,
+      rowsReceived: rows.length,
+      rowsNormalised: normalised.length,
+      rowsInserted: up.inserted,
+      error: up.error,
+      duration_ms: Date.now() - started,
+    },
+    { headers: CORS_HEADERS }
+  );
 }
