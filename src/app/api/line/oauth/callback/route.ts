@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 /**
@@ -240,19 +240,29 @@ function buildRedirect(
     })
   ).toString("base64url");
 
-  const headers = new Headers();
-  headers.append("Location", `${origin}/?line_oauth_success=1`);
-  headers.append(
-    "Set-Cookie",
-    `moyu_oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`
-  );
-  headers.append(
-    "Set-Cookie",
-    `moyu_oauth_nonce=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`
-  );
-  headers.append(
-    "Set-Cookie",
-    `moyu_oauth_session=${sessionPayload}; Path=/; Max-Age=120; Secure; SameSite=Lax`
-  );
-  return new Response(null, { status: 302, headers });
+  const response = NextResponse.redirect(`${origin}/?line_oauth_success=1`, 302);
+  // 清 CSRF cookies
+  response.cookies.set("moyu_oauth_state", "", {
+    path: "/",
+    maxAge: 0,
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+  });
+  response.cookies.set("moyu_oauth_nonce", "", {
+    path: "/",
+    maxAge: 0,
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+  });
+  // 短期 session cookie (non-httpOnly 讓前台 bootstrap)
+  response.cookies.set("moyu_oauth_session", sessionPayload, {
+    path: "/",
+    maxAge: 120,
+    httpOnly: false,
+    secure: true,
+    sameSite: "lax",
+  });
+  return response;
 }

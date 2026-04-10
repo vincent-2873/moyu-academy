@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
 /**
@@ -60,16 +60,21 @@ export async function GET(req: NextRequest) {
   // bot_prompt=aggressive 會在授權畫面顯示「加為好友」選項
   authorizeUrl.searchParams.set("bot_prompt", "aggressive");
 
-  const res = Response.redirect(authorizeUrl.toString(), 302);
-  // Set cookies on the response — Next 16 Response.redirect 不支援 setter，用 headers
-  const headers = new Headers(res.headers);
-  headers.append(
-    "Set-Cookie",
-    `moyu_oauth_state=${stateRaw.csrf}; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Lax`
-  );
-  headers.append(
-    "Set-Cookie",
-    `moyu_oauth_nonce=${nonce}; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Lax`
-  );
-  return new Response(null, { status: 302, headers: { ...Object.fromEntries(headers), Location: authorizeUrl.toString() } });
+  // 用 NextResponse.cookies.set 保證兩個 Set-Cookie 都正確下發
+  const response = NextResponse.redirect(authorizeUrl.toString(), 302);
+  response.cookies.set("moyu_oauth_state", stateRaw.csrf, {
+    path: "/",
+    maxAge: 600,
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+  });
+  response.cookies.set("moyu_oauth_nonce", nonce, {
+    path: "/",
+    maxAge: 600,
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+  });
+  return response;
 }
