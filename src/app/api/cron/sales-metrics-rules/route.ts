@@ -4,29 +4,22 @@ import { generateCoachAdvice } from "@/lib/claude-coach";
 import { NextRequest } from "next/server";
 
 /*
- * 業務即時數據警報規則引擎
+ * 業務即時數據動態警報引擎
  *
- * 吃 sales_metrics_daily 的即時資料，依日/週/月規則判定 → 觸發
- * 違反人性通知。會跑 Claude coach 針對每個警報生成具體動作。
+ * 規則來源：sales_alert_rules 表（支援依 appointments_show 動態切換 KPI）
  *
- * schedule 建議：業務時段 09:00-22:00 台北，每小時整點跑一次
- *   "0 1-14 star star star"  (UTC)
+ * Vincent 定義的 3 階規則：
+ *   Tier 1 (出席=0): min 130 通 / 100 分 / 4 邀約 → critical
+ *   Tier 2 (出席=1): min 100 通 / 100 分 / 3 邀約 → high
+ *   Tier 3 (出席>=2): min 80 通 / 60 分 / 1 邀約 → medium
  *
- * 規則（全部都帶時間限定，避免清晨就警報清晨的掛蛋）：
+ * schedule 建議：業務時段 09:00-22:00 台北，每小時 05 分跑一次
+ *   "5 1-14 star star star" (UTC)
  *
- * 日：
- *   daily_silent_0       : 通次=0 且 TW時間 >= 10:00 → critical
- *   daily_low_calls      : 通次 < 日標 × (已過工時/8) × 0.8 且 >= 12:00 → high
- *   daily_no_appointment : 通次 >= 50 但 邀約=0 且 >= 15:00 → medium
- *
- * 週：(週一/三/五 10:00 跑)
- *   weekly_behind        : 本週累計 < 週標 × (已過天/5) × 0.8 → high
- *   weekly_zero_revenue  : 本週業績=0 且已過週三 → hard
- *
- * 月：(每日 10:00 跑)
- *   monthly_behind_mid   : 月中(15日)業績 < 50% → medium
- *   monthly_behind_late  : 月末倒數 5 天 業績 < 80% → critical
- *   monthly_final_push   : 最後 1 天 < 100% → critical 爆推
+ * 觸發後：
+ *   - 寫 health_alerts 去重（同人同規則一天一次）
+ *   - high/critical 會推 LINE（優先推給當事人 email）
+ *   - 呼叫 generateCoachAdvice 產出具體動作建議
  */
 
 function todayTaipei(): Date {
@@ -36,20 +29,6 @@ function todayTaipei(): Date {
 
 function dateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
-}
-
-function weekStart(d: Date): Date {
-  const r = new Date(d);
-  const day = r.getUTCDay(); // 0=Sun
-  const monDelta = day === 0 ? -6 : 1 - day;
-  r.setUTCDate(r.getUTCDate() + monDelta);
-  return r;
-}
-
-function monthStart(d: Date): Date {
-  const r = new Date(d);
-  r.setUTCDate(1);
-  return r;
 }
 
 interface UserMetric {
@@ -70,275 +49,233 @@ interface UserMetric {
   net_revenue_daily: number;
 }
 
-interface TargetMap {
-  [key: string]: number; // key = `${brand}|${level}|${period}|${metric}`
+interface AlertRule {
+  id: string;
+  brand: string;
+  level: string;
+  name: string;
+  cond_attend_min: number | null;
+  cond_attend_max: number | null;
+  min_calls: number | null;
+  min_call_minutes: number | null;
+  min_appointments: number | null;
+  rec_calls: number | null;
+  rec_call_minutes: number | null;
+  rec_appointments: number | null;
+  severity: string;
+  enabled: boolean;
 }
 
-async function loadTargets(): Promise<TargetMap> {
-  const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from("sales_metrics_targets")
-    .select("brand, level, period, metric, target");
-  const map: TargetMap = {};
-  for (const t of data || []) {
-    map[`${t.brand}|${t.level}|${t.period}|${t.metric}`] = Number(t.target);
-  }
-  return map;
+function findMatchingRule(
+  rules: AlertRule[],
+  user: UserMetric
+): AlertRule | null {
+  // 偏好順序：brand-specific + level-specific → brand + default → all + default
+  const brand = user.brand;
+  const level = user.level || "default";
+  const candidates = rules
+    .filter((r) => r.enabled)
+    .filter((r) => r.brand === brand || r.brand === "all")
+    .filter((r) => r.level === level || r.level === "default")
+    .filter((r) => {
+      const attend = user.appointments_show;
+      if (r.cond_attend_min != null && attend < r.cond_attend_min) return false;
+      if (r.cond_attend_max != null && attend > r.cond_attend_max) return false;
+      return true;
+    })
+    // Sort: exact brand match > all, exact level match > default
+    .sort((a, b) => {
+      const aScore =
+        (a.brand === brand ? 2 : 0) + (a.level === level ? 1 : 0);
+      const bScore =
+        (b.brand === brand ? 2 : 0) + (b.level === level ? 1 : 0);
+      return bScore - aScore;
+    });
+  return candidates[0] || null;
 }
 
-function getTarget(
-  targets: TargetMap,
-  brand: string,
-  level: string | null,
-  period: string,
-  metric: string
-): number | null {
-  const l = level || "default";
-  return (
-    targets[`${brand}|${l}|${period}|${metric}`] ??
-    targets[`${brand}|default|${period}|${metric}`] ??
-    null
-  );
-}
+type Shortfall = {
+  metric: "calls" | "call_minutes" | "raw_appointments";
+  actual: number;
+  min: number;
+  delta: number;
+};
 
-async function fireAlert(opts: {
-  rule: string;
-  user: UserMetric;
-  severity: "soft" | "medium" | "high" | "hard" | "critical";
-  reason: string;
-  advice: { diagnosis: string; action: string };
-}): Promise<boolean> {
-  const supabase = getSupabaseAdmin();
-  const today = dateStr(todayTaipei());
-
-  // Dedupe：同人同規則今天一次
-  const { data: existing } = await supabase
-    .from("health_alerts")
-    .select("id")
-    .eq("rule_id", opts.rule)
-    .eq("user_email", opts.user.email || opts.user.salesperson_id)
-    .gte("created_at", today)
-    .maybeSingle();
-  if (existing) return false;
-
-  await supabase.from("health_alerts").insert({
-    rule_id: opts.rule,
-    user_email: opts.user.email || opts.user.salesperson_id,
-    trigger_reason: opts.reason,
-    intervention: opts.advice.action,
-    severity: opts.severity === "soft" ? "info" : opts.severity === "critical" ? "critical" : opts.severity === "hard" ? "high" : opts.severity,
-    message: `${opts.advice.diagnosis}\n→ ${opts.advice.action}`,
-    metric_snapshot: {
-      calls: opts.user.calls,
-      connected: opts.user.connected,
-      raw_appointments: opts.user.raw_appointments,
-      closures: opts.user.closures,
-      net_revenue_daily: opts.user.net_revenue_daily,
-      brand: opts.user.brand,
-      team: opts.user.team,
-    },
-  });
-
-  // LINE push，優先推給當事人，推不到就給 admin
-  if (opts.severity === "high" || opts.severity === "hard" || opts.severity === "critical") {
-    await linePush({
-      title: `🔥 ${opts.user.name || opts.user.salesperson_id}｜${opts.reason}`,
-      body: `${opts.advice.diagnosis}\n\n→ ${opts.advice.action}`,
-      priority: opts.severity === "critical" ? "critical" : "high",
-      userEmail: opts.user.email || undefined,
-      reason: `rule:${opts.rule}`,
+function evaluateShortfalls(user: UserMetric, rule: AlertRule): Shortfall[] {
+  const out: Shortfall[] = [];
+  if (rule.min_calls != null && user.calls < rule.min_calls) {
+    out.push({
+      metric: "calls",
+      actual: user.calls,
+      min: rule.min_calls,
+      delta: rule.min_calls - user.calls,
     });
   }
-  return true;
+  if (
+    rule.min_call_minutes != null &&
+    user.call_minutes < Number(rule.min_call_minutes)
+  ) {
+    out.push({
+      metric: "call_minutes",
+      actual: Math.round(user.call_minutes),
+      min: Number(rule.min_call_minutes),
+      delta: Math.round(Number(rule.min_call_minutes) - user.call_minutes),
+    });
+  }
+  if (
+    rule.min_appointments != null &&
+    user.raw_appointments < rule.min_appointments
+  ) {
+    out.push({
+      metric: "raw_appointments",
+      actual: user.raw_appointments,
+      min: rule.min_appointments,
+      delta: rule.min_appointments - user.raw_appointments,
+    });
+  }
+  return out;
+}
+
+function metricLabel(m: Shortfall["metric"]): string {
+  return { calls: "通次", call_minutes: "通時(分)", raw_appointments: "邀約" }[m];
 }
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && auth !== `Bearer ${cronSecret}`) {
-    if (!req.headers.get("x-vercel-cron") && !req.headers.get("x-zeabur-cron")) {
+    if (
+      !req.headers.get("x-vercel-cron") &&
+      !req.headers.get("x-zeabur-cron")
+    ) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
 
   const supabase = getSupabaseAdmin();
   const tw = todayTaipei();
-  const hourTw = tw.getUTCHours(); // 因為 tw 已經是 +8，.getUTCHours 就是台北小時
+  const hourTw = tw.getUTCHours(); // tw 已經是 +8
   const today = dateStr(tw);
-  const weekStartDate = dateStr(weekStart(tw));
-  const monthStartDate = dateStr(monthStart(tw));
 
-  const targets = await loadTargets();
-
-  // Load today's metrics
-  const { data: todayRows } = await supabase
-    .from("sales_metrics_daily")
-    .select("*")
-    .eq("date", today);
-
-  const todayMetrics = (todayRows || []) as UserMetric[];
-
-  // Load week-to-date
-  const { data: weekRows } = await supabase
-    .from("sales_metrics_daily")
-    .select("*")
-    .gte("date", weekStartDate)
-    .lte("date", today);
-
-  // Roll up week to per-salesperson
-  const weekAgg = new Map<string, { calls: number; closures: number; net_revenue_daily: number }>();
-  for (const r of (weekRows || []) as UserMetric[]) {
-    const e = weekAgg.get(r.salesperson_id) || { calls: 0, closures: 0, net_revenue_daily: 0 };
-    e.calls += r.calls;
-    e.closures += r.closures;
-    e.net_revenue_daily += Number(r.net_revenue_daily);
-    weekAgg.set(r.salesperson_id, e);
+  // 早於 10:00 或晚於 22:00 不跑 — 避免清晨大爆警報
+  if (hourTw < 10 || hourTw >= 22) {
+    return Response.json({
+      ok: true,
+      skipped: true,
+      reason: `out of business hours (TW ${hourTw}:00)`,
+    });
   }
 
-  const fired: Array<{ rule: string; user: string; severity: string }> = [];
+  // Load rules + today's metrics
+  const [{ data: rulesData }, { data: metricsData }] = await Promise.all([
+    supabase.from("sales_alert_rules").select("*").eq("enabled", true),
+    supabase.from("sales_metrics_daily").select("*").eq("date", today),
+  ]);
 
-  for (const u of todayMetrics) {
-    const brand = u.brand;
-    const level = u.level;
+  const rules = (rulesData || []) as AlertRule[];
+  const metrics = (metricsData || []) as UserMetric[];
 
-    // ── daily_silent_0：10:00 後 0 通 ──
-    if (hourTw >= 10 && u.calls === 0) {
-      const advice = await generateCoachAdvice({
-        name: u.name || u.salesperson_id,
-        brand,
+  const fired: Array<{ user: string; rule: string; severity: string }> = [];
+  const scanned = metrics.length;
+
+  for (const u of metrics) {
+    const rule = findMatchingRule(rules, u);
+    if (!rule) continue;
+
+    const shortfalls = evaluateShortfalls(u, rule);
+    if (shortfalls.length === 0) continue;
+
+    // Dedupe：同人同規則當日只觸發一次
+    const userKey = u.email || u.salesperson_id;
+    const { data: existing } = await supabase
+      .from("health_alerts")
+      .select("id")
+      .eq("rule_id", `dynamic_${rule.id}`)
+      .eq("user_email", userKey)
+      .gte("created_at", today)
+      .maybeSingle();
+    if (existing) continue;
+
+    // Claude coach 產具體動作建議
+    const advice = await generateCoachAdvice({
+      name: u.name || u.salesperson_id,
+      brand: u.brand,
+      team: u.team,
+      level: u.level,
+      rule: `dynamic_${rule.name}`,
+      today: {
+        calls: u.calls,
+        connected: u.connected,
+        call_minutes: u.call_minutes,
+        raw_appointments: u.raw_appointments,
+        appointments_show: u.appointments_show,
+        raw_demos: u.raw_demos,
+        closures: u.closures,
+        net_revenue_daily: u.net_revenue_daily,
+      },
+      targetCalls: rule.min_calls || undefined,
+      hoursLeftToday: Math.max(0, 22 - hourTw),
+    });
+
+    // 組 reason 字串
+    const reason = shortfalls
+      .map(
+        (s) =>
+          `${metricLabel(s.metric)} ${s.actual}/${s.min}（差 ${s.delta}）`
+      )
+      .join(" · ");
+
+    // 寫 health_alerts
+    await supabase.from("health_alerts").insert({
+      rule_id: `dynamic_${rule.id}`,
+      user_email: userKey,
+      trigger_reason: `${rule.name}：${reason}`,
+      intervention: advice.action,
+      severity:
+        rule.severity === "critical"
+          ? "critical"
+          : rule.severity === "high"
+          ? "high"
+          : "medium",
+      message: `${advice.diagnosis}\n→ ${advice.action}`,
+      metric_snapshot: {
+        calls: u.calls,
+        call_minutes: u.call_minutes,
+        raw_appointments: u.raw_appointments,
+        appointments_show: u.appointments_show,
+        closures: u.closures,
+        net_revenue_daily: u.net_revenue_daily,
+        brand: u.brand,
         team: u.team,
-        level,
-        rule: "daily_silent_0",
-        today: {
-          calls: u.calls,
-          connected: u.connected,
-          call_minutes: u.call_minutes,
-          raw_appointments: u.raw_appointments,
-          appointments_show: u.appointments_show,
-          raw_demos: u.raw_demos,
-          closures: u.closures,
-          net_revenue_daily: u.net_revenue_daily,
-        },
-        hoursLeftToday: Math.max(0, 22 - hourTw),
+        rule_name: rule.name,
+        shortfalls,
+      },
+    });
+
+    // LINE push（high / critical 才推）
+    if (rule.severity === "critical" || rule.severity === "high") {
+      await linePush({
+        title: `🔥 ${u.name || u.salesperson_id}｜${rule.name}`,
+        body: `${reason}\n\n${advice.diagnosis}\n\n→ ${advice.action}`,
+        priority: rule.severity === "critical" ? "critical" : "high",
+        userEmail: u.email || undefined,
+        reason: `rule:${rule.name}`,
       });
-      const ok = await fireAlert({
-        rule: "daily_silent_0",
-        user: u,
-        severity: "critical",
-        reason: `${u.name} 上班 ${hourTw - 9} 小時還沒撥第一通`,
-        advice,
-      });
-      if (ok) fired.push({ rule: "daily_silent_0", user: u.name || u.salesperson_id, severity: "critical" });
     }
 
-    // ── daily_low_calls：12:00 後通次 < 日標 × 進度 × 0.8 ──
-    if (hourTw >= 12 && u.calls > 0) {
-      const target = getTarget(targets, brand, level, "daily", "calls");
-      if (target) {
-        const workedHours = Math.max(1, hourTw - 9); // 假設 9:00 上班
-        const expectedProgress = Math.min(1, workedHours / 8);
-        const threshold = target * expectedProgress * 0.8;
-        if (u.calls < threshold) {
-          const advice = await generateCoachAdvice({
-            name: u.name || u.salesperson_id,
-            brand,
-            team: u.team,
-            level,
-            rule: "daily_low_calls",
-            today: {
-              calls: u.calls,
-              connected: u.connected,
-              call_minutes: u.call_minutes,
-              raw_appointments: u.raw_appointments,
-              appointments_show: u.appointments_show,
-              raw_demos: u.raw_demos,
-              closures: u.closures,
-              net_revenue_daily: u.net_revenue_daily,
-            },
-            targetCalls: target,
-            hoursLeftToday: Math.max(0, 22 - hourTw),
-          });
-          const ok = await fireAlert({
-            rule: "daily_low_calls",
-            user: u,
-            severity: "high",
-            reason: `${u.name} 通次 ${u.calls} / 預期 ${Math.round(threshold)}`,
-            advice,
-          });
-          if (ok) fired.push({ rule: "daily_low_calls", user: u.name || u.salesperson_id, severity: "high" });
-        }
-      }
-    }
-
-    // ── daily_no_appointment：15:00 後打了 >=50 通但 0 邀約 ──
-    if (hourTw >= 15 && u.calls >= 50 && u.raw_appointments === 0) {
-      const advice = await generateCoachAdvice({
-        name: u.name || u.salesperson_id,
-        brand,
-        team: u.team,
-        level,
-        rule: "daily_no_appointment",
-        today: {
-          calls: u.calls,
-          connected: u.connected,
-          call_minutes: u.call_minutes,
-          raw_appointments: u.raw_appointments,
-          appointments_show: u.appointments_show,
-          raw_demos: u.raw_demos,
-          closures: u.closures,
-          net_revenue_daily: u.net_revenue_daily,
-        },
-      });
-      const ok = await fireAlert({
-        rule: "daily_no_appointment",
-        user: u,
-        severity: "medium",
-        reason: `${u.name} 打了 ${u.calls} 通但 0 邀約`,
-        advice,
-      });
-      if (ok) fired.push({ rule: "daily_no_appointment", user: u.name || u.salesperson_id, severity: "medium" });
-    }
-
-    // ── weekly_zero_revenue：週三後本週業績 = 0 ──
-    const dayOfWeek = tw.getUTCDay(); // 0=Sun, 3=Wed
-    if ((dayOfWeek >= 3 || dayOfWeek === 0) && hourTw >= 10) {
-      const wk = weekAgg.get(u.salesperson_id);
-      if (wk && wk.net_revenue_daily === 0 && wk.calls > 100) {
-        const advice = await generateCoachAdvice({
-          name: u.name || u.salesperson_id,
-          brand,
-          team: u.team,
-          level,
-          rule: "weekly_zero_revenue",
-          today: {
-            calls: u.calls,
-            connected: u.connected,
-            call_minutes: u.call_minutes,
-            raw_appointments: u.raw_appointments,
-            appointments_show: u.appointments_show,
-            raw_demos: u.raw_demos,
-            closures: u.closures,
-            net_revenue_daily: u.net_revenue_daily,
-          },
-        });
-        const ok = await fireAlert({
-          rule: "weekly_zero_revenue",
-          user: u,
-          severity: "hard",
-          reason: `${u.name} 本週累計 ${wk.calls} 通但業績 0`,
-          advice,
-        });
-        if (ok) fired.push({ rule: "weekly_zero_revenue", user: u.name || u.salesperson_id, severity: "hard" });
-      }
-    }
+    fired.push({
+      user: u.name || u.salesperson_id,
+      rule: rule.name,
+      severity: rule.severity,
+    });
   }
 
   return Response.json({
     ok: true,
     date: today,
     hour_tw: hourTw,
+    users_scanned: scanned,
     fired_count: fired.length,
     fired,
-    users_scanned: todayMetrics.length,
   });
 }
