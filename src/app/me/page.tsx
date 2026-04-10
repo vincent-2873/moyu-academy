@@ -369,6 +369,9 @@ export default function MePage() {
       {/* 戰情官對練 — 跟 Claude 復盤 / 對練 / 話術 */}
       {data.profile?.email && <CoachChatCard email={data.profile.email} />}
 
+      {/* 通話逐字稿診斷 — 貼通話內容讓戰情官 6 維度打分 + 給替代話術 */}
+      {data.profile?.email && <RecordingAnalyzeCard email={data.profile.email} />}
+
       {/* Identity card */}
       {data.assigned && data.department && data.position ? (
         (() => {
@@ -1168,6 +1171,442 @@ function DailyBriefingCard({ email }: { email: string }) {
           }}
         >
           🔴 今日掛蛋同事：{data.teamContext.silent.map((s) => s.name).join("、")} — 不要跟他們一起掉進舒適圈
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 通話逐字稿診斷卡片 ─────────────────────────────────────────────────────
+
+interface RecordingScore {
+  score: number;
+  evidence: string;
+}
+interface RecordingAnalysis {
+  overall_score: number;
+  one_liner: string;
+  scores: {
+    opening: RecordingScore;
+    rapport: RecordingScore;
+    discovery: RecordingScore;
+    pitch: RecordingScore;
+    objection_handling: RecordingScore;
+    close: RecordingScore;
+  };
+  critical_moments: Array<{
+    timestamp: string;
+    quote: string;
+    problem: string;
+    better_script: string;
+    reasoning: string;
+  }>;
+  wins: Array<{ quote: string; why: string }>;
+  next_actions: string[];
+}
+
+const SCENARIO_OPTIONS = [
+  "邀約電話 (cold call)",
+  "確認出席",
+  "成交通話",
+  "C 級客戶追蹤",
+  "異議處理",
+  "其他",
+];
+
+const OUTCOME_OPTIONS: Array<{ id: string; label: string; color: string }> = [
+  { id: "rejected", label: "❌ 被拒絕", color: "#dc2626" },
+  { id: "follow_up", label: "🔄 要再聯繫", color: "#d97706" },
+  { id: "booked", label: "📅 約成功", color: "#0891b2" },
+  { id: "closed", label: "🎯 成交", color: "#16a34a" },
+  { id: "ghosted", label: "👻 客戶不理", color: "#94a3b8" },
+];
+
+const DIMENSION_LABELS: Record<keyof RecordingAnalysis["scores"], string> = {
+  opening: "開場",
+  rapport: "建立關係",
+  discovery: "挖掘需求",
+  pitch: "產品介紹",
+  objection_handling: "異議處理",
+  close: "收單",
+};
+
+function RecordingAnalyzeCard({ email }: { email: string }) {
+  const [transcript, setTranscript] = useState("");
+  const [scenario, setScenario] = useState(SCENARIO_OPTIONS[0]);
+  const [outcome, setOutcome] = useState<string>("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [result, setResult] = useState<RecordingAnalysis | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  const analyze = async () => {
+    if (transcript.trim().length < 50) {
+      setError("逐字稿至少要 50 字");
+      return;
+    }
+    setAnalyzing(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch("/api/me/recording-analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, transcript, scenario, customerOutcome: outcome || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setError(json.error || "分析失敗");
+      } else {
+        setResult(json.analysis);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "network error");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const scoreColor = (s: number) => {
+    if (s >= 8) return "#16a34a";
+    if (s >= 6) return "#d97706";
+    return "#dc2626";
+  };
+
+  return (
+    <div
+      style={{
+        margin: "20px 0",
+        padding: 24,
+        background: "#ffffff",
+        border: "1px solid #e2e8f0",
+        borderRadius: 18,
+        boxShadow: "0 12px 40px -18px rgba(15,23,42,0.12)",
+      }}
+    >
+      <div
+        style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span style={{ fontSize: 14, color: "#94a3b8", fontWeight: 700 }}>{expanded ? "▼" : "▶"}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700 }}>📼 通話復盤</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#0f172a", marginTop: 2 }}>
+            通話逐字稿診斷
+          </div>
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+            把通話逐字稿貼上來，戰情官從 6 個面向打分 + 指出問題時點 + 給替代話術
+          </div>
+        </div>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: 20 }}>
+          {/* Scenario + outcome */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, marginBottom: 4 }}>情境</div>
+              <select
+                value={scenario}
+                onChange={(e) => setScenario(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1.5px solid #e2e8f0",
+                  fontSize: 13,
+                  background: "#ffffff",
+                  color: "#0f172a",
+                }}
+              >
+                {SCENARIO_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, marginBottom: 4 }}>客戶結果</div>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {OUTCOME_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => setOutcome(outcome === o.id ? "" : o.id)}
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      border: `1.5px solid ${outcome === o.id ? o.color : "#e2e8f0"}`,
+                      background: outcome === o.id ? `${o.color}15` : "#ffffff",
+                      color: outcome === o.id ? o.color : "#64748b",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Transcript textarea */}
+          <textarea
+            value={transcript}
+            onChange={(e) => setTranscript(e.target.value)}
+            placeholder={`把整段通話逐字稿貼在這邊，例如：\n\n業務：您好，這是 XX 學院 Tiffany，想跟您聊聊...\n客戶：我現在有點忙。\n業務：好的，請問什麼時間方便...\n...\n\n至少 50 字以上`}
+            rows={12}
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: "1.5px solid #e2e8f0",
+              fontSize: 13,
+              fontFamily: "monospace",
+              lineHeight: 1.6,
+              resize: "vertical",
+              background: "#f8fafc",
+              color: "#0f172a",
+              boxSizing: "border-box",
+            }}
+          />
+          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+            目前 {transcript.length} 字
+          </div>
+
+          {error && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: "10px 14px",
+                background: "rgba(239,68,68,0.08)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                borderRadius: 10,
+                fontSize: 12,
+                color: "#dc2626",
+              }}
+            >
+              ⚠️ {error}
+            </div>
+          )}
+
+          <button
+            onClick={analyze}
+            disabled={analyzing || transcript.length < 50}
+            style={{
+              marginTop: 12,
+              width: "100%",
+              padding: "12px",
+              borderRadius: 12,
+              border: "none",
+              background:
+                analyzing || transcript.length < 50
+                  ? "#e2e8f0"
+                  : "linear-gradient(135deg, #4f46e5, #7c3aed)",
+              color: analyzing || transcript.length < 50 ? "#94a3b8" : "#ffffff",
+              fontSize: 14,
+              fontWeight: 800,
+              cursor: analyzing || transcript.length < 50 ? "not-allowed" : "pointer",
+            }}
+          >
+            {analyzing ? "🧠 戰情官分析中..." : "📼 開始診斷"}
+          </button>
+
+          {result && (
+            <div style={{ marginTop: 20 }}>
+              {/* Overall */}
+              <div
+                style={{
+                  padding: 16,
+                  background: "linear-gradient(135deg, #fef3c7, #ffffff)",
+                  border: "1px solid rgba(251,191,36,0.3)",
+                  borderRadius: 12,
+                  marginBottom: 14,
+                }}
+              >
+                <div style={{ fontSize: 11, color: "#92400e", fontWeight: 700 }}>總評</div>
+                <div
+                  style={{
+                    fontSize: 36,
+                    fontWeight: 900,
+                    color: scoreColor(result.overall_score),
+                    lineHeight: 1,
+                    marginTop: 4,
+                  }}
+                >
+                  {result.overall_score}
+                  <span style={{ fontSize: 14, color: "#64748b" }}> / 10</span>
+                </div>
+                <div style={{ fontSize: 13, color: "#0f172a", marginTop: 8, lineHeight: 1.6 }}>
+                  {result.one_liner}
+                </div>
+              </div>
+
+              {/* 6 dimensions */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                  gap: 8,
+                  marginBottom: 14,
+                }}
+              >
+                {(Object.keys(DIMENSION_LABELS) as Array<keyof typeof DIMENSION_LABELS>).map((key) => {
+                  const s = result.scores[key];
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        padding: 10,
+                        background: "#f8fafc",
+                        borderRadius: 10,
+                        border: "1px solid #e2e8f0",
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700 }}>
+                        {DIMENSION_LABELS[key]}
+                      </div>
+                      <div style={{ fontSize: 24, fontWeight: 900, color: scoreColor(s.score), lineHeight: 1 }}>
+                        {s.score}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: "#64748b",
+                          marginTop: 4,
+                          fontStyle: "italic",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        &ldquo;{s.evidence.slice(0, 60)}{s.evidence.length > 60 ? "..." : ""}&rdquo;
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Critical moments */}
+              {result.critical_moments && result.critical_moments.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 8 }}>
+                    🔴 關鍵問題點
+                  </div>
+                  {result.critical_moments.map((m, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        padding: 12,
+                        marginBottom: 8,
+                        background: "rgba(239,68,68,0.05)",
+                        borderLeft: "4px solid #dc2626",
+                        borderRadius: 8,
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4 }}>
+                        {m.timestamp}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "#64748b",
+                          fontStyle: "italic",
+                          background: "#f8fafc",
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          marginBottom: 6,
+                        }}
+                      >
+                        &ldquo;{m.quote}&rdquo;
+                      </div>
+                      <div style={{ fontSize: 12, color: "#991b1b", fontWeight: 700, marginBottom: 4 }}>
+                        問題：{m.problem}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#166534",
+                          background: "rgba(22,163,74,0.08)",
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          marginTop: 6,
+                        }}
+                      >
+                        💬 替代話術：&ldquo;{m.better_script}&rdquo;
+                      </div>
+                      <div style={{ fontSize: 10, color: "#64748b", marginTop: 4, fontStyle: "italic" }}>
+                        → {m.reasoning}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Wins */}
+              {result.wins && result.wins.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#166534", marginBottom: 8 }}>
+                    ✅ 做得好
+                  </div>
+                  {result.wins.map((w, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        padding: 10,
+                        marginBottom: 6,
+                        background: "rgba(22,163,74,0.06)",
+                        borderLeft: "4px solid #16a34a",
+                        borderRadius: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "#64748b",
+                          fontStyle: "italic",
+                          marginBottom: 4,
+                        }}
+                      >
+                        &ldquo;{w.quote}&rdquo;
+                      </div>
+                      <div style={{ fontSize: 12, color: "#166534" }}>{w.why}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Next actions */}
+              {result.next_actions && result.next_actions.length > 0 && (
+                <div
+                  style={{
+                    padding: 14,
+                    background: "rgba(79,70,229,0.06)",
+                    borderRadius: 10,
+                    border: "1px solid rgba(79,70,229,0.2)",
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#4f46e5", marginBottom: 8 }}>
+                    🎯 下次必做
+                  </div>
+                  {result.next_actions.map((a, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        fontSize: 12,
+                        color: "#0f172a",
+                        marginBottom: 4,
+                        paddingLeft: 18,
+                        position: "relative",
+                      }}
+                    >
+                      <span style={{ position: "absolute", left: 0, color: "#4f46e5" }}>→</span>
+                      {a}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
