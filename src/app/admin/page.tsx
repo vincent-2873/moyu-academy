@@ -6262,6 +6262,8 @@ interface SalesSource {
 interface SalesMetricsResponse {
   ok: boolean;
   date: string;
+  period?: "day" | "week" | "month";
+  range?: { start: string; end: string };
   brand: string;
   count: number;
   rows: SalesMetricsRow[];
@@ -6270,20 +6272,160 @@ interface SalesMetricsResponse {
   sources: SalesSource[];
 }
 
+// Brand display names — app_id 是英文技術代碼，UI 顯示中文全名
+const BRAND_DISPLAY_NAMES: Record<string, string> = {
+  nschool: "nSchool 財經學院",
+  xuemi: "XUEMI 學米",
+  sixdigital: "無限學院",
+  ooschool: "無限學院", // alias for legacy data
+  xlab: "XLAB AI 實驗室",
+  aischool: "AI 未來學院",
+};
+
+// Bookmarklet JS — 拖到瀏覽器書籤列，在 Metabase question 頁按一下就自動同步
+// 使用 IIFE + image GET transport 繞過 Metabase CSP 的 connect-src 限制
+const BOOKMARKLET_JS = `javascript:(async()=>{try{const m=location.pathname.match(/question\\/(\\d+)/);if(!m){alert('請先打開 Metabase question 頁面');return;}const qid=parseInt(m[1],10);const tw=new Date(Date.now()+8*3600000);const d=tw.toISOString().slice(0,10);const r=await fetch('/api/card/'+qid+'/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({parameters:[{type:'date/single',target:['variable',['template-tag','startDate']],value:d},{type:'date/single',target:['variable',['template-tag','endDate']],value:d}],ignore_cache:true})});if(!r.ok){alert('Metabase 查詢失敗 '+r.status);return;}const j=await r.json();const c=(j.data&&j.data.cols||[]).map(x=>x.display_name||x.name);const rs=j.data&&j.data.rows||[];const p=JSON.stringify({questionId:qid,date:d,cols:c,rows:rs});const b=new TextEncoder().encode(p);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);const b64=btoa(s).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');const img=new Image();img.onload=()=>alert('✅ 同步完成！匯入 '+rs.length+' 筆到墨宇戰情中樞');img.onerror=()=>alert('⚠️ 同步失敗');img.src='https://moyusales.zeabur.app/api/admin/sales-metrics/bulk-import-img?d='+b64;}catch(e){alert('錯誤: '+e.message);}})();`;
+
+interface HierarchyIndividual {
+  salesperson_id: string;
+  name: string;
+  level: string | null;
+  calls: number;
+  call_minutes: number;
+  connected: number;
+  raw_appointments: number;
+  appointments_show: number;
+  raw_demos: number;
+  closures: number;
+  net_revenue_daily: number;
+}
+interface HierarchyTeam {
+  team: string;
+  count: number;
+  totals: Omit<HierarchyIndividual, "salesperson_id" | "name" | "level">;
+  individuals: HierarchyIndividual[];
+}
+interface HierarchyOrg {
+  org: string;
+  count: number;
+  totals: Omit<HierarchyIndividual, "salesperson_id" | "name" | "level">;
+  teams: HierarchyTeam[];
+}
+
+function buildHierarchy(rows: SalesMetricsRow[]): HierarchyOrg[] {
+  const orgMap = new Map<string, HierarchyOrg>();
+  for (const r of rows) {
+    const orgKey = r.org || "(未分機構)";
+    const teamKey = r.team || "(未分組)";
+    if (!orgMap.has(orgKey)) {
+      orgMap.set(orgKey, {
+        org: orgKey,
+        count: 0,
+        totals: {
+          calls: 0,
+          call_minutes: 0,
+          connected: 0,
+          raw_appointments: 0,
+          appointments_show: 0,
+          raw_demos: 0,
+          closures: 0,
+          net_revenue_daily: 0,
+        },
+        teams: [],
+      });
+    }
+    const org = orgMap.get(orgKey)!;
+    let team = org.teams.find((t) => t.team === teamKey);
+    if (!team) {
+      team = {
+        team: teamKey,
+        count: 0,
+        totals: {
+          calls: 0,
+          call_minutes: 0,
+          connected: 0,
+          raw_appointments: 0,
+          appointments_show: 0,
+          raw_demos: 0,
+          closures: 0,
+          net_revenue_daily: 0,
+        },
+        individuals: [],
+      };
+      org.teams.push(team);
+    }
+
+    const m: HierarchyIndividual = {
+      salesperson_id: r.salesperson_id,
+      name: r.name || "(未命名)",
+      level: r.level,
+      calls: r.calls,
+      call_minutes: Number(r.call_minutes) || 0,
+      connected: r.connected,
+      raw_appointments: r.raw_appointments,
+      appointments_show: r.appointments_show,
+      raw_demos: r.raw_demos,
+      closures: r.closures,
+      net_revenue_daily: Number(r.net_revenue_daily) || 0,
+    };
+
+    team.individuals.push(m);
+    team.count++;
+    org.count++;
+    const acc = [org.totals, team.totals];
+    for (const a of acc) {
+      a.calls += m.calls;
+      a.call_minutes += m.call_minutes;
+      a.connected += m.connected;
+      a.raw_appointments += m.raw_appointments;
+      a.appointments_show += m.appointments_show;
+      a.raw_demos += m.raw_demos;
+      a.closures += m.closures;
+      a.net_revenue_daily += m.net_revenue_daily;
+    }
+  }
+
+  // sort orgs & teams & individuals by revenue desc then calls desc
+  const sortFn = <T extends { closures?: number; net_revenue_daily?: number; calls?: number; totals?: { closures: number; net_revenue_daily: number; calls: number } }>(
+    a: T,
+    b: T
+  ): number => {
+    const ar = a.totals ? a.totals.net_revenue_daily : (a.net_revenue_daily || 0);
+    const br = b.totals ? b.totals.net_revenue_daily : (b.net_revenue_daily || 0);
+    if (br !== ar) return br - ar;
+    const ac = a.totals ? a.totals.calls : (a.calls || 0);
+    const bc = b.totals ? b.totals.calls : (b.calls || 0);
+    return bc - ac;
+  };
+  const orgs = Array.from(orgMap.values());
+  orgs.sort(sortFn);
+  for (const o of orgs) {
+    o.teams.sort(sortFn);
+    for (const t of o.teams) t.individuals.sort(sortFn);
+  }
+  return orgs;
+}
+
 function SalesMetricsTab({ token: _token }: { token: string }) {
   void _token;
   const [selectedBrand, setSelectedBrand] = useState<string>("");
+  const [selectedPeriod, setSelectedPeriod] = useState<"day" | "week" | "month">("day");
   const [data, setData] = useState<SalesMetricsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [collapsedOrgs, setCollapsedOrgs] = useState<Record<string, boolean>>({});
+  const [collapsedTeams, setCollapsedTeams] = useState<Record<string, boolean>>({});
 
-  const load = useCallback(async (brand?: string) => {
+  const load = useCallback(async (brand: string | undefined, period: "day" | "week" | "month") => {
     setLoading(true);
     setMsg(null);
     try {
-      const qs = brand ? `?brand=${encodeURIComponent(brand)}` : "";
-      const res = await fetch(`/api/admin/sales-metrics${qs}`, { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (brand) params.set("brand", brand);
+      params.set("period", period);
+      const res = await fetch(`/api/admin/sales-metrics?${params.toString()}`, { cache: "no-store" });
       const json = (await res.json()) as SalesMetricsResponse;
       setData(json);
     } catch (err) {
@@ -6294,8 +6436,8 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
   }, []);
 
   useEffect(() => {
-    load(selectedBrand || undefined);
-  }, [selectedBrand, load]);
+    load(selectedBrand || undefined, selectedPeriod);
+  }, [selectedBrand, selectedPeriod, load]);
 
   const triggerSync = async () => {
     setSyncing(true);
@@ -6308,8 +6450,14 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
         body: JSON.stringify(body),
       });
       const json = await res.json();
-      if (!res.ok || json.ok === false) {
-        setMsg("同步失敗：" + (json.error || json.result?.error || "unknown"));
+      const anyFailed =
+        json.results?.some((r: { error?: string }) => r.error?.includes("METABASE_BLOCK")) ||
+        json.result?.error?.includes("METABASE_BLOCK");
+      if (anyFailed) {
+        setMsg("server-side 同步沒設 Metabase 帳密，改用書籤列路徑 →");
+        setShowImportModal(true);
+      } else if (!res.ok || json.ok === false) {
+        setMsg("同步失敗：" + (json.error || json.result?.error || json.results?.[0]?.error || "unknown"));
       } else {
         const totalRows =
           json.result?.rows ??
@@ -6317,7 +6465,7 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
           (Array.isArray(json.results) ? json.results.reduce((s: number, r: { rows: number }) => s + r.rows, 0) : 0);
         setMsg(`✅ 同步完成：${totalRows} 筆`);
       }
-      await load(selectedBrand || undefined);
+      await load(selectedBrand || undefined, selectedPeriod);
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "同步失敗");
     } finally {
@@ -6327,8 +6475,8 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
 
   const brands = data?.sources || [];
   const rows = data?.rows || [];
-  const teams = data?.teamAggregate || [];
   const summary = data?.brandSummary;
+  const hierarchy = buildHierarchy(rows);
 
   const lastSyncSource = selectedBrand
     ? brands.find((b) => b.brand === selectedBrand)
@@ -6345,6 +6493,22 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
         </div>
         <div style={{ flex: 1 }} />
         <button
+          onClick={() => setShowImportModal(true)}
+          style={{
+            background: "linear-gradient(135deg, #06C755, #00B900)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 10,
+            padding: "10px 18px",
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: "pointer",
+            boxShadow: "0 8px 20px -10px rgba(6,199,85,0.4)",
+          }}
+        >
+          📥 從 Metabase 匯入
+        </button>
+        <button
           onClick={triggerSync}
           disabled={syncing}
           style={{
@@ -6352,8 +6516,8 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
             color: "#fff",
             border: "none",
             borderRadius: 10,
-            padding: "10px 20px",
-            fontSize: 14,
+            padding: "10px 18px",
+            fontSize: 13,
             fontWeight: 700,
             cursor: syncing ? "not-allowed" : "pointer",
             boxShadow: "0 8px 20px -10px rgba(79,70,229,0.4)",
@@ -6381,8 +6545,40 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
         </div>
       )}
 
-      {/* Brand tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+      {/* Period selector */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: "var(--text3)", fontWeight: 700 }}>時間：</span>
+        {([
+          { id: "day", label: "今天" },
+          { id: "week", label: "本週" },
+          { id: "month", label: "本月" },
+        ] as const).map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setSelectedPeriod(p.id)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: `1.5px solid ${selectedPeriod === p.id ? "var(--accent)" : "var(--border)"}`,
+              background: selectedPeriod === p.id ? "rgba(79,70,229,0.08)" : "var(--card)",
+              color: selectedPeriod === p.id ? "var(--accent)" : "var(--text2)",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {p.label}
+          </button>
+        ))}
+        {data?.range && (
+          <span style={{ fontSize: 11, color: "var(--text3)", marginLeft: 8 }}>
+            {data.range.start === data.range.end ? data.range.start : `${data.range.start} → ${data.range.end}`}
+          </span>
+        )}
+      </div>
+
+      {/* Brand tabs — 用中文顯示名稱 */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <button
           onClick={() => setSelectedBrand("")}
           style={{
@@ -6416,7 +6612,7 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
               gap: 6,
             }}
           >
-            {src.brand}
+            {BRAND_DISPLAY_NAMES[src.brand] || src.brand}
             {src.last_sync_status === "failed" && <span style={{ color: "var(--red)" }}>⚠️</span>}
           </button>
         ))}
@@ -6425,7 +6621,8 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
       {/* Last sync status */}
       {lastSyncSource && (
         <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 20 }}>
-          最後同步：{lastSyncSource.last_sync_at ? new Date(lastSyncSource.last_sync_at).toLocaleString("zh-TW") : "從未"}
+          {BRAND_DISPLAY_NAMES[lastSyncSource.brand] || lastSyncSource.brand} · 最後同步：
+          {lastSyncSource.last_sync_at ? new Date(lastSyncSource.last_sync_at).toLocaleString("zh-TW") : "從未"}
           {lastSyncSource.last_sync_rows != null && ` · ${lastSyncSource.last_sync_rows} 筆`}
           {lastSyncSource.last_sync_status && ` · ${lastSyncSource.last_sync_status}`}
           {lastSyncSource.last_sync_error && (
@@ -6445,10 +6642,11 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
           color: "var(--text3)",
         }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>📭</div>
-          <div style={{ fontWeight: 700, marginBottom: 4, color: "var(--text2)" }}>今日還沒有資料</div>
+          <div style={{ fontWeight: 700, marginBottom: 4, color: "var(--text2)" }}>
+            這個範圍還沒有資料
+          </div>
           <div style={{ fontSize: 12 }}>
-            可能原因：(1) Metabase 同步還沒跑 (2) 今天業務還沒開始撥 (3) 認證還沒設好<br />
-            點「⚡ 立即同步」試一下
+            點上方「📥 匯入 Metabase 資料」按鈕，照指示裝書籤，去 Metabase 按一下就能灌資料進來
           </div>
         </div>
       )}
@@ -6456,113 +6654,241 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
       {!loading && summary && rows.length > 0 && (
         <>
           {/* Summary cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
-            <MetricCard label="通次" value={summary.calls} color="#4f46e5" />
-            <MetricCard label="接通" value={summary.connected} color="#0891b2" />
-            <MetricCard label="通時(分)" value={Math.round(summary.call_minutes)} color="#0d9488" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 24 }}>
+            <MetricCard label="通次" value={summary.calls.toLocaleString()} color="#4f46e5" />
+            <MetricCard label="接通" value={summary.connected.toLocaleString()} color="#0891b2" />
+            <MetricCard label="通時(分)" value={Math.round(summary.call_minutes).toLocaleString()} color="#0d9488" />
             <MetricCard label="原始邀約" value={summary.raw_appointments} color="#d97706" />
             <MetricCard label="邀約出席" value={summary.appointments_show} color="#ea580c" />
             <MetricCard label="DEMO" value={summary.raw_demos} color="#7c3aed" />
             <MetricCard label="成交" value={summary.closures} color="#16a34a" highlight />
-            <MetricCard label="淨業績(日)" value={`$${Math.round(summary.net_revenue_daily).toLocaleString()}`} color="#db2777" highlight />
+            <MetricCard label="淨業績" value={`$${Math.round(summary.net_revenue_daily).toLocaleString()}`} color="#db2777" highlight />
           </div>
 
-          {/* Team aggregate */}
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 24 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14, color: "var(--text)" }}>
-              📊 組別戰況（{teams.length} 組 · {data.count} 人）
-            </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text3)" }}>
-                    <th style={{ textAlign: "left", padding: 8 }}>組別</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>人</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>通次</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>接通</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>邀約</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>出席</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>DEMO</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>成交</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>淨業績</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {teams.map((t) => (
-                    <tr key={t.team} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td style={{ padding: 8, fontWeight: 700 }}>{t.team}</td>
-                      <td style={{ padding: 8, textAlign: "right", color: "var(--text2)" }}>{t.count}</td>
-                      <td style={{ padding: 8, textAlign: "right" }}>{t.metric.calls}</td>
-                      <td style={{ padding: 8, textAlign: "right" }}>{t.metric.connected}</td>
-                      <td style={{ padding: 8, textAlign: "right" }}>{t.metric.raw_appointments}</td>
-                      <td style={{ padding: 8, textAlign: "right" }}>{t.metric.appointments_show}</td>
-                      <td style={{ padding: 8, textAlign: "right" }}>{t.metric.raw_demos}</td>
-                      <td style={{ padding: 8, textAlign: "right", color: t.metric.closures > 0 ? "var(--green)" : "var(--text3)", fontWeight: t.metric.closures > 0 ? 700 : 400 }}>
-                        {t.metric.closures}
-                      </td>
-                      <td style={{ padding: 8, textAlign: "right", color: t.metric.net_revenue_daily > 0 ? "var(--pink)" : "var(--text3)", fontWeight: t.metric.net_revenue_daily > 0 ? 700 : 400 }}>
-                        ${Math.round(t.metric.net_revenue_daily).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Individual rows */}
+          {/* Hierarchical drill-down: Org → Team → Individual */}
           <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14, color: "var(--text)" }}>
-              👤 個人戰況（依淨業績降冪）
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14, color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <span>🏢 據點 → 組別 → 業務（依業績排序）</span>
+              <span style={{ fontSize: 11, color: "var(--text3)", fontWeight: 400 }}>{data.count} 人 · {hierarchy.length} 據點</span>
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text3)" }}>
-                    <th style={{ textAlign: "left", padding: 8 }}>姓名</th>
-                    <th style={{ textAlign: "left", padding: 8 }}>組別</th>
-                    <th style={{ textAlign: "left", padding: 8 }}>等級</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>通次</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>通時</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>接通</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>邀約</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>成交</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>淨業績</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => {
-                    const isSilent = r.calls === 0;
-                    const isClosed = r.closures > 0;
+
+            {hierarchy.map((org) => {
+              const orgCollapsed = collapsedOrgs[org.org];
+              const isClosed = org.totals.closures > 0;
+              return (
+                <div key={org.org} style={{ marginBottom: 12, border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                  {/* Org header */}
+                  <div
+                    onClick={() => setCollapsedOrgs((s) => ({ ...s, [org.org]: !s[org.org] }))}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px 16px",
+                      background: "linear-gradient(90deg, rgba(79,70,229,0.06), rgba(79,70,229,0.01))",
+                      cursor: "pointer",
+                      borderBottom: orgCollapsed ? "none" : "1px solid var(--border)",
+                    }}
+                  >
+                    <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>{orgCollapsed ? "▶" : "▼"}</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>📍 {org.org}</span>
+                    <span style={{ fontSize: 11, color: "var(--text3)" }}>{org.count} 人 · {org.teams.length} 組</span>
+                    <div style={{ flex: 1 }} />
+                    <span style={{ fontSize: 12, color: "var(--text2)" }}>
+                      {org.totals.calls.toLocaleString()} 通 · {org.totals.raw_appointments} 邀約 · {org.totals.appointments_show} 出席
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: isClosed ? "var(--green)" : "var(--text3)" }}>
+                      {org.totals.closures} 成交
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: org.totals.net_revenue_daily > 0 ? "var(--pink)" : "var(--text3)", minWidth: 90, textAlign: "right" }}>
+                      ${Math.round(org.totals.net_revenue_daily).toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Teams inside org */}
+                  {!orgCollapsed && org.teams.map((team) => {
+                    const teamKey = `${org.org}|${team.team}`;
+                    const teamCollapsed = collapsedTeams[teamKey];
+                    const teamClosed = team.totals.closures > 0;
                     return (
-                      <tr
-                        key={r.salesperson_id}
-                        style={{
-                          borderBottom: "1px solid var(--border)",
-                          background: isSilent ? "rgba(239,68,68,0.04)" : isClosed ? "rgba(34,197,94,0.04)" : "transparent",
-                        }}
-                      >
-                        <td style={{ padding: 8, fontWeight: 700 }}>{r.name || "(未命名)"}</td>
-                        <td style={{ padding: 8, color: "var(--text2)" }}>{r.team || "-"}</td>
-                        <td style={{ padding: 8 }}>
-                          {r.level === "新人" ? <span style={{ background: "rgba(14,165,233,0.13)", color: "#0ea5e9", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>新人</span> : r.level || "-"}
-                        </td>
-                        <td style={{ padding: 8, textAlign: "right", color: isSilent ? "var(--red)" : undefined, fontWeight: isSilent ? 700 : 400 }}>{r.calls}</td>
-                        <td style={{ padding: 8, textAlign: "right" }}>{Number(r.call_minutes).toFixed(0)}</td>
-                        <td style={{ padding: 8, textAlign: "right" }}>{r.connected}</td>
-                        <td style={{ padding: 8, textAlign: "right" }}>{r.raw_appointments}</td>
-                        <td style={{ padding: 8, textAlign: "right", color: isClosed ? "var(--green)" : undefined, fontWeight: isClosed ? 700 : 400 }}>{r.closures}</td>
-                        <td style={{ padding: 8, textAlign: "right", color: r.net_revenue_daily > 0 ? "var(--pink)" : "var(--text3)", fontWeight: r.net_revenue_daily > 0 ? 700 : 400 }}>
-                          ${Math.round(r.net_revenue_daily).toLocaleString()}
-                        </td>
-                      </tr>
+                      <div key={teamKey}>
+                        {/* Team header */}
+                        <div
+                          onClick={() => setCollapsedTeams((s) => ({ ...s, [teamKey]: !s[teamKey] }))}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            padding: "10px 16px 10px 40px",
+                            background: "rgba(15,23,42,0.02)",
+                            cursor: "pointer",
+                            borderBottom: "1px solid var(--border)",
+                            fontSize: 12,
+                          }}
+                        >
+                          <span style={{ color: "var(--accent)" }}>{teamCollapsed ? "▶" : "▼"}</span>
+                          <span style={{ fontWeight: 700, color: "var(--text)" }}>🎯 {team.team}</span>
+                          <span style={{ color: "var(--text3)" }}>{team.count} 人</span>
+                          <div style={{ flex: 1 }} />
+                          <span style={{ color: "var(--text2)" }}>
+                            {team.totals.calls} 通 · {team.totals.raw_appointments} 邀 · {team.totals.appointments_show} 出席
+                          </span>
+                          <span style={{ color: teamClosed ? "var(--green)" : "var(--text3)", fontWeight: 700 }}>
+                            {team.totals.closures} 成交
+                          </span>
+                          <span style={{ fontWeight: 800, color: team.totals.net_revenue_daily > 0 ? "var(--pink)" : "var(--text3)", minWidth: 80, textAlign: "right" }}>
+                            ${Math.round(team.totals.net_revenue_daily).toLocaleString()}
+                          </span>
+                        </div>
+
+                        {/* Individuals in team */}
+                        {!teamCollapsed && (
+                          <div style={{ padding: "4px 0" }}>
+                            {team.individuals.map((p) => {
+                              const silent = p.calls === 0;
+                              const closed = p.closures > 0;
+                              return (
+                                <div
+                                  key={p.salesperson_id}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 10,
+                                    padding: "6px 16px 6px 72px",
+                                    fontSize: 12,
+                                    background: silent ? "rgba(239,68,68,0.04)" : closed ? "rgba(34,197,94,0.04)" : "transparent",
+                                    borderBottom: "1px solid rgba(15,23,42,0.04)",
+                                  }}
+                                >
+                                  <span style={{ fontWeight: 700, color: "var(--text)", minWidth: 160 }}>{p.name}</span>
+                                  {p.level === "新人" && (
+                                    <span style={{ background: "rgba(14,165,233,0.13)", color: "#0ea5e9", padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>新人</span>
+                                  )}
+                                  <div style={{ flex: 1 }} />
+                                  <span style={{ color: silent ? "var(--red)" : "var(--text2)", fontWeight: silent ? 700 : 400, minWidth: 55, textAlign: "right" }}>{p.calls} 通</span>
+                                  <span style={{ color: "var(--text3)", minWidth: 65, textAlign: "right" }}>{Math.round(p.call_minutes)} 分</span>
+                                  <span style={{ color: "var(--text2)", minWidth: 55, textAlign: "right" }}>{p.connected} 接</span>
+                                  <span style={{ color: "var(--text2)", minWidth: 50, textAlign: "right" }}>{p.raw_appointments} 邀</span>
+                                  <span style={{ color: p.appointments_show > 0 ? "var(--orange)" : "var(--text3)", fontWeight: p.appointments_show > 0 ? 700 : 400, minWidth: 50, textAlign: "right" }}>{p.appointments_show} 出</span>
+                                  <span style={{ color: closed ? "var(--green)" : "var(--text3)", fontWeight: closed ? 700 : 400, minWidth: 60, textAlign: "right" }}>{p.closures} 成交</span>
+                                  <span style={{ color: p.net_revenue_daily > 0 ? "var(--pink)" : "var(--text3)", fontWeight: p.net_revenue_daily > 0 ? 700 : 400, minWidth: 90, textAlign: "right" }}>
+                                    ${Math.round(p.net_revenue_daily).toLocaleString()}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              );
+            })}
           </div>
         </>
+      )}
+
+      {/* Import from Metabase modal */}
+      {showImportModal && (
+        <div
+          onClick={() => setShowImportModal(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.5)",
+            backdropFilter: "blur(4px)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 20,
+              padding: 32,
+              maxWidth: 640,
+              width: "100%",
+              maxHeight: "90vh",
+              overflow: "auto",
+              boxShadow: "0 30px 80px -20px rgba(15,23,42,0.3)",
+            }}
+          >
+            <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>📥 從 Metabase 匯入業務資料</div>
+            <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 20, lineHeight: 1.6 }}>
+              因為 Metabase 有嚴格 CSP 安全政策，server-side 無法直接拉資料（除非你願意把 Metabase 帳密塞進 Zeabur env vars）。
+              最簡單的方式是把下面的按鈕拖到瀏覽器<strong>書籤列</strong>，之後只要你在 Metabase question 頁面按一下，就會把當天的資料傳回來。
+            </div>
+
+            <div style={{ padding: 16, background: "#f8fafc", borderRadius: 10, border: "1px dashed var(--border)", marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: "var(--text2)" }}>步驟 1：把這顆按鈕拖到瀏覽器書籤列</div>
+              <a
+                href={BOOKMARKLET_JS}
+                onClick={(e) => {
+                  e.preventDefault();
+                  alert("請用滑鼠按住這顆按鈕拖曳到瀏覽器的書籤列，不要直接點擊");
+                }}
+                style={{
+                  display: "inline-block",
+                  padding: "10px 20px",
+                  background: "linear-gradient(135deg, #06C755, #00B900)",
+                  color: "#fff",
+                  borderRadius: 10,
+                  textDecoration: "none",
+                  fontWeight: 800,
+                  fontSize: 14,
+                  cursor: "grab",
+                  userSelect: "none",
+                }}
+              >
+                📥 同步 Metabase → 墨宇戰情
+              </a>
+              <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 8 }}>
+                把上面那顆按鈕拖到瀏覽器書籤列（Ctrl/Cmd+Shift+B 顯示書籤列）
+              </div>
+            </div>
+
+            <div style={{ padding: 16, background: "#f8fafc", borderRadius: 10, marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: "var(--text2)" }}>步驟 2：去 Metabase 按下書籤</div>
+              <ol style={{ fontSize: 12, color: "var(--text2)", marginLeft: 20, lineHeight: 1.8 }}>
+                <li>打開 <a href="https://mb.kolable.com/question/1381" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>mb.kolable.com/question/1381</a>（nschool 業務健康指標總表）</li>
+                <li>等 Metabase 查詢跑完</li>
+                <li>點書籤列上的「📥 同步 Metabase → 墨宇戰情」按鈕</li>
+                <li>跳出「✅ 同步完成」訊息表示成功</li>
+                <li>其他品牌一樣，打開對應的 question → 按書籤</li>
+              </ol>
+            </div>
+
+            <div style={{ padding: 12, background: "rgba(251,191,36,0.08)", borderRadius: 10, border: "1px solid rgba(251,191,36,0.3)", marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: "#92400e", lineHeight: 1.6 }}>
+                💡 進階：想要 15 分鐘自動同步？把 Metabase 那個分頁開著，打開 Chrome DevTools → Console，貼一段
+                <code style={{ fontFamily: "monospace", background: "rgba(0,0,0,0.06)", padding: "1px 4px", borderRadius: 3 }}>setInterval(()=&gt;bookmarklet(), 900000)</code>，
+                就會每 15 分自動跑一次。
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowImportModal(false)}
+              style={{
+                width: "100%",
+                padding: "10px",
+                background: "var(--border)",
+                border: "none",
+                borderRadius: 10,
+                cursor: "pointer",
+                fontSize: 13,
+                color: "var(--text2)",
+                fontWeight: 700,
+              }}
+            >
+              關閉
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

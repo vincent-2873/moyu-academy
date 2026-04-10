@@ -204,6 +204,10 @@ function str(v: unknown): string | null {
 /**
  * 把 Metabase row array → NormalisedRow。
  * 基於 question 1381 的欄位順序，其他 question 若 cols 名稱一致會自動對應。
+ *
+ * 重要：`app_id` 欄位才是真正的品牌識別（Metabase 原生欄位），如果 row 裡有
+ * app_id 就優先用它，沒有才 fallback 到參數的 brand。這讓「一個 question 含
+ * 多 brand 混在一起」的情境能正確分流到對應 brand。
  */
 export function normaliseRow(
   cols: string[],
@@ -223,10 +227,14 @@ export function normaliseRow(
   const rawObj: Record<string, unknown> = {};
   cols.forEach((c, i) => (rawObj[c] = row[i]));
 
+  // 優先用 row 裡的 app_id，沒有才 fallback
+  const app_id = str(get("app_id"));
+  const actualBrand = app_id || brand;
+
   return {
     date,
     salesperson_id,
-    brand,
+    brand: actualBrand,
     team: str(get("組別")),
     org: str(get("機構")),
     name: str(get("name")),
