@@ -639,20 +639,6 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
             {isRegister ? "建立帳號" : "登入"}
           </h2>
 
-          {/* 一鍵 LINE 登入 — 最大的入口 */}
-          <a
-            href={`/api/line/oauth/start?mode=${isRegister ? "register" : "login"}`}
-            className="auth-btn-line flex items-center justify-center gap-2 mb-4 no-underline"
-          >
-            <span style={{ fontSize: 22 }}>📱</span>
-            <span>用 LINE 一鍵{isRegister ? "註冊" : "登入"}</span>
-          </a>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="flex-1 h-px bg-[var(--border)]" />
-            <span className="text-xs text-[var(--text3)]">或用 email</span>
-            <div className="flex-1 h-px bg-[var(--border)]" />
-          </div>
-
           {isRegister && (
             <>
               <div className="mb-4">
@@ -745,6 +731,20 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
           >
             {isRegister ? "註冊" : "登入"}
           </button>
+
+          {/* 或用 LINE 一鍵登入／註冊 — 放在 email 之後，為懶得填表的人準備 */}
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-[var(--border)]" />
+            <span className="text-xs text-[var(--text3)]">或</span>
+            <div className="flex-1 h-px bg-[var(--border)]" />
+          </div>
+          <a
+            href={`/api/line/oauth/start?mode=${isRegister ? "register" : "login"}`}
+            className="auth-btn-line flex items-center justify-center gap-2 no-underline"
+          >
+            <span style={{ fontSize: 22 }}>📱</span>
+            <span>用 LINE 一鍵{isRegister ? "註冊" : "登入"}</span>
+          </a>
 
           <p className="text-center text-sm text-[var(--text2)] mt-4">
             {isRegister ? "已有帳號？" : "還沒有帳號？"}
