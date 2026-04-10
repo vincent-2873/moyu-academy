@@ -1,14 +1,21 @@
 // Client-side store using localStorage
 
+export type CompanyType = "sales" | "recruit";
+
 export interface User {
   email: string;
   password: string;
   name: string;
   brand: string;
+  /** "sales" = 業務公司員工 / "recruit" = 獵頭公司員工 */
+  companyType?: CompanyType;
   role?: string;
   joinDate: string;
+  /** legacy field, kept for back-compat — no longer drives UI */
   progress: number;
+  /** legacy field, kept for back-compat — no longer drives UI */
   completedModules: number[];
+  /** legacy field, kept for back-compat */
   quizScores: { moduleId: number; score: number; date: string }[];
   kpiData: {
     date: string;
@@ -75,7 +82,8 @@ export function registerUser(
   email: string,
   password: string,
   name: string,
-  brand: string
+  brand: string,
+  companyType: CompanyType = "sales"
 ): { success: boolean; error?: string } {
   const users = getUsers();
   if (users.find((u) => u.email === email)) {
@@ -86,6 +94,7 @@ export function registerUser(
     password,
     name,
     brand,
+    companyType,
     joinDate: new Date().toISOString(),
     progress: 0,
     completedModules: [],
@@ -114,7 +123,7 @@ export function loginUser(
 export function restoreUserFromCloud(
   email: string,
   password: string,
-  cloudUser: { name: string; brand: string; role?: string }
+  cloudUser: { name: string; brand: string; role?: string; companyType?: CompanyType }
 ) {
   const users = getUsers();
   if (users.find((u) => u.email === email)) return; // already exists
@@ -124,6 +133,7 @@ export function restoreUserFromCloud(
     name: cloudUser.name,
     brand: cloudUser.brand,
     role: cloudUser.role,
+    companyType: cloudUser.companyType || "sales",
     joinDate: new Date().toISOString(),
     progress: 0,
     completedModules: [],

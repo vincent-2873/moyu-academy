@@ -136,6 +136,8 @@ export async function syncRegister(
 /** One-time migration: push all localStorage data to Supabase */
 export async function migrateLocalStorageToSupabase(user: {
   email: string;
+  name?: string;
+  brand?: string;
   completedModules?: number[];
   progress?: number;
   quizScores?: Array<{ moduleId: number; score: number; date: string }>;
@@ -148,8 +150,8 @@ export async function migrateLocalStorageToSupabase(user: {
   try {
     const userId = await resolveUserId(user.email);
     if (!userId) {
-      // User doesn't exist in Supabase yet, create them
-      const result = await syncRegister(user.email, "", "");
+      // User doesn't exist in Supabase yet, create them with actual name/brand
+      const result = await syncRegister(user.email, user.name || "", user.brand || "");
       if (!result.userId) return; // Can't migrate without a user ID
     }
 

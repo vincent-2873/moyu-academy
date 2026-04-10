@@ -12,51 +12,39 @@ import {
   restoreUserFromCloud,
   type User,
   type SparringRecord,
+  type CompanyType,
 } from "@/lib/store";
-import { syncProgress, syncQuizScore, syncKpiEntry, syncRegister, migrateLocalStorageToSupabase, syncVideoProgress } from "@/lib/sync";
+import { syncKpiEntry, syncRegister, migrateLocalStorageToSupabase } from "@/lib/sync";
 import { brands } from "@/data/brands";
-import { modules, TASK_ICONS, getModulesForBrand, type TrainingResource, type DailyScheduleItem } from "@/data/modules";
 import { personas, getPersonasByBrand } from "@/data/personas";
 import Sidebar, { type UserRole } from "@/components/Sidebar";
-import SOPPage from "@/components/SOPPage";
-import CalendarDashboard from "@/components/CalendarDashboard";
-import MentorTeamCard from "@/components/MentorTeamCard";
-import MentorshipPage from "@/components/MentorshipPage";
 import ProfilePage from "@/components/ProfilePage";
-import CeremonyOverlay from "@/components/CeremonyOverlay";
 import DailyFeedbackModal, { shouldShowFeedback } from "@/components/DailyFeedbackModal";
 import ScoreRadar from "@/components/ScoreRadar";
-import { scoreConversation, getScoreColor, getScoreLabel, SCORE_LABELS } from "@/lib/scoring";
 import {
-  trainingVideos,
-  videoCategories,
-  getVideosForBrand,
-  getCategoriesForBrand,
-  getDriveEmbedUrl,
-  getDriveLink,
-  getVideosForDay,
-  type TrainingVideo,
-} from "@/data/videos";
+  RecruiterDashboard,
+  CandidatesPage,
+  AddCandidatePage,
+  FunnelPage,
+} from "@/components/RecruiterPages";
+import { scoreConversation, getScoreColor, getScoreLabel, SCORE_LABELS } from "@/lib/scoring";
 
 type Page =
   | "dashboard"
-  | "training"
-  | "videos"
   | "sparring"
-  | "courses"
-  | "sop"
-  | "knowledge"
-  | "pricing"
   | "kpi"
-  | "mentorship"
-  | "profile";
+  | "checkin"
+  | "profile"
+  // recruiter pages
+  | "candidates"
+  | "add_candidate"
+  | "funnel";
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<Page>("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [cohortStartDate, setCohortStartDate] = useState<string | null>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [workSchedule, setWorkSchedule] = useState<{ endTime: string; workDays: number[] } | null>(null);
 
@@ -66,14 +54,11 @@ export default function Home() {
     setLoading(false);
     // Migrate localStorage data to Supabase on login
     if (u) migrateLocalStorageToSupabase(u);
-    // Fetch cohort start date
-    fetch("/api/cohort").then(r => r.json()).then(d => setCohortStartDate(d.cohort_start_date)).catch(() => {});
     // Fetch work schedule for feedback modal
     if (u) {
       fetch(`/api/work-schedule?brand=${u.brand}`).then(r => r.json()).then(d => {
         if (d.schedule) {
           setWorkSchedule({ endTime: d.schedule.endTime, workDays: d.schedule.workDays });
-          // Check if we should show feedback modal
           if (shouldShowFeedback(u.email, d.schedule.endTime, d.schedule.workDays)) {
             setShowFeedbackModal(true);
           }
@@ -113,6 +98,8 @@ export default function Home() {
     return <AuthPage onLogin={refreshUser} />;
   }
 
+  const companyType: CompanyType = (user.companyType as CompanyType) || "sales";
+
   return (
     <div className="flex min-h-screen">
       <Sidebar
@@ -120,12 +107,12 @@ export default function Home() {
         onNavigate={(p) => { setPage(p as Page); setMobileMenuOpen(false); }}
         userName={user.name}
         brandId={user.brand}
-        completedModules={user.completedModules}
+        companyType={companyType}
         onLogout={() => {
           logout();
           setUser(null);
         }}
-        userRole={(user.role || "sales_rep") as UserRole}
+        userRole={(user.role || (companyType === "recruit" ? "recruiter" : "sales_rep")) as UserRole}
         mobileOpen={mobileMenuOpen}
         onCloseMobile={() => setMobileMenuOpen(false)}
       />
@@ -137,17 +124,43 @@ export default function Home() {
         ☰
       </button>
       <main className="flex-1 ml-0 md:ml-[260px] p-4 md:p-8 animate-fade-in" key={page}>
-        {page === "dashboard" && <DashboardPage user={user} onNavigate={(p) => setPage(p as Page)} cohortStartDate={cohortStartDate} />}
-        {page === "training" && <TrainingPage user={user} onUpdate={refreshUser} />}
-        {page === "videos" && <VideosPage brandId={user.brand} userEmail={user.email} />}
-        {page === "sparring" && <SparringPage user={user} onUpdate={refreshUser} />}
-        {page === "courses" && <CoursesPage />}
-        {page === "sop" && <SOPPage brandId={user.brand} />}
-        {page === "knowledge" && <KnowledgePage brandId={user.brand} />}
-        {page === "pricing" && <PricingPage brandId={user.brand} />}
-        {page === "kpi" && <KpiPage user={user} onUpdate={refreshUser} />}
-        {page === "mentorship" && <MentorshipPage userEmail={user.email} userName={user.name} brandId={user.brand} userRole={user.role || "sales_rep"} />}
-        {page === "profile" && <ProfilePage userEmail={user.email} userName={user.name} brandId={user.brand} brandColor={brands[user.brand]?.color} onNameChange={(newName) => { updateUser(user.email, { name: newName }); refreshUser(); }} />}
+        {/* === 業務員前台 === */}
+        {companyType === "sales" && (
+          <>
+            {page === "dashboard" && <DashboardPage user={user} onNavigate={(p) => setPage(p as Page)} />}
+            {page === "sparring" && <SparringPage user={user} onUpdate={refreshUser} />}
+            {page === "kpi" && <KpiPage user={user} onUpdate={refreshUser} />}
+            {page === "checkin" && <CheckinPage user={user} />}
+            {page === "profile" && (
+              <ProfilePage
+                userEmail={user.email}
+                userName={user.name}
+                brandId={user.brand}
+                brandColor={brands[user.brand]?.color}
+                onNameChange={(newName) => { updateUser(user.email, { name: newName }); refreshUser(); }}
+              />
+            )}
+          </>
+        )}
+
+        {/* === 獵頭招聘員前台 === */}
+        {companyType === "recruit" && (
+          <>
+            {page === "dashboard" && <RecruiterDashboard user={user} onNavigate={(p) => setPage(p as Page)} />}
+            {page === "candidates" && <CandidatesPage user={user} onNavigate={(p) => setPage(p as Page)} />}
+            {page === "add_candidate" && <AddCandidatePage user={user} onDone={() => setPage("candidates")} />}
+            {page === "funnel" && <FunnelPage user={user} />}
+            {page === "profile" && (
+              <ProfilePage
+                userEmail={user.email}
+                userName={user.name}
+                brandId={user.brand}
+                brandColor="#fb923c"
+                onNameChange={(newName) => { updateUser(user.email, { name: newName }); refreshUser(); }}
+              />
+            )}
+          </>
+        )}
       </main>
       <HelpBot />
       {/* Manual feedback button — always visible */}
@@ -335,6 +348,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("nschool");
+  const [companyType, setCompanyType] = useState<CompanyType>("sales");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [lineBinding, setLineBinding] = useState<{
@@ -348,18 +362,25 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
     setError("");
 
     if (isRegister) {
-      const b = brands[brand];
-      if (inviteCode !== b.inviteCode) {
-        setError("邀請碼錯誤");
+      // 獵頭只需簡單驗證，業務員需要品牌邀請碼
+      if (companyType === "sales") {
+        const b = brands[brand];
+        if (inviteCode !== b.inviteCode) {
+          setError("邀請碼錯誤");
+          return;
+        }
+      } else if (inviteCode !== "MOYUHUNT") {
+        setError("獵頭邀請碼錯誤（提示：MOYUHUNT）");
         return;
       }
-      const res = registerUser(email, password, name, brand);
+      const targetBrand = companyType === "recruit" ? "moyuhunt" : brand;
+      const res = registerUser(email, password, name, targetBrand, companyType);
       if (!res.success) {
         setError(res.error || "註冊失敗");
         return;
       }
       // Sync to Supabase with error feedback
-      const syncResult = await syncRegister(email, name, brand);
+      const syncResult = await syncRegister(email, name, targetBrand);
       if (syncResult.error) {
         setError(`註冊成功但雲端同步失敗: ${syncResult.error}，管理員可能暫時看不到您的帳號。`);
         return;
@@ -485,7 +506,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
           >
             墨宇戰情中樞
           </h1>
-          <p className="text-[var(--text3)]">業務戰力 × 招聘漏斗 即時監測系統</p>
+          <p className="text-[var(--text3)]">業務戰力 × 獵頭漏斗 · 數據蒐集前台</p>
         </div>
 
         <form
@@ -499,6 +520,35 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
           {isRegister && (
             <>
               <div className="mb-4">
+                <label className="block text-xs text-[var(--text2)] mb-2">我要加入</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCompanyType("sales")}
+                    className="px-3 py-3 rounded-lg border text-sm font-semibold transition-all"
+                    style={{
+                      borderColor: companyType === "sales" ? "var(--accent)" : "var(--border)",
+                      background: companyType === "sales" ? "rgba(124,108,240,0.15)" : "var(--bg2)",
+                    }}
+                  >
+                    💼 業務公司
+                    <p className="text-[10px] text-[var(--text3)] font-normal mt-0.5">賣課程的業務員</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCompanyType("recruit")}
+                    className="px-3 py-3 rounded-lg border text-sm font-semibold transition-all"
+                    style={{
+                      borderColor: companyType === "recruit" ? "#fb923c" : "var(--border)",
+                      background: companyType === "recruit" ? "rgba(251,146,60,0.15)" : "var(--bg2)",
+                    }}
+                  >
+                    🎯 獵頭公司
+                    <p className="text-[10px] text-[var(--text3)] font-normal mt-0.5">招聘業務員的獵頭</p>
+                  </button>
+                </div>
+              </div>
+              <div className="mb-4">
                 <label className="block text-xs text-[var(--text2)] mb-1">姓名</label>
                 <input
                   type="text"
@@ -508,20 +558,22 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                   required
                 />
               </div>
-              <div className="mb-4">
-                <label className="block text-xs text-[var(--text2)] mb-1">品牌</label>
-                <select
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
-                >
-                  {Object.values(brands).map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.fullName}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {companyType === "sales" && (
+                <div className="mb-4">
+                  <label className="block text-xs text-[var(--text2)] mb-1">品牌</label>
+                  <select
+                    value={brand}
+                    onChange={(e) => setBrand(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                  >
+                    {Object.values(brands).map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="mb-4">
                 <label className="block text-xs text-[var(--text2)] mb-1">邀請碼</label>
                 <input
@@ -529,7 +581,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                   className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
-                  placeholder="請輸入邀請碼"
+                  placeholder={companyType === "recruit" ? "獵頭邀請碼" : "品牌邀請碼"}
                   required
                 />
               </div>
@@ -591,11 +643,40 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-/* ===================== DASHBOARD ===================== */
-function DashboardPage({ user, onNavigate, cohortStartDate }: { user: User; onNavigate: (p: string) => void; cohortStartDate?: string | null }) {
+/* ===================== SALES DASHBOARD (數據蒐集入口) ===================== */
+function DashboardPage({ user, onNavigate }: { user: User; onNavigate: (p: string) => void }) {
   const brand = brands[user.brand];
-  const brandModules = getModulesForBrand(user.brand);
-  const progress = Math.round((user.completedModules.length / brandModules.length) * 100);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayKpi = user.kpiData.find((k) => k.date === todayStr);
+
+  // 連續上工天數
+  const streakDays = (() => {
+    const dates = new Set(user.kpiData.map((k) => k.date));
+    let streak = 0;
+    const today = new Date();
+    for (let i = 0; i < 60; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      if (dates.has(d.toISOString().slice(0, 10))) streak++;
+      else if (i === 0) continue;
+      else break;
+    }
+    return streak;
+  })();
+
+  // 本週統計
+  const weekKpis = user.kpiData.filter((k) => {
+    const d = new Date(k.date);
+    return Date.now() - d.getTime() < 7 * 86400000;
+  });
+  const weekCalls = weekKpis.reduce((s, k) => s + (k.calls || 0), 0);
+  const weekAppointments = weekKpis.reduce((s, k) => s + (k.appointments || 0), 0);
+  const weekClosures = weekKpis.reduce((s, k) => s + (k.closures || 0), 0);
+
+  const weekRecords = user.sparringRecords.filter((r) => {
+    const d = new Date(r.date);
+    return Date.now() - d.getTime() < 7 * 86400000;
+  });
   const avgScore =
     user.sparringRecords.length > 0
       ? Math.round(
@@ -603,1054 +684,419 @@ function DashboardPage({ user, onNavigate, cohortStartDate }: { user: User; onNa
             user.sparringRecords.length
         )
       : 0;
-  const todayKpi = user.kpiData.find(
-    (k) => k.date === new Date().toISOString().slice(0, 10)
-  );
-  const weekRecords = user.sparringRecords.filter((r) => {
-    const d = new Date(r.date);
-    const now = new Date();
-    return now.getTime() - d.getTime() < 7 * 24 * 60 * 60 * 1000;
-  });
+  const latestSparring = user.sparringRecords[user.sparringRecords.length - 1];
 
-  const stats = [
-    { label: "課程進度", value: `${progress}%`, sub: `${user.completedModules.length}/${brandModules.length} 完成`, color: brand.color },
-    { label: "對練平均分", value: avgScore || "—", sub: `${user.sparringRecords.length} 次對練`, color: "var(--teal)" },
-    { label: "本週對練", value: weekRecords.length, sub: "次", color: "var(--gold)" },
-    { label: "今日撥打", value: todayKpi?.calls || 0, sub: `有效 ${todayKpi?.validCalls || 0}`, color: "var(--green)" },
-  ];
-
-  // Determine next recommended action
-  const nextModule = brandModules.find((m) => !user.completedModules.includes(m.id));
-  const weakestDimension = user.sparringRecords.length > 0
-    ? (() => {
-        const latest = user.sparringRecords[user.sparringRecords.length - 1];
-        const dims = Object.entries(latest.scores).filter(([k]) => k !== "overall") as [string, number][];
-        dims.sort((a, b) => a[1] - b[1]);
-        return dims[0];
-      })()
-    : null;
-
-  // Calculate training day: use cohort start date if set, otherwise user's join date
-  const trainingStartDate = cohortStartDate || user.joinDate;
-  const currentDay = Math.min(22, Math.max(1, Math.ceil((Date.now() - new Date(trainingStartDate).getTime()) / (1000 * 60 * 60 * 24))));
-  const [overdueCount, setOverdueCount] = useState(0);
-  const [showNotifications, setShowNotifications] = useState(false);
-
-  // Announcements & AI notifications
-  interface Announcement { id: string; title: string; content: string; type: string; is_pinned: boolean; is_ai_generated: boolean; created_at: string; }
-  interface AiNotification { id: string; type: string; title: string; message: string; severity: string; is_read: boolean; created_at: string; }
-  interface DailyQuiz { id: string; date: string; questions: { question: string; options: string[]; correct: number; explanation: string }[]; }
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [aiNotifs, setAiNotifs] = useState<AiNotification[]>([]);
-  const [dailyQuiz, setDailyQuiz] = useState<DailyQuiz | null>(null);
-  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
-  const [quizScore, setQuizScore] = useState<number | null>(null);
-
+  const [now, setNow] = useState(new Date());
   useEffect(() => {
-    // Fetch announcements
-    fetch(`/api/announcements?role=${user.role || "sales_rep"}&brand=${user.brand}`)
-      .then(r => r.ok ? r.json() : { announcements: [] })
-      .then(d => setAnnouncements(d.announcements || []))
-      .catch(() => {});
-    // Fetch AI notifications
-    fetch(`/api/notifications?user_email=${encodeURIComponent(user.email)}`)
-      .then(r => r.ok ? r.json() : { notifications: [] })
-      .then(d => setAiNotifs(d.notifications || []))
-      .catch(() => {});
-    // Fetch daily quiz
-    fetch("/api/daily-quiz")
-      .then(r => r.ok ? r.json() : { quiz: null })
-      .then(d => setDailyQuiz(d.quiz || null))
-      .catch(() => {});
-  }, [user.email, user.role, user.brand]);
+    const iv = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(iv);
+  }, []);
+  const greeting = (() => {
+    const h = now.getHours();
+    if (h < 6) return "深夜還在拼，記得補眠";
+    if (h < 12) return "早安，今日戰況開始";
+    if (h < 14) return "中午了，吃飽繼續打";
+    if (h < 18) return "下午衝刺時段";
+    if (h < 21) return "晚間衝鋒，最後一波";
+    return "夜深了，今日複盤時間";
+  })();
+
+  // 今日目標達成率（4 個指標平均）
+  const todayProgress = (() => {
+    if (!todayKpi) return 0;
+    const targets = { calls: 30, validCalls: 15, appointments: 3, closures: 1 };
+    const pct =
+      (Math.min(1, (todayKpi.calls || 0) / targets.calls) +
+        Math.min(1, (todayKpi.validCalls || 0) / targets.validCalls) +
+        Math.min(1, (todayKpi.appointments || 0) / targets.appointments) +
+        Math.min(1, (todayKpi.closures || 0) / targets.closures)) /
+      4;
+    return Math.round(pct * 100);
+  })();
+
+  return (
+    <div className="animate-fade-in">
+      {/* === HERO === */}
+      <div
+        className="relative overflow-hidden rounded-3xl mb-8 p-6 md:p-8 border border-[var(--border-strong)]"
+        style={{
+          background: `
+            radial-gradient(circle at 12% 20%, ${brand?.color || "#7c6cf0"}28 0%, transparent 50%),
+            radial-gradient(circle at 88% 80%, rgba(52,211,153,0.15) 0%, transparent 50%),
+            linear-gradient(135deg, var(--card) 0%, var(--card2) 100%)
+          `,
+        }}
+      >
+        <div className="absolute inset-0 bg-grid opacity-30 pointer-events-none" />
+
+        <div className="relative z-[1] flex flex-col md:flex-row md:items-center gap-6 md:gap-10">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <span
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase border backdrop-blur"
+                style={{
+                  borderColor: `${brand?.color}55`,
+                  background: `${brand?.color}15`,
+                  color: brand?.color,
+                }}
+              >
+                <span className="status-dot live" />
+                {brand?.name || user.brand} · 業務戰線
+              </span>
+              <span className="text-xs text-[var(--text3)]">{greeting}</span>
+            </div>
+            <h1 className="text-3xl md:text-5xl font-bold leading-tight">
+              {user.name}
+              <span className="text-[var(--text2)] text-lg md:text-xl font-medium"> · 連續 {streakDays} 天上工</span>
+            </h1>
+            <p className="mt-2 text-sm md:text-base text-[var(--text2)]">
+              今日目標達成 <span className="text-[var(--text)] font-bold tabular-nums">{todayProgress}%</span>
+              {!todayKpi && <span className="text-[var(--gold)]"> · 記得填寫今日 KPI</span>}
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                onClick={() => onNavigate("kpi")}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-white shadow-lg hover:scale-105 transition-all"
+                style={{ background: `linear-gradient(135deg, ${brand?.color || "#7c6cf0"}, #34d399)` }}
+              >
+                📈 填寫今日 KPI
+              </button>
+              <button
+                onClick={() => onNavigate("sparring")}
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-[var(--border-strong)] bg-[var(--bg2)]/60 text-[var(--text)] hover:border-[var(--accent)] backdrop-blur"
+              >
+                🎯 開始 AI 對練
+              </button>
+              <button
+                onClick={() => onNavigate("checkin")}
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-[var(--border-strong)] bg-[var(--bg2)]/60 text-[var(--text)] hover:border-[var(--gold)] backdrop-blur"
+              >
+                🌅 每日上工
+              </button>
+            </div>
+          </div>
+
+          {/* 進度環 */}
+          <div className="relative flex flex-col items-center justify-center">
+            <svg width="148" height="148" viewBox="0 0 148 148">
+              <defs>
+                <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={brand?.color || "#7c6cf0"} />
+                  <stop offset="100%" stopColor="#34d399" />
+                </linearGradient>
+              </defs>
+              <circle cx="74" cy="74" r="62" fill="none" stroke="var(--border)" strokeWidth="10" />
+              <circle
+                cx="74" cy="74" r="62"
+                fill="none"
+                stroke="url(#ringGrad)"
+                strokeWidth="10"
+                strokeLinecap="round"
+                strokeDasharray={`${(todayProgress / 100) * 389.557} 389.557`}
+                style={{ transition: "stroke-dasharray 0.8s ease" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl font-bold tabular-nums gradient-text">{todayProgress}%</span>
+              <span className="text-[10px] text-[var(--text3)] mt-0.5">今日達成率</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* === 戰力指標 6 格 === */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+        {([
+          { icon: "🔥", label: "連續上工", value: streakDays, sub: "天", color: "#fb923c" },
+          { icon: "📞", label: "本週通次", value: weekCalls, sub: `今日 ${todayKpi?.calls || 0}`, color: brand?.color || "#7c6cf0" },
+          { icon: "🤝", label: "本週邀約", value: weekAppointments, sub: `今日 ${todayKpi?.appointments || 0}`, color: "#34d399" },
+          { icon: "💎", label: "本週成交", value: weekClosures, sub: `今日 ${todayKpi?.closures || 0}`, color: "#fbbf24" },
+          { icon: "🎯", label: "對練平均", value: avgScore || "—", sub: `${user.sparringRecords.length} 場`, color: "#06b6d4" },
+          { icon: "⚡", label: "本週對練", value: weekRecords.length, sub: "場", color: "#a594ff" },
+        ] as const).map((s) => (
+          <div
+            key={s.label}
+            className="metric-tile"
+            style={{ ["--metric-color" as string]: s.color }}
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span
+                className="text-base w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ background: `${s.color}20`, color: s.color }}
+              >
+                {s.icon}
+              </span>
+              <span className="text-[10px] text-[var(--text3)] uppercase tracking-wider font-bold">{s.label}</span>
+            </div>
+            <p className="text-2xl font-bold tabular-nums mt-1" style={{ color: s.color }}>
+              {s.value}
+            </p>
+            <p className="text-[10px] text-[var(--text3)] mt-0.5">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* === 今日戰況 + 最新雷達 === */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+        {/* 最新對練雷達 */}
+        <div className="surface-elevated p-5 lg:col-span-1">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(180deg, var(--accent), var(--teal))" }} />
+              <h3 className="text-sm font-bold">最新對練雷達</h3>
+            </div>
+            {latestSparring && (
+              <span
+                className="text-[10px] px-2 py-0.5 rounded-md font-bold tabular-nums"
+                style={{
+                  background: `${getScoreColor(latestSparring.scores.overall)}20`,
+                  color: getScoreColor(latestSparring.scores.overall),
+                }}
+              >
+                {latestSparring.scores.overall} 分 · {getScoreLabel(latestSparring.scores.overall)}
+              </span>
+            )}
+          </div>
+          {latestSparring ? (
+            <>
+              <div className="flex items-center justify-center -my-1">
+                <ScoreRadar scores={latestSparring.scores} size={200} />
+              </div>
+              <p className="text-[11px] text-center text-[var(--text3)] -mt-1">
+                {latestSparring.personaName} · {new Date(latestSparring.date).toLocaleDateString("zh-TW")}
+              </p>
+            </>
+          ) : (
+            <div className="h-[210px] flex flex-col items-center justify-center text-center">
+              <p className="text-4xl mb-2 opacity-60">🎯</p>
+              <p className="text-sm text-[var(--text2)]">尚未開始對練</p>
+              <button
+                onClick={() => onNavigate("sparring")}
+                className="mt-3 text-xs px-3 py-1.5 rounded-lg font-semibold text-white"
+                style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}
+              >
+                立即開始第一場
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 今日戰況 */}
+        <div className="surface-elevated p-5 lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="w-1 h-5 rounded-full" style={{ background: `linear-gradient(180deg, ${brand?.color || "#7c6cf0"}, var(--gold))` }} />
+              <h3 className="text-sm font-bold">今日戰況快照</h3>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--green)]/15 text-[var(--green)] font-bold">LIVE</span>
+            </div>
+            <span className="text-[10px] text-[var(--text3)] tabular-nums">{now.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "今日通次", value: todayKpi?.calls || 0, target: 30, color: brand?.color || "#7c6cf0" },
+              { label: "有效通次", value: todayKpi?.validCalls || 0, target: 15, color: "#06b6d4" },
+              { label: "邀約數", value: todayKpi?.appointments || 0, target: 3, color: "#34d399" },
+              { label: "成交數", value: todayKpi?.closures || 0, target: 1, color: "#fbbf24" },
+            ].map((m) => {
+              const pct = Math.min(100, Math.round((m.value / m.target) * 100));
+              return (
+                <div key={m.label} className="bg-[var(--bg2)] rounded-xl p-3 border border-[var(--border)]">
+                  <div className="flex items-baseline justify-between mb-1">
+                    <span className="text-[10px] text-[var(--text3)]">{m.label}</span>
+                    <span className="text-[10px] text-[var(--text3)] tabular-nums">/ {m.target}</span>
+                  </div>
+                  <p className="text-2xl font-bold tabular-nums" style={{ color: m.color }}>{m.value}</p>
+                  <div className="h-1 mt-1.5 rounded-full bg-[var(--border)] overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${m.color}, ${m.color}80)` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {!todayKpi && (
+            <button
+              onClick={() => onNavigate("kpi")}
+              className="mt-4 w-full py-2.5 rounded-xl text-sm font-bold text-white"
+              style={{ background: "linear-gradient(135deg, var(--gold), #f59e0b)" }}
+            >
+              📊 立即填寫今日 KPI
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 最近對練紀錄 */}
+      <div className="surface-elevated p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(180deg, #06b6d4, var(--accent))" }} />
+            <h3 className="text-sm font-bold">最近對練</h3>
+          </div>
+          <button
+            onClick={() => onNavigate("sparring")}
+            className="text-xs text-[var(--accent)] hover:underline"
+          >
+            開始新對練 →
+          </button>
+        </div>
+        {user.sparringRecords.length === 0 ? (
+          <div className="text-center py-8 text-[var(--text3)]">
+            <p className="text-3xl mb-2">🎯</p>
+            <p className="text-sm">還沒有對練紀錄，去試試吧！</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {user.sparringRecords
+              .slice(-6)
+              .reverse()
+              .map((r) => (
+                <div key={r.id} className="flex items-center gap-3 p-3 bg-[var(--bg2)] rounded-lg border border-[var(--border)]">
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm tabular-nums"
+                    style={{
+                      background: `${getScoreColor(r.scores.overall)}20`,
+                      color: getScoreColor(r.scores.overall),
+                    }}
+                  >
+                    {r.scores.overall}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{r.personaName}</p>
+                    <p className="text-[10px] text-[var(--text3)]">
+                      {new Date(r.date).toLocaleDateString("zh-TW")} · {getScoreLabel(r.scores.overall)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== CHECK-IN (每日上工日誌) ===================== */
+function CheckinPage({ user }: { user: User }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const storageKey = `moyu_checkin_${user.email}_${todayStr}`;
+  const [mood, setMood] = useState<number>(3);
+  const [energy, setEnergy] = useState<number>(3);
+  const [goal, setGoal] = useState("");
+  const [blocker, setBlocker] = useState("");
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(`moyu_tasks_${user.email}`);
-      const tasks: Record<string, boolean> = stored ? JSON.parse(stored) : {};
-      let overdue = 0;
-      // Count incomplete tasks from past days
-      for (let d = 1; d < currentDay; d++) {
-        const mod = brandModules.find((m) => m.day === d);
-        if (mod) {
-          mod.tasks.forEach((_, idx) => {
-            const taskId = `day${d}_task${idx}`;
-            if (!tasks[taskId]) overdue++;
-          });
-        }
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const d = JSON.parse(raw);
+        setMood(d.mood ?? 3);
+        setEnergy(d.energy ?? 3);
+        setGoal(d.goal ?? "");
+        setBlocker(d.blocker ?? "");
+        setSaved(true);
       }
-      setOverdueCount(overdue);
-    } catch { setOverdueCount(0); }
-  }, [user.email, currentDay]);
+    } catch { /* ignore */ }
+  }, [storageKey]);
+
+  const save = () => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ mood, energy, goal, blocker, t: Date.now() }));
+      // TODO: POST to /api/human-state
+      fetch("/api/human-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email, date: todayStr, mood, energy, goal, blocker }),
+      }).catch(() => {});
+      setSaved(true);
+    } catch { /* ignore */ }
+  };
+
+  const emoji = ["😩", "😕", "😐", "🙂", "🔥"];
+  const energyLabel = ["💤", "😪", "⚡", "⚡⚡", "⚡⚡⚡"];
 
   return (
-    <div className="animate-fade-in">
-      <div className="mb-8 flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">
-            歡迎回來，{user.name}
-          </h1>
-          <p className="text-[var(--text2)]">
-            {brand.fullName} | 訓練第 {currentDay} 天
-          </p>
-        </div>
-        {/* Notification Bell */}
-        <div className="relative">
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative w-10 h-10 rounded-lg bg-[var(--card)] border border-[var(--border)] flex items-center justify-center text-xl hover:bg-[var(--bg2)] transition-all"
-          >
-            🔔
-            {overdueCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-[var(--red)] text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
-                {overdueCount > 99 ? "99+" : overdueCount}
-              </span>
-            )}
-          </button>
-          {showNotifications && (
-            <div className="absolute right-0 top-12 w-72 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl z-50 overflow-hidden">
-              <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
-                <span className="font-bold text-sm">通知中心</span>
-                <button onClick={() => setShowNotifications(false)} className="text-[var(--text3)] hover:text-[var(--text)]">✕</button>
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                {overdueCount > 0 ? (
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-start gap-3 p-3 bg-[rgba(255,77,77,0.08)] rounded-lg border border-[rgba(255,77,77,0.2)]">
-                      <span className="text-lg">⚠️</span>
-                      <div>
-                        <p className="text-sm font-semibold text-[var(--red)]">逾期任務提醒</p>
-                        <p className="text-xs text-[var(--text2)] mt-0.5">
-                          你有 {overdueCount} 項過去天數的任務尚未完成，請盡快補完！
-                        </p>
-                      </div>
-                    </div>
-                    {!todayKpi && (
-                      <div className="flex items-start gap-3 p-3 bg-[rgba(254,202,87,0.08)] rounded-lg border border-[rgba(254,202,87,0.2)]">
-                        <span className="text-lg">📊</span>
-                        <div>
-                          <p className="text-sm font-semibold text-[var(--gold)]">今日 KPI 未填</p>
-                          <p className="text-xs text-[var(--text2)] mt-0.5">記得填寫今天的 KPI 數據</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-[var(--text3)]">
-                    <p className="text-2xl mb-2">✅</p>
-                    <p className="text-sm">太棒了！目前沒有逾期任務</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+    <div className="animate-fade-in max-w-2xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">每日上工日誌</h1>
+        <p className="text-[var(--text2)] text-sm">每天一分鐘，讓系統監測你的狀態與突破點</p>
       </div>
 
-      {/* Announcement Board */}
-      {announcements.length > 0 && (
-        <div className="mb-6 space-y-3">
-          {announcements.slice(0, 3).map(a => (
-            <div key={a.id} className={`rounded-xl p-4 border ${a.is_pinned ? "border-[var(--gold)] bg-[rgba(254,202,87,0.06)]" : "border-[var(--border)] bg-[var(--card)]"}`}>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-base">{a.type === "morning" ? "☀️" : a.is_pinned ? "📌" : "📢"}</span>
-                <span className="font-bold text-sm">{a.title}</span>
-                {a.is_ai_generated && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">AI</span>}
-                <span className="text-[10px] text-[var(--text3)] ml-auto">{new Date(a.created_at).toLocaleDateString("zh-TW")}</span>
-              </div>
-              <p className="text-sm text-[var(--text2)] ml-6">{a.content}</p>
-            </div>
+      <div className="surface-elevated p-6 mb-4">
+        <h3 className="font-bold mb-4 text-sm">今日心情</h3>
+        <div className="flex justify-between gap-2">
+          {emoji.map((e, i) => (
+            <button
+              key={i}
+              onClick={() => setMood(i + 1)}
+              className="flex-1 aspect-square rounded-xl text-3xl border transition-all"
+              style={{
+                borderColor: mood === i + 1 ? "var(--accent)" : "var(--border)",
+                background: mood === i + 1 ? "rgba(124,108,240,0.15)" : "var(--bg2)",
+              }}
+            >
+              {e}
+            </button>
           ))}
         </div>
-      )}
-
-      {/* AI Notifications Bar */}
-      {aiNotifs.filter(n => !n.is_read).length > 0 && (
-        <div className="mb-6 bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">🤖</span>
-            <span className="font-bold text-sm">AI 智慧提醒</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent)]/20 text-[var(--accent)]">{aiNotifs.filter(n => !n.is_read).length} 則</span>
-          </div>
-          <div className="space-y-2">
-            {aiNotifs.filter(n => !n.is_read).slice(0, 3).map(n => (
-              <div key={n.id} className="flex items-start gap-3 p-3 rounded-lg" style={{
-                background: n.severity === "warning" ? "rgba(255,77,77,0.06)" : n.severity === "success" ? "rgba(46,213,115,0.06)" : "rgba(124,108,240,0.06)",
-                border: `1px solid ${n.severity === "warning" ? "rgba(255,77,77,0.2)" : n.severity === "success" ? "rgba(46,213,115,0.2)" : "rgba(124,108,240,0.2)"}`
-              }}>
-                <span className="text-sm">{n.severity === "warning" ? "⚠️" : n.severity === "success" ? "✅" : "💡"}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold">{n.title}</p>
-                  <p className="text-xs text-[var(--text2)] mt-0.5">{n.message}</p>
-                </div>
-                <button onClick={async () => {
-                  await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: n.id }) });
-                  setAiNotifs(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
-                }} className="text-[10px] text-[var(--text3)] hover:text-[var(--text)] flex-shrink-0">已讀</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {stats.map((s, i) => (
-          <div
-            key={i}
-            className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 relative overflow-hidden"
-          >
-            <div
-              className="absolute top-0 left-0 right-0 h-[3px]"
-              style={{
-                background: `linear-gradient(90deg, ${s.color}, ${s.color}80)`,
-              }}
-            />
-            <p className="text-xs text-[var(--text3)]">{s.label}</p>
-            <p className="text-2xl font-bold mt-1" style={{ color: s.color }}>
-              {s.value}
-            </p>
-            <p className="text-xs text-[var(--text2)] mt-1">{s.sub}</p>
-          </div>
-        ))}
       </div>
 
-      {/* Calendar Dashboard - 日曆 + 每日待辦 */}
-      <div className="mb-8">
-        <CalendarDashboard
-          userEmail={user.email}
-          currentDay={currentDay}
-          startDate={user.joinDate}
-          completedTasks={(() => {
-            try {
-              const stored = localStorage.getItem(`moyu_tasks_${user.email}`);
-              return stored ? JSON.parse(stored) : {};
-            } catch { return {}; }
-          })()}
-          onTaskToggle={(taskId: string) => {
-            try {
-              const key = `moyu_tasks_${user.email}`;
-              const stored = localStorage.getItem(key);
-              const tasks = stored ? JSON.parse(stored) : {};
-              tasks[taskId] = !tasks[taskId];
-              localStorage.setItem(key, JSON.stringify(tasks));
-            } catch { /* ignore */ }
-          }}
+      <div className="surface-elevated p-6 mb-4">
+        <h3 className="font-bold mb-4 text-sm">今日能量</h3>
+        <div className="flex justify-between gap-2">
+          {energyLabel.map((e, i) => (
+            <button
+              key={i}
+              onClick={() => setEnergy(i + 1)}
+              className="flex-1 py-4 rounded-xl text-base border transition-all"
+              style={{
+                borderColor: energy === i + 1 ? "var(--teal)" : "var(--border)",
+                background: energy === i + 1 ? "rgba(45,212,191,0.12)" : "var(--bg2)",
+              }}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="surface-elevated p-6 mb-4">
+        <label className="block text-sm font-bold mb-2">今日最重要的一件事</label>
+        <input
+          type="text"
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+          placeholder="例如：打完 30 通電話 / 完成 3 場邀約"
+          className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--bg2)] outline-none focus:border-[var(--accent)]"
         />
       </div>
 
-      {/* Daily Quiz */}
-      {dailyQuiz && dailyQuiz.questions && dailyQuiz.questions.length > 0 && (
-        <div className="mb-8 bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-xl">📝</span>
-            <h3 className="text-lg font-bold">今日 AI 測驗</h3>
-            {quizSubmitted && <span className="ml-auto text-sm font-bold" style={{ color: (quizScore || 0) >= 80 ? "var(--green)" : (quizScore || 0) >= 60 ? "var(--gold)" : "var(--red)" }}>{quizScore}分</span>}
-          </div>
-          {!quizSubmitted ? (
-            <div className="space-y-4">
-              {dailyQuiz.questions.map((q, qi) => (
-                <div key={qi} className="p-4 bg-[var(--bg2)] rounded-lg">
-                  <p className="text-sm font-semibold mb-3">{qi + 1}. {q.question}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {q.options.map((opt, oi) => (
-                      <button key={oi} onClick={() => setQuizAnswers(prev => ({ ...prev, [qi]: oi }))}
-                        className="text-left text-sm px-3 py-2 rounded-lg border transition-all"
-                        style={{
-                          background: quizAnswers[qi] === oi ? "rgba(124,108,240,0.15)" : "transparent",
-                          borderColor: quizAnswers[qi] === oi ? "var(--accent)" : "var(--border)",
-                          color: quizAnswers[qi] === oi ? "var(--text)" : "var(--text2)",
-                        }}
-                      >{String.fromCharCode(65 + oi)}. {opt}</button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <button
-                onClick={async () => {
-                  const answers = dailyQuiz.questions.map((_, i) => quizAnswers[i] ?? -1);
-                  try {
-                    const res = await fetch("/api/daily-quiz", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ quiz_id: dailyQuiz.id, user_email: user.email, answers }),
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setQuizScore(data.attempt?.score ?? 0);
-                    }
-                  } catch { /* ignore */ }
-                  setQuizSubmitted(true);
-                }}
-                disabled={Object.keys(quizAnswers).length < dailyQuiz.questions.length}
-                className="w-full py-3 rounded-lg font-bold text-white transition-all disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}
-              >交卷</button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {dailyQuiz.questions.map((q, qi) => {
-                const userAns = quizAnswers[qi] ?? -1;
-                const correct = q.correct;
-                return (
-                  <div key={qi} className="p-3 rounded-lg" style={{ background: userAns === correct ? "rgba(46,213,115,0.08)" : "rgba(255,77,77,0.08)" }}>
-                    <p className="text-sm font-semibold mb-1">{qi + 1}. {q.question}</p>
-                    <p className="text-xs">{userAns === correct ? "✅" : "❌"} 你的答案：{userAns >= 0 ? q.options[userAns] : "未作答"}</p>
-                    {userAns !== correct && <p className="text-xs text-green-400 mt-0.5">正確答案：{q.options[correct]}</p>}
-                    <p className="text-xs text-[var(--text3)] mt-1">💡 {q.explanation}</p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+      <div className="surface-elevated p-6 mb-6">
+        <label className="block text-sm font-bold mb-2">目前遇到的卡點（選填）</label>
+        <textarea
+          value={blocker}
+          onChange={(e) => setBlocker(e.target.value)}
+          placeholder="例如：打電話被秒掛、不知道怎麼處理客戶的價格問題"
+          rows={3}
+          className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--bg2)] outline-none focus:border-[var(--accent)]"
+        />
+      </div>
+
+      <button
+        onClick={save}
+        className="w-full py-3 rounded-xl font-bold text-white"
+        style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}
+      >
+        {saved ? "✅ 已儲存，更新數據" : "送出今日狀態"}
+      </button>
+      {saved && (
+        <p className="text-center text-xs text-[var(--text3)] mt-3">
+          今日已記錄，系統會同步到後台監測
+        </p>
       )}
-
-      {/* Recommended Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-          <h3 className="text-lg font-bold mb-4" style={{ color: "var(--accent-light)" }}>
-            推薦行動
-          </h3>
-          <div className="space-y-3">
-            {nextModule && (
-              <button
-                onClick={() => onNavigate("training")}
-                className="w-full flex items-center gap-3 p-3 rounded-lg bg-[var(--bg2)] border border-[var(--border)] hover:border-[var(--accent)] transition-all text-left"
-              >
-                <span className="text-2xl">📚</span>
-                <div>
-                  <p className="font-semibold text-sm">繼續學習</p>
-                  <p className="text-xs text-[var(--text2)]">
-                    Day {nextModule.day} — {nextModule.title}
-                  </p>
-                </div>
-              </button>
-            )}
-            <button
-              onClick={() => onNavigate("sparring")}
-              className="w-full flex items-center gap-3 p-3 rounded-lg bg-[var(--bg2)] border border-[var(--border)] hover:border-[var(--teal)] transition-all text-left"
-            >
-              <span className="text-2xl">🎯</span>
-              <div>
-                <p className="font-semibold text-sm">開始對練</p>
-                <p className="text-xs text-[var(--text2)]">
-                  {weakestDimension
-                    ? `加強 ${SCORE_LABELS[weakestDimension[0] as keyof typeof SCORE_LABELS]}（上次 ${weakestDimension[1]} 分）`
-                    : "選擇一位 AI 客戶開始練習"}
-                </p>
-              </div>
-            </button>
-            <button
-              onClick={() => onNavigate("kpi")}
-              className="w-full flex items-center gap-3 p-3 rounded-lg bg-[var(--bg2)] border border-[var(--border)] hover:border-[var(--gold)] transition-all text-left"
-            >
-              <span className="text-2xl">📈</span>
-              <div>
-                <p className="font-semibold text-sm">記錄今日 KPI</p>
-                <p className="text-xs text-[var(--text2)]">
-                  {todayKpi ? "已填寫，可更新" : "尚未填寫今天的數據"}
-                </p>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Recent Sparring */}
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-          <h3 className="text-lg font-bold mb-4" style={{ color: "var(--teal)" }}>
-            最近對練
-          </h3>
-          {user.sparringRecords.length === 0 ? (
-            <div className="text-center py-8 text-[var(--text3)]">
-              <p className="text-3xl mb-2">🎯</p>
-              <p>還沒有對練紀錄</p>
-              <p className="text-sm mt-1">去試試 AI 對練吧！</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {user.sparringRecords
-                .slice(-5)
-                .reverse()
-                .map((r) => (
-                  <div
-                    key={r.id}
-                    className="flex items-center gap-3 p-3 bg-[var(--bg2)] rounded-lg"
-                  >
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm"
-                      style={{
-                        background: `${getScoreColor(r.scores.overall)}20`,
-                        color: getScoreColor(r.scores.overall),
-                      }}
-                    >
-                      {r.scores.overall}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold">{r.personaName}</p>
-                      <p className="text-[10px] text-[var(--text3)]">
-                        {new Date(r.date).toLocaleDateString("zh-TW")} · {getScoreLabel(r.scores.overall)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Mentor Team Card */}
-      <div className="mt-6">
-        <MentorTeamCard userEmail={user.email} onNavigate={onNavigate} />
-      </div>
-    </div>
-  );
-}
-
-/* ===================== VIDEOS ===================== */
-function VideosPage({ brandId, userEmail }: { brandId: string; userEmail?: string }) {
-  const [selectedVideo, setSelectedVideo] = useState<TrainingVideo | null>(null);
-  const videoStartTime = useRef<number>(0);
-  const [activeCategory, setActiveCategory] = useState<string>("all");
-  const [dbVideos, setDbVideos] = useState<TrainingVideo[]>([]);
-
-  // Fetch published DB custom videos for this brand
-  useEffect(() => {
-    fetch(`/api/videos?brand=${encodeURIComponent(brandId)}`)
-      .then((r) => r.json())
-      .then((d) => {
-        const converted: TrainingVideo[] = (d.videos || []).map((v: { id: string; title: string; description?: string; drive_file_id?: string; brands?: string[]; related_days?: number[] }) => ({
-          id: `db-${v.id}`,
-          title: v.title,
-          description: v.description || "",
-          driveFileId: v.drive_file_id || "",
-          type: "video" as const,
-          size: "",
-          brands: v.brands || [],
-          relatedDays: v.related_days || [],
-          category: "custom",
-        }));
-        setDbVideos(converted);
-      })
-      .catch(() => setDbVideos([]));
-  }, [brandId]);
-
-  const categories = getCategoriesForBrand(brandId);
-  const staticVideos = getVideosForBrand(brandId);
-  const allVideos = [...staticVideos, ...dbVideos];
-  const filteredVideos =
-    activeCategory === "all"
-      ? allVideos
-      : allVideos.filter((v) => v.category === activeCategory);
-
-  return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">影片教學</h1>
-        <p className="text-[var(--text3)] text-sm">觀看訓練影片，學習 DEMO 流程與實戰技巧</p>
-      </div>
-
-      {/* Category Tabs */}
-      <div className="flex gap-2 mb-6 flex-wrap">
-        <button
-          onClick={() => setActiveCategory("all")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            activeCategory === "all"
-              ? "bg-[var(--accent)] text-white"
-              : "bg-[var(--bg2)] text-[var(--text2)] hover:bg-[var(--border)]"
-          }`}
-        >
-          全部影片 ({allVideos.length})
-        </button>
-        {categories.map((cat) => {
-          const count = allVideos.filter((v) => v.category === cat.id).length;
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeCategory === cat.id
-                  ? "bg-[var(--accent)] text-white"
-                  : "bg-[var(--bg2)] text-[var(--text2)] hover:bg-[var(--border)]"
-              }`}
-            >
-              {cat.icon} {cat.title} ({count})
-            </button>
-          );
-        })}
-        {dbVideos.length > 0 && (
-          <button
-            onClick={() => setActiveCategory("custom")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeCategory === "custom"
-                ? "bg-[var(--accent)] text-white"
-                : "bg-[var(--bg2)] text-[var(--text2)] hover:bg-[var(--border)]"
-            }`}
-          >
-            ➕ 補充影片 ({dbVideos.length})
-          </button>
-        )}
-      </div>
-
-      {/* Selected Video Player */}
-      {selectedVideo && (
-        <div className="mb-6 bg-[var(--bg2)] rounded-xl border border-[var(--border)] overflow-hidden">
-          <div className="aspect-video bg-black">
-            <iframe
-              src={getDriveEmbedUrl(selectedVideo.driveFileId, selectedVideo.type)}
-              className="w-full h-full"
-              allow="autoplay; encrypted-media"
-              allowFullScreen
-            />
-          </div>
-          <div className="p-4 flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-lg">{selectedVideo.title}</h3>
-              <p className="text-sm text-[var(--text3)]">
-                {selectedVideo.description} · {selectedVideo.size}
-                {selectedVideo.presenter && ` · 講者：${selectedVideo.presenter}`}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <a
-                href={getDriveLink(selectedVideo.driveFileId, selectedVideo.type)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-lg text-xs bg-[var(--border)] text-[var(--text2)] hover:text-white transition-colors"
-              >
-                在 Google Drive 開啟
-              </a>
-              <button
-                onClick={() => {
-                  if (selectedVideo && userEmail && videoStartTime.current > 0) {
-                    const watchSecs = Math.round((Date.now() - videoStartTime.current) / 1000);
-                    syncVideoProgress(userEmail, selectedVideo.id, watchSecs);
-                  }
-                  videoStartTime.current = 0;
-                  setSelectedVideo(null);
-                }}
-                className="px-3 py-1.5 rounded-lg text-xs bg-[var(--border)] text-[var(--text2)] hover:text-white transition-colors"
-              >
-                關閉
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Video Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredVideos.map((video) => (
-          <button
-            key={video.id}
-            onClick={() => {
-              // Track previous video watch time
-              if (selectedVideo && userEmail && videoStartTime.current > 0) {
-                const watchSecs = Math.round((Date.now() - videoStartTime.current) / 1000);
-                syncVideoProgress(userEmail, selectedVideo.id, watchSecs);
-              }
-              setSelectedVideo(video);
-              videoStartTime.current = Date.now();
-            }}
-            className={`text-left bg-[var(--bg2)] rounded-xl border transition-all hover:border-[var(--accent)] hover:shadow-lg ${
-              selectedVideo?.id === video.id
-                ? "border-[var(--accent)] shadow-lg"
-                : "border-[var(--border)]"
-            }`}
-          >
-            <div className="aspect-video bg-[var(--bg)] rounded-t-xl flex items-center justify-center relative overflow-hidden">
-              <div className="text-4xl">
-                {video.type === "slides" ? "📊" : "▶️"}
-              </div>
-              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-2 py-0.5 rounded">
-                {video.size}
-              </div>
-              {video.type === "slides" && (
-                <div className="absolute top-2 left-2 bg-blue-500/80 text-white text-[10px] px-2 py-0.5 rounded">
-                  簡報
-                </div>
-              )}
-            </div>
-            <div className="p-3">
-              <h4 className="font-semibold text-sm mb-1">{video.title}</h4>
-              <p className="text-xs text-[var(--text3)] line-clamp-2">{video.description}</p>
-              {video.presenter && (
-                <p className="text-xs text-[var(--accent)] mt-1">講者：{video.presenter}</p>
-              )}
-            </div>
-          </button>
-        ))}
-      </div>
-
-      {filteredVideos.length === 0 && (
-        <div className="text-center py-16 text-[var(--text3)]">
-          <div className="text-4xl mb-3">🎬</div>
-          <p>這個分類暫無影片</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ===================== TRAINING ===================== */
-function TrainingPage({ user, onUpdate }: { user: User; onUpdate: () => void }) {
-  const [selectedModule, setSelectedModule] = useState<number | null>(null);
-  const [quizMode, setQuizMode] = useState(false);
-  const [answers, setAnswers] = useState<number[]>([]);
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
-  const [taskDone, setTaskDone] = useState<Record<string, boolean>>({});
-  const [expandedTask, setExpandedTask] = useState<string | null>(null);
-  const [moduleOverrides, setModuleOverrides] = useState<Record<number, { resources?: TrainingResource[]; schedule?: DailyScheduleItem[] }>>({});
-  const brandModules = getModulesForBrand(user.brand);
-
-  // Fetch module overrides (resources & schedule) from admin
-  useEffect(() => {
-    fetch(`/api/admin/module-overrides?brand=${user.brand}`).then(r => r.json()).then(d => {
-      const map: Record<number, { resources?: TrainingResource[]; schedule?: DailyScheduleItem[] }> = {};
-      for (const o of (d.overrides || [])) {
-        const entry: { resources?: TrainingResource[]; schedule?: DailyScheduleItem[] } = {};
-        if (o.resources_override) entry.resources = o.resources_override;
-        if (o.schedule_override) entry.schedule = o.schedule_override;
-        if (entry.resources || entry.schedule) map[o.module_id] = entry;
-      }
-      setModuleOverrides(map);
-    }).catch(() => {});
-  }, [user.brand]);
-
-  // Merge overrides into the selected module
-  const rawMod = selectedModule !== null ? brandModules.find((m) => m.id === selectedModule) : null;
-  const mod = rawMod ? (() => {
-    const ov = moduleOverrides[rawMod.day];
-    if (!ov) return rawMod;
-    return {
-      ...rawMod,
-      ...(ov.resources ? { resources: ov.resources } : {}),
-      ...(ov.schedule ? { schedule: ov.schedule } : {}),
-    };
-  })() : null;
-
-  // Load task completions from localStorage
-  useEffect(() => {
-    const key = `moyu_tasks_${user.email}`;
-    const saved = localStorage.getItem(key);
-    if (saved) setTaskDone(JSON.parse(saved));
-  }, [user.email]);
-
-  const toggleTask = (taskId: string) => {
-    setTaskDone((prev) => {
-      const updated = { ...prev, [taskId]: !prev[taskId] };
-      localStorage.setItem(`moyu_tasks_${user.email}`, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  const handleQuizSubmit = () => {
-    if (!mod) return;
-    const correct = mod.quiz.reduce(
-      (c, q, i) => c + (answers[i] === q.answer ? 1 : 0),
-      0
-    );
-    const score = Math.round((correct / mod.quiz.length) * 100);
-    setQuizSubmitted(true);
-
-    const newScores = [
-      ...user.quizScores.filter((s) => s.moduleId !== mod.id),
-      { moduleId: mod.id, score, date: new Date().toISOString() },
-    ];
-
-    const newCompleted = score >= 60
-      ? [...new Set([...user.completedModules, mod.id])]
-      : user.completedModules;
-
-    const newProgress = Math.round((newCompleted.length / brandModules.length) * 100);
-    updateUser(user.email, {
-      quizScores: newScores,
-      completedModules: newCompleted,
-      progress: newProgress,
-    });
-
-    // Auto-complete the quiz task
-    if (score >= 60 && mod.tasks) {
-      const quizTask = mod.tasks.find((t) => t.type === "quiz");
-      if (quizTask) {
-        setTaskDone((prev) => {
-          const updated = { ...prev, [quizTask.id]: true };
-          localStorage.setItem(`moyu_tasks_${user.email}`, JSON.stringify(updated));
-          return updated;
-        });
-      }
-    }
-
-    syncQuizScore(user.email, mod.id, score);
-    const currentDay = Math.min(Math.max(...newCompleted, 0) + 1, 9);
-    syncProgress(user.email, newCompleted, newProgress, currentDay);
-    onUpdate();
-  };
-
-  if (mod) {
-    const prevScore = user.quizScores.find((s) => s.moduleId === mod.id);
-    const dayCompleted = user.completedModules.includes(mod.id);
-    const doneTasks = mod.tasks.filter((t) => t.type === "quiz" ? dayCompleted : taskDone[t.id]);
-    const taskProgress = mod.tasks.length > 0 ? Math.round((doneTasks.length / mod.tasks.length) * 100) : 0;
-    const firstUndone = mod.tasks.find((t) => t.type === "quiz" ? !dayCompleted : !taskDone[t.id]);
-
-    return (
-      <div className="animate-fade-in max-w-3xl">
-        <button
-          onClick={() => { setSelectedModule(null); setQuizMode(false); setQuizSubmitted(false); setAnswers([]); }}
-          className="text-sm text-[var(--text2)] hover:text-[var(--text)] mb-4 flex items-center gap-1"
-        >
-          ← 回到課程列表
-        </button>
-
-        {/* Header */}
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 mb-6">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl font-bold" style={{ background: dayCompleted ? "rgba(34,197,94,0.15)" : "rgba(99,102,241,0.15)", color: dayCompleted ? "var(--green)" : "var(--accent-light)" }}>
-              {dayCompleted ? "✓" : mod.day}
-            </div>
-            <div className="flex-1">
-              <h1 className="text-xl font-bold">Day {mod.day} — {mod.title}</h1>
-              <p className="text-sm text-[var(--text2)]">{mod.subtitle}</p>
-            </div>
-            {prevScore && (
-              <span className="px-3 py-1 rounded-lg text-sm font-bold" style={{ background: `${getScoreColor(prevScore.score)}20`, color: getScoreColor(prevScore.score) }}>
-                {prevScore.score} 分
-              </span>
-            )}
-          </div>
-          {/* Progress bar */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-3 bg-[var(--bg2)] rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${taskProgress}%`, background: taskProgress === 100 ? "var(--green)" : "linear-gradient(90deg, var(--accent), var(--teal))" }} />
-            </div>
-            <span className="text-sm font-bold" style={{ color: taskProgress === 100 ? "var(--green)" : "var(--accent)" }}>
-              {doneTasks.length}/{mod.tasks.length}
-            </span>
-          </div>
-          {/* Description */}
-          <p className="text-sm text-[var(--text2)] mt-4 leading-relaxed">{mod.description}</p>
-        </div>
-
-        {/* Daily Schedule */}
-        {mod.schedule && mod.schedule.length > 0 && (
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mb-4">
-            <h3 className="font-bold mb-3 text-sm" style={{ color: "var(--teal)" }}>📅 今日行程</h3>
-            <div className="space-y-2">
-              {mod.schedule.map((item, si) => (
-                <div key={si} className="flex items-start gap-3 p-2.5 bg-[var(--bg2)] rounded-lg">
-                  <span className="text-xs font-bold text-[var(--accent)] whitespace-nowrap mt-0.5" style={{ minWidth: 85 }}>{item.time}</span>
-                  <div>
-                    <p className="text-sm font-semibold">{item.task}</p>
-                    {item.description && <p className="text-xs text-[var(--text3)] mt-0.5">{item.description}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!quizMode ? (
-          <div className="space-y-3">
-            {/* KPI Targets */}
-            {mod.kpiTargets && (
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-2">
-                <p className="text-xs font-bold text-[var(--text3)] mb-3">今日 KPI 目標</p>
-                <div className="grid grid-cols-3 gap-3">
-                  {mod.kpiTargets.calls && <div className="text-center p-2 bg-[var(--bg2)] rounded-lg"><p className="text-lg font-bold" style={{ color: "var(--accent)" }}>{mod.kpiTargets.calls}</p><p className="text-[10px] text-[var(--text3)]">進線數</p></div>}
-                  {mod.kpiTargets.talkTime && <div className="text-center p-2 bg-[var(--bg2)] rounded-lg"><p className="text-lg font-bold" style={{ color: "var(--teal)" }}>{mod.kpiTargets.talkTime}</p><p className="text-[10px] text-[var(--text3)]">通話時長</p></div>}
-                  {mod.kpiTargets.invites && <div className="text-center p-2 bg-[var(--bg2)] rounded-lg"><p className="text-lg font-bold" style={{ color: "var(--gold)" }}>{mod.kpiTargets.invites}</p><p className="text-[10px] text-[var(--text3)]">邀約數</p></div>}
-                </div>
-              </div>
-            )}
-
-            {/* Task List */}
-            <div className="space-y-2">
-              {mod.tasks.map((task, idx) => {
-                const isQuizTask = task.type === "quiz";
-                const isDone = isQuizTask ? dayCompleted : taskDone[task.id];
-                const isCurrent = task.id === firstUndone?.id;
-                const isExpanded = expandedTask === task.id;
-                const resource = task.resourceIndex !== undefined && mod.resources ? mod.resources[task.resourceIndex] : null;
-
-                return (
-                  <div key={task.id}>
-                    <div
-                      className={`relative rounded-xl border transition-all cursor-pointer ${
-                        isDone
-                          ? "bg-[var(--card)] border-[var(--green)] border-opacity-30"
-                          : isCurrent
-                          ? "bg-[var(--card)] border-[var(--accent)] shadow-lg shadow-[var(--accent)]/10"
-                          : "bg-[var(--card)] border-[var(--border)] opacity-70"
-                      }`}
-                      onClick={() => {
-                        if (isQuizTask) {
-                          setQuizMode(true);
-                          setAnswers(new Array(mod.quiz.length).fill(-1));
-                          setQuizSubmitted(false);
-                        } else {
-                          setExpandedTask(isExpanded ? null : task.id);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-3 p-4">
-                        {/* Step number / checkbox */}
-                        <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 ${
-                            isDone
-                              ? "bg-[rgba(34,197,94,0.15)]"
-                              : isCurrent
-                              ? "bg-[rgba(99,102,241,0.15)]"
-                              : "bg-[var(--bg2)]"
-                          }`}
-                          style={{ color: isDone ? "var(--green)" : isCurrent ? "var(--accent)" : "var(--text3)" }}
-                        >
-                          {isDone ? "✓" : TASK_ICONS[task.type]}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className={`font-semibold text-sm ${isDone ? "line-through text-[var(--text3)]" : ""}`}>
-                              {idx + 1}. {task.title}
-                            </span>
-                            {isCurrent && !isDone && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "rgba(99,102,241,0.15)", color: "var(--accent-light)" }}>
-                                下一步
-                              </span>
-                            )}
-                          </div>
-                          {task.time && (
-                            <span className="text-[11px] font-mono" style={{ color: "var(--teal)" }}>{task.time}</span>
-                          )}
-                        </div>
-
-                        {/* Checkbox / action */}
-                        {!isQuizTask ? (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
-                            className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${
-                              isDone ? "border-[var(--green)] bg-[var(--green)]" : "border-[var(--border)] hover:border-[var(--accent)]"
-                            }`}
-                          >
-                            {isDone && <span className="text-white text-xs font-bold">✓</span>}
-                          </button>
-                        ) : (
-                          <div className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: isDone ? "rgba(34,197,94,0.15)" : "linear-gradient(135deg, var(--accent), var(--teal))", color: isDone ? "var(--green)" : "#fff" }}>
-                            {isDone ? "已通過" : "開始測驗"}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Expanded content */}
-                      {isExpanded && !isQuizTask && (
-                        <div className="px-4 pb-4 pt-0">
-                          <div className="border-t border-[var(--border)] pt-3 space-y-2">
-                            {task.description && (
-                              <p className="text-sm text-[var(--text2)]">{task.description}</p>
-                            )}
-                            {task.tip && (
-                              <div className="flex gap-2 items-start">
-                                <span className="text-[var(--gold)] shrink-0">💡</span>
-                                <p className="text-xs text-[var(--gold)]">{task.tip}</p>
-                              </div>
-                            )}
-                            {resource && (
-                              <a
-                                href={resource.driveFileId ? getDriveLink(resource.driveFileId, 'video') : resource.url || '#'}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-2 p-2 bg-[var(--bg2)] rounded-lg hover:border-[var(--accent)] border border-transparent transition-all text-sm"
-                              >
-                                <span>{resource.type === 'video' ? '🎬' : resource.type === 'recording' ? '🎙️' : '📝'}</span>
-                                <span className="text-[var(--accent-light)] font-medium truncate">{resource.title}</span>
-                                <span className="text-[var(--text3)] text-xs ml-auto shrink-0">打開 →</span>
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Key Points */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-4">
-              <h3 className="font-bold mb-3 text-sm" style={{ color: "var(--gold)" }}>💡 關鍵要點</h3>
-              <div className="space-y-2">
-                {mod.keyPoints.map((kp, i) => (
-                  <p key={i} className="text-xs text-[var(--text2)] leading-relaxed">• {kp}</p>
-                ))}
-              </div>
-            </div>
-
-            {/* Trainer Tips */}
-            {mod.trainerTips && mod.trainerTips.length > 0 && (
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-                <h3 className="font-bold mb-3 text-sm" style={{ color: "var(--gold)" }}>⚡ 講師提醒</h3>
-                <div className="space-y-2">
-                  {mod.trainerTips.map((tip, i) => (
-                    <p key={i} className="text-xs text-[var(--text2)] leading-relaxed">• {tip}</p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* All Resources */}
-            {mod.resources && mod.resources.length > 0 && (
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-                <h3 className="font-bold mb-3 text-sm" style={{ color: "var(--teal)" }}>📚 教學資源</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {mod.resources.map((res, ri) => {
-                    const icon = res.type === 'video' ? '🎬' : res.type === 'recording' ? '🎙️' : res.type === 'notion' ? '📝' : '📄';
-                    const href = res.driveFileId ? getDriveLink(res.driveFileId, 'video') : res.url || '#';
-                    return (
-                      <a key={ri} href={href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2.5 bg-[var(--bg2)] rounded-lg hover:border-[var(--accent)] border border-transparent transition-all">
-                        <span className="text-base">{icon}</span>
-                        <span className="text-xs font-medium truncate">{res.title}</span>
-                      </a>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Quiz Mode */
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <button onClick={() => setQuizMode(false)} className="text-sm text-[var(--text2)] hover:text-[var(--text)]">← 回到任務</button>
-              <span className="text-sm font-bold">每日測驗（{mod.quiz.length} 題）</span>
-            </div>
-            {mod.quiz.map((q, qi) => (
-              <div key={qi} className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-                <p className="font-semibold mb-3">{qi + 1}. {q.question}</p>
-                <div className="space-y-2">
-                  {q.options.map((opt, oi) => {
-                    const isSelected = answers[qi] === oi;
-                    const isCorrect = quizSubmitted && oi === q.answer;
-                    const isWrong = quizSubmitted && isSelected && oi !== q.answer;
-                    return (
-                      <button key={oi} onClick={() => { if (quizSubmitted) return; const na = [...answers]; na[qi] = oi; setAnswers(na); }}
-                        className={`w-full text-left px-4 py-2.5 rounded-lg border transition-all text-sm ${isCorrect ? "border-[var(--green)] bg-[rgba(16,172,132,0.1)]" : isWrong ? "border-[var(--red)] bg-[rgba(238,90,82,0.1)]" : isSelected ? "border-[var(--accent)] bg-[rgba(124,108,240,0.1)]" : "border-[var(--border)] hover:border-[var(--accent)]"}`}
-                        disabled={quizSubmitted}>{opt}</button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            {!quizSubmitted ? (
-              <button onClick={handleQuizSubmit} disabled={answers.includes(-1)}
-                className="w-full px-6 py-3 rounded-xl font-bold text-white disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}>
-                提交測驗
-              </button>
-            ) : (
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 text-center">
-                {(() => {
-                  const correct = mod.quiz.reduce((c, q, i) => c + (answers[i] === q.answer ? 1 : 0), 0);
-                  const score = Math.round((correct / mod.quiz.length) * 100);
-                  return (
-                    <>
-                      <p className="text-3xl font-bold mb-2" style={{ color: getScoreColor(score) }}>{score} 分</p>
-                      <p className="text-sm text-[var(--text2)]">{correct}/{mod.quiz.length} 正確</p>
-                      <p className="text-sm mt-3" style={{ color: score >= 60 ? "var(--green)" : "var(--red)" }}>
-                        {score >= 60 ? "🎉 恭喜通過！已解鎖下一天訓練" : "未達 60 分及格線，複習後再試一次"}
-                      </p>
-                      {score >= 60 && (
-                        <button onClick={() => { setQuizMode(false); setSelectedModule(null); }}
-                          className="mt-4 px-6 py-2.5 rounded-lg font-bold text-white"
-                          style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}>
-                          繼續下一天 →
-                        </button>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  /* ─── Module List View ─── */
-  return (
-    <div className="animate-fade-in">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">課程訓練</h1>
-        <p className="text-[var(--text2)] text-sm">完成每天的任務和測驗，逐步解鎖下一階段</p>
-        {/* Overall progress */}
-        <div className="mt-4 flex items-center gap-3">
-          <div className="flex-1 h-2.5 bg-[var(--bg2)] rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.round((user.completedModules.length / brandModules.length) * 100)}%`, background: "linear-gradient(90deg, var(--accent), var(--teal), var(--green))" }} />
-          </div>
-          <span className="text-sm font-bold text-[var(--accent)]">{user.completedModules.length}/{brandModules.length}</span>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {brandModules.map((m) => {
-          const completed = user.completedModules.includes(m.id);
-          const prevCompleted = m.id === 1 || user.completedModules.includes(m.id - 1);
-          const locked = !completed && !prevCompleted;
-          const isCurrent = !completed && prevCompleted;
-          const score = user.quizScores.find((s) => s.moduleId === m.id);
-          const mDoneTasks = m.tasks.filter((t) => t.type === "quiz" ? completed : taskDone[t.id]);
-          const mProgress = m.tasks.length > 0 ? Math.round((mDoneTasks.length / m.tasks.length) * 100) : 0;
-
-          return (
-            <button
-              key={m.id}
-              onClick={() => !locked && setSelectedModule(m.id)}
-              disabled={locked}
-              className={`w-full text-left rounded-xl border transition-all ${
-                locked ? "opacity-35 cursor-not-allowed border-[var(--border)] bg-[var(--card)]"
-                  : isCurrent ? "border-[var(--accent)] bg-[var(--card)] shadow-lg shadow-[var(--accent)]/10"
-                  : completed ? "border-[var(--green)] border-opacity-40 bg-[var(--card)]"
-                  : "border-[var(--border)] bg-[var(--card)] hover:border-[var(--accent)]"
-              }`}
-            >
-              <div className="flex items-center gap-4 p-4 pb-3">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 ${
-                  completed ? "bg-[rgba(34,197,94,0.15)] text-[var(--green)]"
-                    : isCurrent ? "bg-[rgba(99,102,241,0.15)] text-[var(--accent-light)]"
-                    : "bg-[var(--bg2)] text-[var(--text3)]"
-                }`}>
-                  {completed ? "✓" : locked ? "🔒" : m.day}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-sm truncate">Day {m.day} — {m.title}</p>
-                    {isCurrent && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0" style={{ background: "rgba(99,102,241,0.15)", color: "var(--accent-light)" }}>進行中</span>}
-                  </div>
-                  <p className="text-xs text-[var(--text3)] truncate">{m.subtitle}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  {score && <span className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: `${getScoreColor(score.score)}20`, color: getScoreColor(score.score) }}>{score.score}分</span>}
-                  {m.hasSparring && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[rgba(0,210,211,0.1)] text-[var(--teal)]">含對練</span>}
-                </div>
-              </div>
-              {/* Mini progress bar */}
-              {!locked && (
-                <div className="px-4 pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-[var(--bg2)] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${mProgress}%`, background: completed ? "var(--green)" : "var(--accent)" }} />
-                    </div>
-                    <span className="text-[10px] text-[var(--text3)]">{mDoneTasks.length}/{m.tasks.length}</span>
-                  </div>
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -2496,35 +1942,6 @@ function SparringPage({ user, onUpdate }: { user: User; onUpdate: () => void }) 
   );
 }
 
-/* ===================== PRICING ===================== */
-function PricingPage({ brandId }: { brandId: string }) {
-  const brand = brands[brandId];
-
-  return (
-    <div className="animate-fade-in max-w-3xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">報價方案</h1>
-        <p className="text-[var(--text2)]">{brand.fullName} 課程方案一覽</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        {brand.pricing.map((plan, i) => (
-          <div
-            key={i}
-            className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6 hover:border-[var(--accent)] transition-all"
-          >
-            <h3 className="font-bold text-lg mb-1">{plan.name}</h3>
-            <p className="text-2xl font-bold mb-2" style={{ color: brand.color }}>
-              {plan.price}
-            </p>
-            <p className="text-sm text-[var(--text2)]">{plan.description}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* ===================== KPI ===================== */
 function KpiPage({ user, onUpdate }: { user: User; onUpdate: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -2614,544 +2031,3 @@ function KpiPage({ user, onUpdate }: { user: User; onUpdate: () => void }) {
   );
 }
 
-/* ===================== COURSES (業務力課程) ===================== */
-
-interface CourseArticle {
-  id: string;
-  title: string;
-  category: string;
-  summary: string;
-  content: string;
-  source: string;
-  source_url?: string;
-  source_language?: string;
-  key_takeaways: string[];
-  tags: string[];
-  ai_analysis?: string;
-  created_at: string;
-  is_ai_generated: boolean;
-}
-
-const COURSE_CAT_LABELS: Record<string, { label: string; color: string; icon: string }> = {
-  sales_technique: { label: "銷售技巧", color: "var(--teal)", icon: "🎯" },
-  mindset: { label: "心態成長", color: "var(--gold)", icon: "🧠" },
-  industry_trend: { label: "產業趨勢", color: "var(--accent)", icon: "📈" },
-  negotiation: { label: "談判溝通", color: "var(--orange, #fb923c)", icon: "🤝" },
-  client_management: { label: "客戶經營", color: "var(--green)", icon: "👥" },
-  financial_news: { label: "財經時事", color: "#60a5fa", icon: "💰" },
-  success_story: { label: "成功案例", color: "#f472b6", icon: "⭐" },
-};
-
-function renderMarkdown(md: string): string {
-  const lines = md.split('\n');
-  const html: string[] = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) { html.push('<div class="h-2"></div>'); continue; }
-    if (trimmed.startsWith('### ')) { html.push(`<h4 class="text-base font-bold text-[var(--text)] mt-4 mb-1">${trimmed.slice(4)}</h4>`); continue; }
-    if (trimmed.startsWith('## ')) { html.push(`<h3 class="text-lg font-bold text-[var(--text)] mt-5 mb-2">${trimmed.slice(3)}</h3>`); continue; }
-    if (trimmed.startsWith('> ')) { html.push(`<blockquote class="border-l-2 border-[var(--accent)] pl-3 py-1 my-1 text-[var(--text2)] italic">${trimmed.slice(2)}</blockquote>`); continue; }
-    if (trimmed.startsWith('- ')) { html.push(`<div class="ml-4 flex gap-1"><span>•</span><span>${applyInline(trimmed.slice(2))}</span></div>`); continue; }
-    if (/^\d+\. /.test(trimmed)) { html.push(`<div class="ml-4">${applyInline(trimmed)}</div>`); continue; }
-    html.push(`<p class="my-0.5">${applyInline(trimmed)}</p>`);
-  }
-  return html.join('');
-}
-function applyInline(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-[var(--text)]">$1</strong>')
-    .replace(/❌/g, '<span class="text-red-400">❌</span>');
-}
-
-function CoursesPage() {
-  const [articles, setArticles] = useState<CourseArticle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("all");
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/articles?limit=50");
-        if (res.ok) {
-          const data = await res.json();
-          setArticles(data.articles || []);
-        }
-      } catch { /* ignore */ }
-      setLoading(false);
-    })();
-  }, []);
-
-  const filtered = filter === "all" ? articles : articles.filter(a => a.category === filter);
-
-  const categories = ["all", ...new Set(articles.map(a => a.category))];
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="text-4xl mb-4 animate-pulse">🔥</div>
-          <p className="text-[var(--text2)]">載入業務力課程...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">🔥 業務力課程</h1>
-        <p className="text-[var(--text2)] text-sm">
-          AI 每半天自動更新 — 精選全球業務銷售文章與影片，附 AI 深度分析
-        </p>
-      </div>
-
-      {/* Category filter */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {categories.map(cat => {
-          const info = COURSE_CAT_LABELS[cat];
-          const isActive = filter === cat;
-          return (
-            <button
-              key={cat}
-              onClick={() => setFilter(cat)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-              style={{
-                background: isActive
-                  ? (info?.color || "var(--accent)")
-                  : "var(--bg2)",
-                color: isActive ? "#fff" : "var(--text2)",
-                border: `1px solid ${isActive ? "transparent" : "var(--border)"}`,
-              }}
-            >
-              {cat === "all" ? "📋 全部" : `${info?.icon || "📄"} ${info?.label || cat}`}
-            </button>
-          );
-        })}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="text-center py-16 text-[var(--text3)]">
-          <p className="text-4xl mb-3">📭</p>
-          <p>尚無課程文章，AI 將在下次更新時自動產生</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filtered.map(article => {
-            const catInfo = COURSE_CAT_LABELS[article.category];
-            const isOpen = expanded === article.id;
-            const date = new Date(article.created_at);
-            const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours().toString().padStart(2,"0")}:${date.getMinutes().toString().padStart(2,"0")}`;
-
-            return (
-              <div
-                key={article.id}
-                className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden transition-all hover:border-[var(--accent)]"
-              >
-                {/* Header */}
-                <button
-                  onClick={() => setExpanded(isOpen ? null : article.id)}
-                  className="w-full text-left p-5 flex items-start gap-4"
-                >
-                  <span className="text-2xl flex-shrink-0 mt-1">{catInfo?.icon || "📄"}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <span
-                        className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                        style={{ background: `${catInfo?.color || "var(--accent)"}20`, color: catInfo?.color || "var(--accent)" }}
-                      >
-                        {catInfo?.label || article.category}
-                      </span>
-                      {article.source_language === "en" && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">🌐 國際</span>
-                      )}
-                      {article.is_ai_generated && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">🤖 AI 分析</span>
-                      )}
-                      <span className="text-[10px] text-[var(--text3)] ml-auto">{dateStr}</span>
-                    </div>
-                    <h3 className="font-bold text-[var(--text)] mb-1">{article.title}</h3>
-                    <p className="text-sm text-[var(--text2)] line-clamp-2">{article.summary}</p>
-                    {!isOpen && article.key_takeaways.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {article.key_takeaways.slice(0, 3).map((t, i) => (
-                          <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-[var(--bg2)] text-[var(--text3)]">
-                            💡 {t}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[var(--text3)] text-sm mt-2 flex-shrink-0">
-                    {isOpen ? "▲" : "▼"}
-                  </span>
-                </button>
-
-                {/* Expanded content */}
-                {isOpen && (
-                  <div className="border-t border-[var(--border)] p-5 space-y-5">
-                    {/* Key takeaways */}
-                    <div className="bg-[var(--bg2)] rounded-lg p-4">
-                      <h4 className="text-sm font-bold mb-2">📌 重點摘要</h4>
-                      <ul className="space-y-1.5">
-                        {article.key_takeaways.map((t, i) => (
-                          <li key={i} className="text-sm text-[var(--text2)] flex items-start gap-2">
-                            <span className="text-green-400 mt-0.5">✓</span> {t}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* Main content */}
-                    <div
-                      className="text-sm text-[var(--text2)] leading-relaxed space-y-3"
-                      dangerouslySetInnerHTML={{ __html: renderMarkdown(article.content) }}
-                    />
-
-                    {/* AI Analysis */}
-                    {article.ai_analysis && (
-                      <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
-                        <h4 className="text-sm font-bold text-purple-400 mb-2">🤖 AI 深度分析</h4>
-                        <p className="text-sm text-[var(--text2)] leading-relaxed">{article.ai_analysis}</p>
-                      </div>
-                    )}
-
-                    {/* Meta */}
-                    <div className="flex items-center justify-between text-[10px] text-[var(--text3)] pt-2 border-t border-[var(--border)]">
-                      <span>來源：{article.source}</span>
-                      <div className="flex gap-2">
-                        {article.tags?.map((tag, i) => (
-                          <span key={i} className="px-2 py-0.5 rounded bg-[var(--bg2)]">#{tag}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ===================== KNOWLEDGE ===================== */
-
-function KnowledgePage({ brandId }: { brandId: string }) {
-  const brand = brands[brandId];
-  const [activeSection, setActiveSection] = useState(0);
-  const [activeTopic, setActiveTopic] = useState(0);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatSending, setChatSending] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const isFinance = brandId === "nschool";
-  const botName = isFinance ? "財經知識通" : "職能知識通";
-  const category = isFinance ? "財經" : "職能";
-
-  const quickQuestions = isFinance
-    ? ["新手該怎麼開始學投資？", "ETF 跟個股差在哪？", "技術分析入門建議？"]
-    : brandId === "xuemi"
-    ? ["UI/UX 設計需要什麼基礎？", "前端跟後端差在哪？", "轉職設計師要多久？"]
-    : brandId === "aischool"
-    ? ["AI 工具能做什麼？", "學 AI 需要會寫程式嗎？", "AI 自動化怎麼應用？"]
-    : ["Python 零基礎能學嗎？", "學程式多久能轉職？", "AI 工程師薪水多少？"];
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
-
-  // Reset chat when brand changes
-  useEffect(() => {
-    setChatMessages([]);
-    setChatOpen(false);
-  }, [brandId]);
-
-  const sendChat = async (overrideMsg?: string) => {
-    const msg = overrideMsg || chatInput.trim();
-    if (!msg || chatSending) return;
-    const userMsg = { role: "user" as const, content: msg };
-    const newMsgs = [...chatMessages, userMsg];
-    setChatMessages(newMsgs);
-    setChatInput("");
-    setChatSending(true);
-    try {
-      const res = await fetch("/api/knowledge-bot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMsgs, brandId }),
-      });
-      const data = await res.json();
-      setChatMessages([...newMsgs, { role: "assistant", content: data.reply }]);
-    } catch {
-      setChatMessages([...newMsgs, { role: "assistant", content: "抱歉，暫時無法回覆，請稍後再試！" }]);
-    }
-    setChatSending(false);
-  };
-
-  // Dynamic import to keep page.tsx clean
-  const knowledgeData = (() => {
-    try {
-      const { getKnowledgeForBrand } = require("@/data/knowledge");
-      return getKnowledgeForBrand(brandId);
-    } catch { return null; }
-  })();
-
-  const sections = knowledgeData?.sections || [];
-  const currentSection = sections[activeSection];
-  const currentTopic = currentSection?.topics?.[activeTopic];
-
-  return (
-    <div className="animate-fade-in max-w-4xl">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-bold" style={{
-          background: `linear-gradient(135deg, ${brand.color}, var(--teal))`,
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-        }}>品牌知識庫</h1>
-        <button
-          onClick={() => setChatOpen(!chatOpen)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105"
-          style={{ background: `linear-gradient(135deg, ${brand.color}, var(--teal))` }}
-        >
-          <span>{chatOpen ? "📖" : "🤖"}</span>
-          {chatOpen ? "返回知識庫" : `問 ${botName}`}
-        </button>
-      </div>
-      <p className="text-sm text-[var(--text3)] mb-6">{brand.fullName} — {chatOpen ? `${category}知識 AI 助手` : "領域知識與品牌資訊"}</p>
-
-      {/* ── Knowledge Chatbot ── */}
-      {chatOpen ? (
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden" style={{ height: "calc(100vh - 200px)", maxHeight: 700 }}>
-          {/* Chat Header */}
-          <div className="px-5 py-4 text-white font-bold flex items-center gap-3" style={{ background: `linear-gradient(135deg, ${brand.color}, var(--teal))` }}>
-            <span className="text-2xl">🧠</span>
-            <div>
-              <p className="text-sm font-bold">{botName}</p>
-              <p className="text-[10px] opacity-80">{isFinance ? "投資理財知識問答" : "職能技術知識問答"} — AI 即時回覆</p>
-            </div>
-          </div>
-
-          {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ height: "calc(100% - 140px)" }}>
-            {chatMessages.length === 0 && (
-              <div className="text-center py-8">
-                <div className="text-4xl mb-3">🧠</div>
-                <h3 className="font-bold text-lg mb-2">嗨！我是{botName}</h3>
-                <p className="text-sm text-[var(--text3)] mb-4">
-                  {isFinance ? "投資理財、股票、ETF、技術分析...有什麼問題儘管問！" : "程式設計、AI 應用、UI/UX、轉職規劃...有什麼問題儘管問！"}
-                </p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {quickQuestions.map((q) => (
-                    <button key={q} onClick={() => { sendChat(q); }} className="text-xs px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg2)] hover:border-[var(--accent)] transition-all text-[var(--text2)]">
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {chatMessages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[85%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed ${
-                  m.role === "user"
-                    ? "text-white rounded-br-sm"
-                    : "bg-[var(--bg2)] text-[var(--text)] rounded-bl-sm"
-                }`} style={m.role === "user" ? { background: brand.color } : undefined}>
-                  <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>
-                </div>
-              </div>
-            ))}
-            {chatSending && (
-              <div className="flex justify-start">
-                <div className="bg-[var(--bg2)] px-3.5 py-2.5 rounded-xl rounded-bl-sm text-sm animate-pulse">{botName}思考中...</div>
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Chat Input */}
-          <div className="p-3 border-t border-[var(--border)]">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendChat(); } }}
-                placeholder={isFinance ? "問投資理財相關問題..." : "問技術或職能相關問題..."}
-                className="flex-1 px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] text-sm outline-none focus:border-[var(--accent)]"
-                disabled={chatSending}
-              />
-              <button onClick={() => sendChat()} disabled={!chatInput.trim() || chatSending}
-                className="px-4 py-2.5 rounded-lg text-white text-sm font-bold disabled:opacity-40"
-                style={{ background: `linear-gradient(135deg, ${brand.color}, var(--teal))` }}
-              >送出</button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Brand Info Card */}
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mb-6">
-            <div className="flex flex-wrap items-center gap-4 mb-3">
-              <div>
-                <h3 className="font-bold" style={{ color: brand.color }}>{brand.fullName}</h3>
-                <p className="text-xs text-[var(--text3)]">{brand.description}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-              <div className="p-2 bg-[var(--bg2)] rounded-lg">🌐 {brand.website}</div>
-              <div className="p-2 bg-[var(--bg2)] rounded-lg">💬 {brand.line}</div>
-              <div className="p-2 bg-[var(--bg2)] rounded-lg">📷 {brand.instagram}</div>
-              <div className="p-2 bg-[var(--bg2)] rounded-lg">📧 {brand.email}</div>
-            </div>
-            <div className="flex flex-wrap gap-2 mt-3">
-              {brand.courses.map((c, i) => (
-                <span key={i} className="text-xs px-2 py-1 rounded-full" style={{
-                  color: brand.color, backgroundColor: brand.colorLight,
-                }}>{c}</span>
-              ))}
-            </div>
-          </div>
-
-          {/* AI Bot Banner */}
-          <div
-            onClick={() => setChatOpen(true)}
-            className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-6 cursor-pointer transition-all hover:shadow-lg hover:border-[var(--accent)]"
-            style={{ background: `linear-gradient(135deg, ${brand.colorLight}, transparent)` }}
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">🧠</span>
-              <div className="flex-1">
-                <h3 className="font-bold text-sm" style={{ color: brand.color }}>{botName} — AI 知識問答</h3>
-                <p className="text-xs text-[var(--text3)]">{isFinance ? "投資理財有疑問？問我就對了！" : "技術轉職有疑問？問我就對了！"}</p>
-              </div>
-              <span className="text-lg">→</span>
-            </div>
-          </div>
-
-          {/* Domain Knowledge Sections */}
-          {sections.length > 0 && (
-            <>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {sections.map((s: any, i: number) => (
-                  <button key={s.id} onClick={() => { setActiveSection(i); setActiveTopic(0); }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      activeSection === i ? "text-white shadow-lg" : "bg-[var(--card)] text-[var(--text2)] border border-[var(--border)]"
-                    }`}
-                    style={activeSection === i ? { background: brand.color } : undefined}
-                  >{s.icon} {s.title}</button>
-                ))}
-              </div>
-
-              {currentSection && (
-                <div className="flex gap-4 flex-col md:flex-row">
-                  {/* Topic sidebar */}
-                  <div className="md:w-48 flex-shrink-0 space-y-1">
-                    {currentSection.topics.map((t: any, i: number) => (
-                      <button key={t.id} onClick={() => setActiveTopic(i)}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${
-                          activeTopic === i ? "font-bold" : "text-[var(--text3)] hover:text-[var(--text2)]"
-                        }`}
-                        style={activeTopic === i ? { color: brand.color, backgroundColor: brand.colorLight } : undefined}
-                      >{t.title}</button>
-                    ))}
-                  </div>
-
-                  {/* Topic content */}
-                  {currentTopic && (
-                    <div className="flex-1 space-y-4">
-                      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-                        <h3 className="font-bold text-lg mb-3">{currentTopic.title}</h3>
-                        {currentTopic.subtitle && <p className="text-sm text-[var(--text3)] mb-3">{currentTopic.subtitle}</p>}
-                        {currentTopic.content?.map((c: string, i: number) => (
-                          <p key={i} className="text-sm text-[var(--text2)] mb-2 leading-relaxed">{c}</p>
-                        ))}
-                      </div>
-
-                      {currentTopic.examples && (
-                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-                          <h4 className="font-bold text-sm mb-3 text-[var(--teal)]">實際應用案例</h4>
-                          <div className="space-y-2">
-                            {currentTopic.examples.map((e: any, i: number) => (
-                              <div key={i} className="flex gap-2 text-sm p-2 bg-[var(--bg2)] rounded-lg">
-                                <span className="text-[var(--text3)] flex-shrink-0">💡</span>
-                                <div><span className="text-[var(--text2)]">{e.scenario}</span> → <span className="font-medium" style={{ color: brand.color }}>{e.solution}</span></div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {currentTopic.salaryInfo && (
-                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-                          <h4 className="font-bold text-sm mb-3 text-[var(--gold)]">正職薪資行情</h4>
-                          <div className="space-y-2">
-                            {currentTopic.salaryInfo.map((s: any, i: number) => (
-                              <div key={i} className="flex justify-between items-center p-2 bg-[var(--bg2)] rounded-lg text-sm">
-                                <span className="font-medium">{s.position}</span>
-                                <span style={{ color: brand.color }}>{s.salary}</span>
-                              </div>
-                            ))}
-                          </div>
-                          {currentTopic.freelanceInfo && (
-                            <>
-                              <h4 className="font-bold text-sm mb-2 mt-4 text-[var(--teal)]">接案收入</h4>
-                              {currentTopic.freelanceInfo.map((f: any, i: number) => (
-                                <div key={i} className="flex justify-between items-center p-2 bg-[var(--bg2)] rounded-lg text-sm mb-1">
-                                  <span>{f.type}</span>
-                                  <span style={{ color: "var(--teal)" }}>{f.income}</span>
-                                </div>
-                              ))}
-                            </>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Memory Tips - Psychology-based learning */}
-                      {currentTopic.memoryTips && currentTopic.memoryTips.length > 0 && (
-                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5" style={{ borderLeft: `3px solid var(--accent)` }}>
-                          <h4 className="font-bold text-sm mb-3" style={{ color: "var(--accent)" }}>記憶技巧 & 溝通話術</h4>
-                          <div className="space-y-3">
-                            {currentTopic.memoryTips.map((tip: string, i: number) => (
-                              <div key={i} className="text-sm text-[var(--text2)] leading-relaxed p-3 bg-[var(--bg2)] rounded-lg">
-                                {tip}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Video Links */}
-                      {currentTopic.videoLinks && currentTopic.videoLinks.length > 0 && (
-                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-                          <h4 className="font-bold text-sm mb-3 text-[var(--red)]">補充學習影片</h4>
-                          <div className="space-y-2">
-                            {currentTopic.videoLinks.map((v: any, i: number) => (
-                              <a key={i} href={v.url} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-3 p-3 bg-[var(--bg2)] rounded-lg text-sm hover:bg-[var(--border)] transition-all cursor-pointer"
-                              >
-                                <span className="text-lg flex-shrink-0">▶️</span>
-                                <div className="flex-1">
-                                  <div className="font-medium text-[var(--text)]">{v.title}</div>
-                                  {v.duration && <div className="text-xs text-[var(--text3)] mt-0.5">{v.duration}</div>}
-                                </div>
-                                <span className="text-xs text-[var(--text3)]">→</span>
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
-}

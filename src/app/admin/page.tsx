@@ -1,12 +1,124 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "growth" | "dashboard" | "claude-tasks" | "recruits" | "users" | "training" | "mentorship" | "approvals" | "system";
+type AdminTab = "pillars" | "commands" | "org" | "people" | "system-hub";
+type CompanyScope = "all" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt";
+
+const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
+  { id: "all", label: "🌐 全集團視角", color: "#8b5cf6" },
+  { id: "nschool", label: "nSchool 財經", color: "#feca57" },
+  { id: "xuemi", label: "XUEMI 學米", color: "#7c6cf0" },
+  { id: "ooschool", label: "OOschool 無限", color: "#4F46E5" },
+  { id: "aischool", label: "AIschool 智能", color: "#10B981" },
+  { id: "moyuhunt", label: "墨宇獵頭", color: "#fb923c" },
+];
+
+// ─── v3 3 大支柱（業務 / 法務 / 招聘） ───────────────────────────────────────
+
+interface V3Pillar {
+  id: string;
+  name: string;
+  color: string;
+  description: string | null;
+  display_order: number;
+  project_count: number;
+  avg_progress: number;
+  health_dist: { healthy: number; warning: number; critical: number; unknown: number };
+  status_dist: { active: number; paused: number; done: number; dropped: number };
+  commands: { pending: number; done_today: number; blocked: number; ignored: number };
+  overall: "healthy" | "warning" | "critical" | "unknown";
+  diagnosis: string;
+}
+
+interface V3Project {
+  id: string;
+  pillar_id: string;
+  name: string;
+  goal: string;
+  owner_email: string | null;
+  status: string;
+  health: string;
+  progress: number;
+  deadline: string | null;
+  kpi_target: Record<string, unknown> | null;
+  kpi_actual: Record<string, unknown> | null;
+  diagnosis: string | null;
+  next_action: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface V3Command {
+  id: string;
+  project_id: string | null;
+  pillar_id: string | null;
+  owner_email: string;
+  title: string;
+  detail: string | null;
+  severity: "info" | "normal" | "high" | "critical";
+  deadline: string | null;
+  status: "pending" | "acknowledged" | "done" | "blocked" | "ignored";
+  ai_generated: boolean;
+  ai_reasoning: string | null;
+  created_at: string;
+  acknowledged_at: string | null;
+  done_at: string | null;
+  blocked_reason: string | null;
+}
+
+interface V3Insight {
+  id: string;
+  pillar_id: string | null;
+  insight_type: string;
+  content: string;
+  confidence: number;
+  applied: boolean;
+  created_at: string;
+}
+
+interface V3DashboardData {
+  ok: boolean;
+  generated_at: string;
+  empire: {
+    total_projects: number;
+    total_pending_commands: number;
+    total_done_today: number;
+    total_blocked: number;
+    total_ignored: number;
+    critical_pillars: number;
+    warning_pillars: number;
+  };
+  pillars: V3Pillar[];
+  projects: V3Project[];
+  recent_commands: V3Command[];
+  insights: V3Insight[];
+  alerts: { level: string; pillar: string; pillar_id: string; message: string }[];
+}
+
+const PILLAR_META: Record<string, { icon: string; tagline: string }> = {
+  sales: { icon: "💰", tagline: "賣課收單，業務戰力，4 個品牌的轉換漏斗" },
+  legal: { icon: "⚖️", tagline: "合約合規，智財佈局，糾紛與政府申報" },
+  recruit: { icon: "🎯", tagline: "人才漏斗，招聘員，面試與留任率" },
+};
+
+const HEALTH_META: Record<string, { color: string; label: string; bg: string }> = {
+  healthy: { color: "#10b981", label: "健康", bg: "rgba(16,185,129,0.12)" },
+  warning: { color: "#fbbf24", label: "警告", bg: "rgba(251,191,36,0.12)" },
+  critical: { color: "#ef4444", label: "危急", bg: "rgba(239,68,68,0.12)" },
+  unknown: { color: "#94a3b8", label: "未知", bg: "rgba(148,163,184,0.12)" },
+};
+
+const SEVERITY_META: Record<string, { color: string; label: string }> = {
+  info: { color: "#3b82f6", label: "提醒" },
+  normal: { color: "#8b5cf6", label: "一般" },
+  high: { color: "#fbbf24", label: "重要" },
+  critical: { color: "#ef4444", label: "緊急" },
+};
 
 interface AdminSession { name: string; email: string; token: string; }
 
@@ -71,7 +183,8 @@ function withAlpha(color: string, alpha: number): string {
 
 export default function AdminPage() {
   const [session, setSession] = useState<AdminSession | null>(null);
-  const [tab, setTab] = useState<AdminTab>("growth");
+  const [tab, setTab] = useState<AdminTab>("pillars");
+  const [scope, setScope] = useState<CompanyScope>("all");
 
   useEffect(() => {
     const saved = sessionStorage.getItem("adminSession");
@@ -91,16 +204,16 @@ export default function AdminPage() {
   if (!session) return <LoginScreen onLogin={handleLogin} />;
 
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
-    { id: "growth", label: "業務監測生長儀表板", icon: "🔥" },
-    { id: "dashboard", label: "業務戰力", icon: "📊" },
-    { id: "claude-tasks", label: "Claude 指派", icon: "🤖" },
-    { id: "recruits", label: "招聘漏斗", icon: "🎯" },
-    { id: "users", label: "用戶管理", icon: "👥" },
-    { id: "training", label: "訓練管理", icon: "📝" },
-    { id: "mentorship", label: "師徒管理", icon: "🤝" },
-    { id: "approvals", label: "審核中心", icon: "✅" },
-    { id: "system", label: "系統控制", icon: "⚙️" },
+    { id: "pillars", label: "指揮中心", icon: "👁️" },
+    { id: "commands", label: "命令中心", icon: "⚡" },
+    { id: "org", label: "組織架構", icon: "🏢" },
+    { id: "people", label: "人員管理", icon: "👥" },
+    { id: "system-hub", label: "系統管控", icon: "⚙️" },
   ];
+
+  const currentScope = COMPANY_OPTIONS.find((c) => c.id === scope) || COMPANY_OPTIONS[0];
+  // 業務範圍切換器只在「人員管理」分頁裡有意義（v3 指揮中心改用 3 支柱結構）
+  const showScopeBar = tab === "people";
 
   return (
     <div className="admin-light" style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
@@ -136,16 +249,60 @@ export default function AdminPage() {
       </aside>
 
       {/* Main content */}
-      <main style={{ flex: 1, marginLeft: 240, padding: "28px 36px" }}>
-        {tab === "growth" && <GrowthDashboardTab />}
-        {tab === "dashboard" && <DashboardTab token={session.token} />}
-        {tab === "claude-tasks" && <ClaudeTasksTab token={session.token} />}
-        {tab === "recruits" && <RecruitsTab />}
-        {tab === "users" && <UsersTab token={session.token} />}
-        {tab === "training" && <TrainingTab token={session.token} />}
-        {tab === "mentorship" && <MentorshipTab token={session.token} />}
-        {tab === "approvals" && <ApprovalsTab token={session.token} />}
-        {tab === "system" && <SystemTab />}
+      <main style={{ flex: 1, marginLeft: 240, padding: "0" }}>
+        {/* Top bar — visible only when scope filter is meaningful (人員管理) */}
+        {showScopeBar && (
+          <div style={{
+            background: "var(--card)",
+            borderBottom: "1px solid var(--border)",
+            padding: "16px 36px",
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            position: "sticky",
+            top: 0,
+            zIndex: 5,
+            backdropFilter: "blur(10px)",
+          }}>
+            <div style={{ fontSize: 12, color: "var(--text3)", fontWeight: 600, letterSpacing: 0.5 }}>檢視範圍</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {COMPANY_OPTIONS.map((opt) => {
+                const active = scope === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => setScope(opt.id)}
+                    style={{
+                      background: active ? opt.color : "transparent",
+                      color: active ? "#fff" : "var(--text2)",
+                      border: `1px solid ${active ? opt.color : "var(--border)"}`,
+                      borderRadius: 8,
+                      padding: "6px 14px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--text3)" }}>
+              目前檢視：<span style={{ color: currentScope.color, fontWeight: 700 }}>{currentScope.label}</span>
+            </div>
+          </div>
+        )}
+
+        <div style={{ padding: "28px 36px" }}>
+          {tab === "pillars" && <V3PillarsBoard />}
+          {tab === "commands" && <V3CommandsHub />}
+          {tab === "org" && <V3OrgChartTab />}
+          {tab === "people" && <PeopleHubTab token={session.token} scope={scope} />}
+          {tab === "system-hub" && <SystemHubTab token={session.token} />}
+        </div>
       </main>
     </div>
   );
@@ -194,6 +351,2412 @@ function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
             {loading ? "登入中..." : "登入"}
           </button>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Command Center (指揮中心) ─────────────────────────────────────────────
+
+interface ChairmanBrand {
+  id: string;
+  name: string;
+  color: string;
+  type: "sales" | "recruit";
+  active_reps?: number;
+  silent_reps?: number;
+  silent_ratio?: number;
+  today_calls?: number;
+  today_valid_calls?: number;
+  today_appointments?: number;
+  today_closures?: number;
+  week_calls?: number;
+  week_closures?: number;
+  call_to_appt_rate?: number;
+  appt_to_close_rate?: number;
+  status: "healthy" | "warning" | "critical" | "unknown";
+  diagnosis: string;
+  funnel_total?: number;
+  funnel_by_stage?: Record<string, number>;
+  this_week_new?: number;
+  this_month_passed?: number;
+  this_month_dropped?: number;
+  conversion_rate?: number;
+}
+
+interface ChairmanData {
+  ok: boolean;
+  generated_at: string;
+  empire: {
+    total_active_reps: number;
+    total_silent_today: number;
+    total_calls_today: number;
+    total_appointments_today: number;
+    total_closures_today: number;
+    total_sparring_week: number;
+    avg_sparring_week: number;
+    critical_count: number;
+    warning_count: number;
+    recruit_funnel_total: number;
+  };
+  sales_brands: ChairmanBrand[];
+  recruit: ChairmanBrand;
+  alerts: { level: string; company: string; message: string }[];
+}
+
+function CommandCenterTab({ scope }: { scope: CompanyScope }) {
+  // 單一公司視角 → 直接顯示該公司深度資料；
+  // 全集團視角 → 顯示聚合儀表板。
+  // 注意：分流寫成兩個獨立子元件，避免在同一個函式內早返回後再呼叫 hooks 而違反 Rules of Hooks。
+  if (scope !== "all") return <CompanyDrilldown brandId={scope} />;
+  return <CommandCenterAggregate />;
+}
+
+function CommandCenterAggregate() {
+  const [data, setData] = useState<ChairmanData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/chairman-overview", { cache: "no-store" });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "讀取失敗");
+      setData(json);
+      setRefreshedAt(new Date());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "讀取失敗");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 60000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  if (loading && !data) {
+    return <div style={{ color: "var(--text2)", padding: 40, textAlign: "center" }}>建構戰局視圖中...</div>;
+  }
+
+  if (error && !data) {
+    return (
+      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#ef4444" }}>
+        錯誤：{error}
+        <button onClick={load} style={{ marginLeft: 12, background: "transparent", border: "1px solid #ef4444", color: "#ef4444", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>重試</button>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const empire = data.empire;
+  const allCompanies: ChairmanBrand[] = [...data.sales_brands, data.recruit];
+
+  return (
+    <div>
+      {/* HERO */}
+      <div style={{
+        background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #581c87 100%)",
+        borderRadius: 20,
+        padding: "32px 36px",
+        marginBottom: 24,
+        position: "relative",
+        overflow: "hidden",
+        color: "#fff",
+      }}>
+        {/* decorative orbs */}
+        <div style={{ position: "absolute", top: -60, right: -40, width: 220, height: 220, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,146,60,0.35), transparent 70%)" }} />
+        <div style={{ position: "absolute", bottom: -80, left: 80, width: 280, height: 280, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.3), transparent 70%)" }} />
+
+        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.6)", letterSpacing: 2, marginBottom: 8 }}>COMMAND CENTER</div>
+            <div style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, lineHeight: 1.1, background: "linear-gradient(135deg, #fff, #fbbf24, #fb923c)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              👁️ 指揮中心
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
+              5 家公司 · 全集團即時戰況 {refreshedAt && `· 最後更新 ${refreshedAt.toLocaleTimeString("zh-TW")}`}
+            </div>
+          </div>
+          <button onClick={load} disabled={loading} style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 600, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.6 : 1, backdropFilter: "blur(10px)" }}>
+            {loading ? "刷新中..." : "🔄 立即刷新"}
+          </button>
+        </div>
+
+        {/* Empire stats grid */}
+        <div style={{ position: "relative", marginTop: 28, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14 }}>
+          <EmpireStat label="在線業務" value={empire.total_active_reps} sub={`${empire.total_silent_today} 沒開口`} accent="#3b82f6" />
+          <EmpireStat label="今日通數" value={empire.total_calls_today} sub={`/ ${empire.total_active_reps * 30} 目標`} accent="#fbbf24" />
+          <EmpireStat label="今日邀約" value={empire.total_appointments_today} accent="#a855f7" />
+          <EmpireStat label="今日成交" value={empire.total_closures_today} accent="#10b981" />
+          <EmpireStat label="招聘漏斗" value={empire.recruit_funnel_total} sub="人在跑" accent="#fb923c" />
+          <EmpireStat label="本週對練" value={empire.total_sparring_week} sub={empire.avg_sparring_week > 0 ? `平均 ${empire.avg_sparring_week.toFixed(1)} 分` : ""} accent="#06b6d4" />
+        </div>
+
+        {/* Alert summary */}
+        {(empire.critical_count > 0 || empire.warning_count > 0) && (
+          <div style={{ position: "relative", marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {empire.critical_count > 0 && (
+              <div style={{ background: "rgba(239,68,68,0.25)", border: "1px solid rgba(239,68,68,0.5)", borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600 }}>
+                🔴 {empire.critical_count} 家公司危急 — 立刻處理
+              </div>
+            )}
+            {empire.warning_count > 0 && (
+              <div style={{ background: "rgba(249,115,22,0.2)", border: "1px solid rgba(249,115,22,0.5)", borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600 }}>
+                🟠 {empire.warning_count} 家公司警告
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Section title */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>🏢 5 家公司即時戰況</div>
+        <div style={{ fontSize: 12, color: "var(--text3)" }}>每 60 秒自動刷新</div>
+      </div>
+
+      {/* Company cards grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, marginBottom: 24 }}>
+        {data.sales_brands.map((b) => <SalesBrandCard key={b.id} brand={b} />)}
+        <RecruitCompanyCard brand={data.recruit} />
+      </div>
+
+      {/* Alerts feed */}
+      {data.alerts.length > 0 && (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 24 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14, color: "var(--text)" }}>⚠️ 警報串流</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {data.alerts.map((a, i) => {
+              const c = STATUS_COLORS[a.level] || STATUS_COLORS.warning;
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: c.bg, border: `1px solid ${c.border}`, borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: c.text, padding: "3px 8px", border: `1px solid ${c.border}`, borderRadius: 6, whiteSpace: "nowrap" }}>{c.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", minWidth: 100 }}>{a.company}</div>
+                  <div style={{ fontSize: 13, color: "var(--text2)", flex: 1 }}>{a.message}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{ padding: 16, background: "var(--bg2)", borderRadius: 10, border: "1px solid var(--border)", color: "var(--text3)", fontSize: 12, lineHeight: 1.7 }}>
+        <strong style={{ color: "var(--text2)" }}>戰局視角：</strong>
+        每家公司獨立呈現，每分鐘戰況一目了然。看到紅色立刻介入，看到灰色立刻搞數據蒐集。
+        想看單家深度資料 → 上方切換「檢視範圍」到該公司即可。
+      </div>
+    </div>
+  );
+}
+
+function EmpireStat({ label, value, sub, accent }: { label: string; value: number; sub?: string; accent: string }) {
+  return (
+    <div style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 14, padding: "14px 16px", backdropFilter: "blur(10px)" }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.6)", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: accent, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function SalesBrandCard({ brand }: { brand: ChairmanBrand }) {
+  const colors = STATUS_COLORS[brand.status];
+  const callTarget = (brand.active_reps || 0) * 30;
+  const callProgress = callTarget > 0 ? Math.min(100, ((brand.today_calls || 0) / callTarget) * 100) : 0;
+
+  return (
+    <div style={{ background: "var(--card)", border: `1px solid ${colors.border}`, borderRadius: 16, padding: 18, position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: brand.color }} />
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: 4, marginBottom: 14, gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: brand.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14 }}>
+            {brand.name.slice(0, 1)}
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{brand.name}</div>
+            <div style={{ fontSize: 11, color: "var(--text3)" }}>業務公司 · {brand.active_reps || 0} 位業務</div>
+          </div>
+        </div>
+        <div style={{ background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: 6, padding: "3px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>
+          {colors.label}
+        </div>
+      </div>
+
+      {/* 4-metric quad */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+        <MetricCell label="今日通數" value={brand.today_calls || 0} sub={`${brand.today_valid_calls || 0} 有效`} />
+        <MetricCell label="今日邀約" value={brand.today_appointments || 0} sub={brand.call_to_appt_rate ? `${Math.round(brand.call_to_appt_rate * 100)}% 轉化` : ""} />
+        <MetricCell label="今日成交" value={brand.today_closures || 0} sub={brand.appt_to_close_rate ? `${Math.round(brand.appt_to_close_rate * 100)}% 收網` : ""} accent="#10b981" />
+        <MetricCell label="沒開口" value={brand.silent_reps || 0} sub={`${Math.round((brand.silent_ratio || 0) * 100)}%`} accent={brand.silent_ratio && brand.silent_ratio > 0.2 ? "#ef4444" : undefined} />
+      </div>
+
+      {/* Progress bar (call target) */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>
+          <span>每日通數達成率</span>
+          <span style={{ fontWeight: 600, color: callProgress >= 100 ? "#22c55e" : callProgress >= 70 ? "#fbbf24" : "#ef4444" }}>
+            {Math.round(callProgress)}% ({brand.today_calls || 0}/{callTarget})
+          </span>
+        </div>
+        <div style={{ height: 6, background: "var(--bg2)", borderRadius: 99, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${callProgress}%`, background: callProgress >= 100 ? "#22c55e" : callProgress >= 70 ? "#fbbf24" : "#ef4444", borderRadius: 99, transition: "width 0.5s" }} />
+        </div>
+      </div>
+
+      {/* Diagnosis */}
+      <div style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: "var(--text)", lineHeight: 1.5 }}>
+        <span style={{ fontSize: 10, color: colors.text, fontWeight: 700, marginRight: 6, letterSpacing: 0.5 }}>診斷</span>
+        {brand.diagnosis}
+      </div>
+    </div>
+  );
+}
+
+function RecruitCompanyCard({ brand }: { brand: ChairmanBrand }) {
+  const colors = STATUS_COLORS[brand.status];
+  const stages = brand.funnel_by_stage || {};
+  const stageOrder = ["applied", "screening", "interview_1", "interview_2", "offer", "onboarded"];
+  const stageLabels: Record<string, string> = {
+    applied: "投遞", screening: "篩選", interview_1: "一面", interview_2: "二面", offer: "Offer", onboarded: "報到",
+  };
+
+  return (
+    <div style={{ background: "var(--card)", border: `1px solid ${colors.border}`, borderRadius: 16, padding: 18, position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: brand.color }} />
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: 4, marginBottom: 14, gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: brand.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14 }}>
+            🎯
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{brand.name}</div>
+            <div style={{ fontSize: 11, color: "var(--text3)" }}>獵頭公司 · 漏斗 {brand.funnel_total || 0} 人</div>
+          </div>
+        </div>
+        <div style={{ background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: 6, padding: "3px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>
+          {colors.label}
+        </div>
+      </div>
+
+      {/* 4-metric quad */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+        <MetricCell label="漏斗中" value={brand.funnel_total || 0} accent={brand.color} />
+        <MetricCell label="本週新增" value={brand.this_week_new || 0} />
+        <MetricCell label="本月通過" value={brand.this_month_passed || 0} accent="#10b981" />
+        <MetricCell label="本月流失" value={brand.this_month_dropped || 0} accent="#ef4444" />
+      </div>
+
+      {/* Funnel mini-bars */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 6 }}>漏斗階段分布</div>
+        <div style={{ display: "flex", gap: 3 }}>
+          {stageOrder.map((sid) => {
+            const count = stages[sid] || 0;
+            const max = Math.max(1, ...stageOrder.map((s) => stages[s] || 0));
+            const h = 18 + (count / max) * 22;
+            return (
+              <div key={sid} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                <div style={{ height: h, width: "100%", background: count > 0 ? brand.color : "var(--bg2)", borderRadius: 4, opacity: count > 0 ? 0.85 : 0.4, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 2, fontSize: 10, color: "#fff", fontWeight: 700 }}>
+                  {count > 0 ? count : ""}
+                </div>
+                <div style={{ fontSize: 9, color: "var(--text3)" }}>{stageLabels[sid]}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Diagnosis */}
+      <div style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: "var(--text)", lineHeight: 1.5 }}>
+        <span style={{ fontSize: 10, color: colors.text, fontWeight: 700, marginRight: 6, letterSpacing: 0.5 }}>診斷</span>
+        {brand.diagnosis}
+      </div>
+    </div>
+  );
+}
+
+function MetricCell({ label, value, sub, accent }: { label: string; value: number | string; sub?: string; accent?: string }) {
+  return (
+    <div style={{ background: "var(--bg2)", borderRadius: 8, padding: "9px 11px" }}>
+      <div style={{ fontSize: 10, color: "var(--text3)", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 19, fontWeight: 800, color: accent || "var(--text)", lineHeight: 1.1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ─── v3 指揮中心：3 大支柱專案戰況板 ───────────────────────────────────────
+
+function V3PillarsBoard() {
+  const [data, setData] = useState<V3DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [missingMigration, setMissingMigration] = useState(false);
+  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+  const [activePillar, setActivePillar] = useState<string | null>(null);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [draftPillar, setDraftPillar] = useState<string>("sales");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setMissingMigration(false);
+    try {
+      const res = await fetch("/api/v3/dashboard", { cache: "no-store" });
+      const json = await res.json();
+      if (!json.ok) {
+        if (json.missing_migration) setMissingMigration(true);
+        throw new Error(json.error || "讀取失敗");
+      }
+      setData(json);
+      setRefreshedAt(new Date());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "讀取失敗");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  if (loading && !data) {
+    return <div style={{ padding: 60, textAlign: "center", color: "var(--text2)" }}>建構 3 大支柱戰況...</div>;
+  }
+  if (missingMigration && !data) {
+    return (
+      <div style={{ background: "linear-gradient(135deg, #1e1b4b, #4c1d95)", borderRadius: 16, padding: 32, color: "#fff" }}>
+        <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>🚧 v3 資料表還沒建立</div>
+        <div style={{ fontSize: 13, lineHeight: 1.7, opacity: 0.85, marginBottom: 18 }}>
+          指揮中心需要 v3 的 6 張新表（pillars / projects / commands / line_dispatch / response_log / ai_insights）。
+          請依下列步驟一次性開出來：
+        </div>
+        <ol style={{ paddingLeft: 22, fontSize: 13, lineHeight: 1.8 }}>
+          <li>打開 <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 6px", borderRadius: 4 }}>moyu-academy/supabase-migration-v3-pillars.sql</code></li>
+          <li>整份貼到 Supabase Dashboard → SQL Editor</li>
+          <li>按 RUN，等到下方看到 6 個 success 訊息</li>
+          <li>回來這頁按「重試」</li>
+        </ol>
+        <button onClick={load} style={{ marginTop: 18, background: "rgba(255,255,255,0.2)", color: "#fff", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, padding: "10px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          🔄 我跑完了，重試
+        </button>
+      </div>
+    );
+  }
+  if (error && !data) {
+    return (
+      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#ef4444" }}>
+        錯誤：{error}
+        <button onClick={load} style={{ marginLeft: 12, background: "transparent", border: "1px solid #ef4444", color: "#ef4444", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>重試</button>
+      </div>
+    );
+  }
+  if (!data) return null;
+
+  const empire = data.empire;
+
+  return (
+    <div>
+      {/* HERO */}
+      <div style={{
+        background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #581c87 100%)",
+        borderRadius: 20,
+        padding: "32px 36px",
+        marginBottom: 24,
+        position: "relative",
+        overflow: "hidden",
+        color: "#fff",
+      }}>
+        <div style={{ position: "absolute", top: -60, right: -40, width: 220, height: 220, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,146,60,0.35), transparent 70%)" }} />
+        <div style={{ position: "absolute", bottom: -80, left: 80, width: 280, height: 280, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.3), transparent 70%)" }} />
+
+        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.6)", letterSpacing: 2, marginBottom: 8 }}>CLAUDE / CEO COMMAND CENTER</div>
+            <div style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, lineHeight: 1.1, background: "linear-gradient(135deg, #fff, #fbbf24, #fb923c)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              👁️ 3 大支柱戰況
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
+              業務 / 法務 / 招聘 — Claude 自動觀測，每天透過 LINE 派發命令
+              {refreshedAt && ` · 最後更新 ${refreshedAt.toLocaleTimeString("zh-TW")}`}
+            </div>
+          </div>
+          <button onClick={load} disabled={loading} style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 600, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.6 : 1, backdropFilter: "blur(10px)" }}>
+            {loading ? "刷新中..." : "🔄 立即刷新"}
+          </button>
+        </div>
+
+        {/* Empire stats grid */}
+        <div style={{ position: "relative", marginTop: 28, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14 }}>
+          <V3HeroStat label="進行中專案" value={empire.total_projects} accent="#a855f7" />
+          <V3HeroStat label="待辦命令" value={empire.total_pending_commands} sub="LINE 待推" accent="#fbbf24" />
+          <V3HeroStat label="今日完成" value={empire.total_done_today} accent="#10b981" />
+          <V3HeroStat label="卡住" value={empire.total_blocked} accent="#fb923c" />
+          <V3HeroStat label="被忽略" value={empire.total_ignored} sub="員工失控" accent="#ef4444" />
+          <V3HeroStat label="紅燈支柱" value={empire.critical_pillars} sub={`${empire.warning_pillars} 黃燈`} accent="#ef4444" />
+        </div>
+
+        {/* Alert summary */}
+        {(empire.critical_pillars > 0 || empire.warning_pillars > 0) && (
+          <div style={{ position: "relative", marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {empire.critical_pillars > 0 && (
+              <div style={{ background: "rgba(239,68,68,0.25)", border: "1px solid rgba(239,68,68,0.5)", borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600 }}>
+                🔴 {empire.critical_pillars} 個支柱危急
+              </div>
+            )}
+            {empire.warning_pillars > 0 && (
+              <div style={{ background: "rgba(249,115,22,0.2)", border: "1px solid rgba(249,115,22,0.5)", borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600 }}>
+                🟠 {empire.warning_pillars} 個支柱警告
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Action bar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>🏛️ 3 大支柱</div>
+        <button
+          onClick={() => { setShowNewProject(true); setDraftPillar("sales"); }}
+          style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff", border: "none", borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+        >
+          + 新增專案
+        </button>
+      </div>
+
+      {/* Pillar cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 16, marginBottom: 24 }}>
+        {data.pillars.map((p) => (
+          <V3PillarCard
+            key={p.id}
+            pillar={p}
+            projects={data.projects.filter((pr) => pr.pillar_id === p.id)}
+            onOpen={() => setActivePillar(p.id)}
+          />
+        ))}
+      </div>
+
+      {/* Alerts feed */}
+      {data.alerts.length > 0 && (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 24 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14, color: "var(--text)" }}>⚠️ 警報串流</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {data.alerts.map((a, i) => {
+              const meta = HEALTH_META[a.level] || HEALTH_META.warning;
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: meta.bg, border: `1px solid ${meta.color}55`, borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: meta.color, padding: "3px 8px", border: `1px solid ${meta.color}`, borderRadius: 6, whiteSpace: "nowrap" }}>{meta.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", minWidth: 60 }}>{a.pillar}</div>
+                  <div style={{ fontSize: 13, color: "var(--text2)", flex: 1 }}>{a.message}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* AI Insights */}
+      {data.insights.length > 0 && (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 24 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14, color: "var(--text)" }}>🧠 Claude 觀察筆記</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {data.insights.slice(0, 5).map((i) => (
+              <div key={i.id} style={{ padding: "10px 14px", background: "var(--bg2)", borderRadius: 8, fontSize: 13, color: "var(--text2)", lineHeight: 1.5 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#8b5cf6", marginRight: 8, letterSpacing: 0.5 }}>{i.insight_type.toUpperCase()}</span>
+                {i.content}
+                <span style={{ fontSize: 10, color: "var(--text3)", marginLeft: 8 }}>信心 {Math.round(i.confidence * 100)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{ padding: 16, background: "var(--bg2)", borderRadius: 10, border: "1px solid var(--border)", color: "var(--text3)", fontSize: 12, lineHeight: 1.7 }}>
+        <strong style={{ color: "var(--text2)" }}>v3 戰局視角：</strong>
+        Claude 是 CEO，3 大支柱（業務 / 法務 / 招聘）每天自動觀測。看到紅燈立刻產生命令推給負責人，
+        員工偷懶時 Claude 直接發 LINE 通知。所有反應紀錄都會餵回 Claude 自我學習。
+      </div>
+
+      {/* Drilldown drawer */}
+      {activePillar && (
+        <V3PillarDrawer
+          pillar={data.pillars.find((p) => p.id === activePillar)!}
+          projects={data.projects.filter((pr) => pr.pillar_id === activePillar)}
+          commands={data.recent_commands.filter((c) => c.pillar_id === activePillar)}
+          onClose={() => setActivePillar(null)}
+          onUpdated={load}
+        />
+      )}
+
+      {/* New project modal */}
+      {showNewProject && (
+        <V3NewProjectModal
+          defaultPillar={draftPillar}
+          onClose={() => setShowNewProject(false)}
+          onCreated={() => { setShowNewProject(false); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function V3HeroStat({ label, value, sub, accent }: { label: string; value: number; sub?: string; accent: string }) {
+  return (
+    <div style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 14, padding: "14px 16px", backdropFilter: "blur(10px)" }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.6)", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: accent, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function V3PillarCard({ pillar, projects, onOpen }: { pillar: V3Pillar; projects: V3Project[]; onOpen: () => void }) {
+  const meta = PILLAR_META[pillar.id] || { icon: "📌", tagline: "" };
+  const health = HEALTH_META[pillar.overall];
+  const top3 = [...projects]
+    .sort((a, b) => {
+      const order = { critical: 0, warning: 1, unknown: 2, healthy: 3 };
+      return (order[a.health as keyof typeof order] ?? 9) - (order[b.health as keyof typeof order] ?? 9);
+    })
+    .slice(0, 3);
+
+  return (
+    <div style={{ background: "var(--card)", border: `1px solid ${health.color}55`, borderRadius: 16, padding: 20, position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: pillar.color }} />
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: 6, marginBottom: 14, gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: pillar.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+            {meta.icon}
+          </div>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "var(--text)" }}>{pillar.name}</div>
+            <div style={{ fontSize: 11, color: "var(--text3)" }}>{meta.tagline}</div>
+          </div>
+        </div>
+        <div style={{ background: health.bg, color: health.color, border: `1px solid ${health.color}`, borderRadius: 6, padding: "3px 10px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>
+          {health.label}
+        </div>
+      </div>
+
+      {/* Metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
+        <V3MiniMetric label="專案" value={pillar.project_count} accent={pillar.color} />
+        <V3MiniMetric label="待辦" value={pillar.commands.pending} accent="#fbbf24" />
+        <V3MiniMetric label="完成" value={pillar.commands.done_today} accent="#10b981" />
+        <V3MiniMetric label="忽略" value={pillar.commands.ignored} accent={pillar.commands.ignored > 0 ? "#ef4444" : undefined} />
+      </div>
+
+      {/* Avg progress */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>
+          <span>平均完成度</span>
+          <span style={{ fontWeight: 700, color: pillar.color }}>{pillar.avg_progress}%</span>
+        </div>
+        <div style={{ height: 6, background: "var(--bg2)", borderRadius: 99, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${pillar.avg_progress}%`, background: pillar.color, borderRadius: 99, transition: "width 0.5s" }} />
+        </div>
+      </div>
+
+      {/* Top 3 projects preview */}
+      {top3.length > 0 && (
+        <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+          {top3.map((pr) => {
+            const h = HEALTH_META[pr.health] || HEALTH_META.unknown;
+            return (
+              <div key={pr.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--bg2)", borderRadius: 8, fontSize: 12 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: h.color }} />
+                <div style={{ flex: 1, color: "var(--text)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pr.name}</div>
+                <div style={{ fontSize: 11, color: "var(--text3)" }}>{pr.progress}%</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Diagnosis */}
+      <div style={{ background: health.bg, border: `1px solid ${health.color}55`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: "var(--text)", lineHeight: 1.5, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: health.color, fontWeight: 700, marginRight: 6, letterSpacing: 0.5 }}>診斷</span>
+        {pillar.diagnosis}
+      </div>
+
+      <button
+        onClick={onOpen}
+        style={{ width: "100%", background: "transparent", color: pillar.color, border: `1px solid ${pillar.color}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+      >
+        進入 {pillar.name} 戰場 →
+      </button>
+    </div>
+  );
+}
+
+function V3MiniMetric({ label, value, accent }: { label: string; value: number; accent?: string }) {
+  return (
+    <div style={{ background: "var(--bg2)", borderRadius: 8, padding: "8px 6px", textAlign: "center" }}>
+      <div style={{ fontSize: 9, color: "var(--text3)", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: accent || "var(--text)", lineHeight: 1 }}>{value}</div>
+    </div>
+  );
+}
+
+function V3PillarDrawer({
+  pillar,
+  projects,
+  commands,
+  onClose,
+  onUpdated,
+}: {
+  pillar: V3Pillar;
+  projects: V3Project[];
+  commands: V3Command[];
+  onClose: () => void;
+  onUpdated: () => void;
+}) {
+  const [editing, setEditing] = useState<string | null>(null);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)", zIndex: 100, display: "flex", justifyContent: "flex-end" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(720px, 94vw)", background: "var(--card)", height: "100vh", overflowY: "auto", boxShadow: "-10px 0 40px rgba(0,0,0,0.3)" }}
+      >
+        {/* Header */}
+        <div style={{ background: `linear-gradient(135deg, ${pillar.color} 0%, ${pillar.color}cc 100%)`, padding: "24px 28px", color: "#fff", position: "sticky", top: 0, zIndex: 1 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.7, letterSpacing: 1.5, marginBottom: 4 }}>PILLAR · 戰場深度</div>
+              <div style={{ fontSize: 26, fontWeight: 800 }}>{(PILLAR_META[pillar.id] || {}).icon} {pillar.name}</div>
+              <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>{pillar.diagnosis}</div>
+            </div>
+            <button onClick={onClose} style={{ background: "rgba(255,255,255,0.2)", color: "#fff", border: "none", borderRadius: 8, width: 32, height: 32, fontSize: 18, cursor: "pointer" }}>×</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 18 }}>
+            <div style={{ background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 12px" }}>
+              <div style={{ fontSize: 10, opacity: 0.7 }}>專案</div>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>{pillar.project_count}</div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 12px" }}>
+              <div style={{ fontSize: 10, opacity: 0.7 }}>進度</div>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>{pillar.avg_progress}%</div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 12px" }}>
+              <div style={{ fontSize: 10, opacity: 0.7 }}>待辦命令</div>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>{pillar.commands.pending}</div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 12px" }}>
+              <div style={{ fontSize: 10, opacity: 0.7 }}>忽略</div>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>{pillar.commands.ignored}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Projects */}
+        <div style={{ padding: "24px 28px" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>📂 專案列表（{projects.length}）</div>
+          {projects.length === 0 ? (
+            <div style={{ padding: 24, background: "var(--bg2)", borderRadius: 10, color: "var(--text3)", fontSize: 13, textAlign: "center" }}>
+              還沒有任何專案。回上一頁點「+ 新增專案」開戰。
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {projects.map((pr) => (
+                <V3ProjectRow
+                  key={pr.id}
+                  project={pr}
+                  expanded={editing === pr.id}
+                  onToggle={() => setEditing(editing === pr.id ? null : pr.id)}
+                  onUpdated={onUpdated}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Recent commands for this pillar */}
+        <div style={{ padding: "0 28px 28px" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>⚡ 最近命令</div>
+          {commands.length === 0 ? (
+            <div style={{ padding: 18, background: "var(--bg2)", borderRadius: 10, color: "var(--text3)", fontSize: 13, textAlign: "center" }}>
+              該支柱還沒任何命令。Claude 正在等專案進度來判斷該下什麼指令。
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {commands.slice(0, 8).map((c) => (
+                <V3CommandRow key={c.id} command={c} compact />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function V3ProjectRow({
+  project,
+  expanded,
+  onToggle,
+  onUpdated,
+}: {
+  project: V3Project;
+  expanded: boolean;
+  onToggle: () => void;
+  onUpdated: () => void;
+}) {
+  const [progress, setProgress] = useState(project.progress);
+  const [health, setHealth] = useState(project.health);
+  const [diagnosis, setDiagnosis] = useState(project.diagnosis || "");
+  const [nextAction, setNextAction] = useState(project.next_action || "");
+  const [saving, setSaving] = useState(false);
+  const h = HEALTH_META[project.health] || HEALTH_META.unknown;
+
+  async function save() {
+    setSaving(true);
+    try {
+      await fetch("/api/v3/projects", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: project.id, progress, health, diagnosis, next_action: nextAction }),
+      });
+      onUpdated();
+      onToggle();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ background: "var(--bg2)", borderRadius: 10, border: `1px solid ${expanded ? h.color : "var(--border)"}`, overflow: "hidden" }}>
+      <div onClick={onToggle} style={{ padding: "12px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: h.color }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{project.name}</div>
+          <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>{project.goal}</div>
+        </div>
+        <div style={{ fontSize: 11, color: h.color, fontWeight: 700, padding: "3px 8px", border: `1px solid ${h.color}`, borderRadius: 6 }}>{h.label}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text2)", minWidth: 38, textAlign: "right" }}>{project.progress}%</div>
+      </div>
+      {expanded && (
+        <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11, color: "var(--text3)", fontWeight: 600 }}>進度 %</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={progress}
+                onChange={(e) => setProgress(Number(e.target.value))}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "var(--text3)", fontWeight: 600 }}>健康度</label>
+              <select value={health} onChange={(e) => setHealth(e.target.value)} style={inputStyle}>
+                <option value="healthy">healthy 健康</option>
+                <option value="warning">warning 警告</option>
+                <option value="critical">critical 危急</option>
+                <option value="unknown">unknown 未知</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: "var(--text3)", fontWeight: 600 }}>診斷</label>
+            <textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="目前狀況的一句話判斷" />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: "var(--text3)", fontWeight: 600 }}>下一步</label>
+            <textarea value={nextAction} onChange={(e) => setNextAction(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="Claude 規劃的下一個動作" />
+          </div>
+          <button onClick={save} disabled={saving} style={{ background: h.color, color: "#fff", border: "none", borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 700, cursor: saving ? "wait" : "pointer" }}>
+            {saving ? "儲存中..." : "💾 儲存"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function V3NewProjectModal({
+  defaultPillar,
+  onClose,
+  onCreated,
+}: {
+  defaultPillar: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [pillarId, setPillarId] = useState(defaultPillar);
+  const [name, setName] = useState("");
+  const [goal, setGoal] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [diagnosis, setDiagnosis] = useState("");
+  const [nextAction, setNextAction] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit() {
+    setSaving(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/v3/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pillar_id: pillarId,
+          name,
+          goal,
+          owner_email: ownerEmail || null,
+          deadline: deadline || null,
+          diagnosis: diagnosis || null,
+          next_action: nextAction || null,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "新增失敗");
+      onCreated();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "新增失敗");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", borderRadius: 16, width: "min(560px, 100%)", maxHeight: "92vh", overflowY: "auto", padding: 28 }}>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6, color: "var(--text)" }}>+ 新增專案</div>
+        <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 20 }}>替 3 大支柱開新戰場。Claude 會根據這個專案的目標自動產生命令。</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>支柱</label>
+            <select value={pillarId} onChange={(e) => setPillarId(e.target.value)} style={inputStyle}>
+              <option value="sales">💰 業務</option>
+              <option value="legal">⚖️ 法務</option>
+              <option value="recruit">🎯 招聘</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>專案名稱 *</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="例：合約模板建置" />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>北極星目標 *</label>
+            <textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="一句話可量化的目標" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>負責人 email</label>
+              <input value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} style={inputStyle} placeholder="vincent@example.com" />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>截止日</label>
+              <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={inputStyle} />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>初始診斷</label>
+            <textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="現況卡在哪？" />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>下一步</label>
+            <textarea value={nextAction} onChange={(e) => setNextAction(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="第一個要動的事" />
+          </div>
+          {err && <div style={{ color: "#ef4444", fontSize: 12 }}>{err}</div>}
+          <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+            <button onClick={onClose} style={{ flex: 1, background: "var(--bg2)", color: "var(--text2)", border: "1px solid var(--border)", borderRadius: 10, padding: "11px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>取消</button>
+            <button onClick={submit} disabled={saving || !name || !goal} style={{ flex: 1, background: saving || !name || !goal ? "var(--border)" : "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff", border: "none", borderRadius: 10, padding: "11px 16px", fontSize: 13, fontWeight: 700, cursor: saving || !name || !goal ? "not-allowed" : "pointer" }}>
+              {saving ? "建立中..." : "🚀 建立專案"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── v3 命令中心：Claude 產生 / 派發 / 學習 ────────────────────────────────
+
+function V3CommandsHub() {
+  const [commands, setCommands] = useState<V3Command[]>([]);
+  const [stats, setStats] = useState<{ pending: number; done: number; blocked: number; ignored: number; critical: number; total: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "pending" | "acknowledged" | "done" | "blocked" | "ignored">("pending");
+  const [pillarFilter, setPillarFilter] = useState<"all" | "sales" | "legal" | "recruit">("all");
+  const [showNew, setShowNew] = useState(false);
+  const [dispatching, setDispatching] = useState(false);
+  const [dispatchMsg, setDispatchMsg] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filter !== "all") params.set("status", filter);
+      if (pillarFilter !== "all") params.set("pillar", pillarFilter);
+      const res = await fetch(`/api/v3/commands?${params.toString()}`, { cache: "no-store" });
+      const json = await res.json();
+      if (json.ok) {
+        setCommands(json.commands);
+        setStats(json.stats);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, pillarFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function dispatchAll() {
+    setDispatching(true);
+    setDispatchMsg(null);
+    try {
+      const res = await fetch("/api/v3/dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ daily: true }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setDispatchMsg(`✅ 已派發 ${json.dispatched} 道命令（成功 ${json.success} / 失敗 ${json.failed}）`);
+        load();
+      } else {
+        setDispatchMsg(`❌ ${json.error || "派發失敗"}`);
+      }
+    } catch (e) {
+      setDispatchMsg(`❌ ${e instanceof Error ? e.message : "派發失敗"}`);
+    } finally {
+      setDispatching(false);
+    }
+  }
+
+  return (
+    <div>
+      {/* HERO */}
+      <div style={{
+        background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #7c3aed 100%)",
+        borderRadius: 18,
+        padding: "26px 32px",
+        marginBottom: 22,
+        color: "#fff",
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        <div style={{ position: "absolute", top: -50, right: -30, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,191,36,0.3), transparent 70%)" }} />
+        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.7, letterSpacing: 1.5, marginBottom: 6 }}>COMMAND HUB</div>
+            <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>⚡ 命令中心</div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>Claude 自動產生 / LINE 派發 / 員工回報 / 學習迭代</div>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={dispatchAll}
+              disabled={dispatching}
+              style={{ background: "linear-gradient(135deg, #10b981, #059669)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: dispatching ? "wait" : "pointer", opacity: dispatching ? 0.6 : 1 }}
+            >
+              {dispatching ? "派發中..." : "🚀 一鍵 LINE 派發全部待辦"}
+            </button>
+            <button
+              onClick={() => setShowNew(true)}
+              style={{ background: "rgba(255,255,255,0.18)", color: "#fff", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", backdropFilter: "blur(10px)" }}
+            >
+              + 手動新增命令
+            </button>
+          </div>
+        </div>
+        {dispatchMsg && (
+          <div style={{ position: "relative", marginTop: 14, padding: "10px 14px", background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
+            {dispatchMsg}
+          </div>
+        )}
+
+        {stats && (
+          <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10, marginTop: 18 }}>
+            <V3HeroStat label="總計" value={stats.total} accent="#fff" />
+            <V3HeroStat label="待辦" value={stats.pending} accent="#fbbf24" />
+            <V3HeroStat label="完成" value={stats.done} accent="#10b981" />
+            <V3HeroStat label="卡住" value={stats.blocked} accent="#fb923c" />
+            <V3HeroStat label="忽略" value={stats.ignored} accent="#ef4444" />
+            <V3HeroStat label="緊急" value={stats.critical} accent="#ef4444" />
+          </div>
+        )}
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {(["pending", "acknowledged", "done", "blocked", "ignored", "all"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              style={{
+                background: filter === s ? "#8b5cf6" : "transparent",
+                color: filter === s ? "#fff" : "var(--text2)",
+                border: `1px solid ${filter === s ? "#8b5cf6" : "var(--border)"}`,
+                borderRadius: 8,
+                padding: "6px 12px",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {{ pending: "待辦", acknowledged: "已收", done: "完成", blocked: "卡住", ignored: "忽略", all: "全部" }[s]}
+            </button>
+          ))}
+        </div>
+        <div style={{ width: 1, height: 18, background: "var(--border)" }} />
+        <div style={{ display: "flex", gap: 6 }}>
+          {(["all", "sales", "legal", "recruit"] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPillarFilter(p)}
+              style={{
+                background: pillarFilter === p ? "var(--text2)" : "transparent",
+                color: pillarFilter === p ? "var(--card)" : "var(--text2)",
+                border: `1px solid ${pillarFilter === p ? "var(--text2)" : "var(--border)"}`,
+                borderRadius: 8,
+                padding: "6px 12px",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {{ all: "全支柱", sales: "💰 業務", legal: "⚖️ 法務", recruit: "🎯 招聘" }[p]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* List */}
+      {loading && commands.length === 0 ? (
+        <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>讀取命令中...</div>
+      ) : commands.length === 0 ? (
+        <div style={{ padding: 40, textAlign: "center", background: "var(--bg2)", borderRadius: 12, color: "var(--text3)" }}>
+          目前沒有符合條件的命令。
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {commands.map((c) => (
+            <V3CommandRow key={c.id} command={c} onUpdated={load} />
+          ))}
+        </div>
+      )}
+
+      {showNew && (
+        <V3NewCommandModal
+          onClose={() => setShowNew(false)}
+          onCreated={() => { setShowNew(false); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function V3CommandRow({ command, compact, onUpdated }: { command: V3Command; compact?: boolean; onUpdated?: () => void }) {
+  const sev = SEVERITY_META[command.severity] || SEVERITY_META.normal;
+  const meta = command.pillar_id ? PILLAR_META[command.pillar_id] : null;
+  const [busy, setBusy] = useState(false);
+  const [dispatchedAt, setDispatchedAt] = useState<string | null>(null);
+
+  async function patch(status: V3Command["status"]) {
+    if (!onUpdated) return;
+    setBusy(true);
+    try {
+      await fetch("/api/v3/commands", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: command.id, status }),
+      });
+      onUpdated();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function dispatch() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/v3/dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command_id: command.id }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        const r = json.results?.[0];
+        setDispatchedAt(r?.mode === "stub" ? "已記錄（stub）" : "已推 LINE");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const statusColors: Record<string, string> = {
+    pending: "#fbbf24",
+    acknowledged: "#3b82f6",
+    done: "#10b981",
+    blocked: "#fb923c",
+    ignored: "#ef4444",
+  };
+
+  return (
+    <div style={{ background: "var(--card)", border: `1px solid ${sev.color}33`, borderRadius: 12, padding: compact ? "10px 14px" : "16px 18px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        {meta && <div style={{ fontSize: compact ? 18 : 24 }}>{meta.icon}</div>}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 9, fontWeight: 800, color: sev.color, padding: "2px 7px", border: `1px solid ${sev.color}`, borderRadius: 5, letterSpacing: 0.5 }}>{sev.label}</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: statusColors[command.status], padding: "2px 7px", background: `${statusColors[command.status]}22`, borderRadius: 5 }}>{command.status}</div>
+            {command.ai_generated && <div style={{ fontSize: 9, color: "#a855f7", fontWeight: 700 }}>🧠 AI</div>}
+            <div style={{ fontSize: 11, color: "var(--text3)" }}>{new Date(command.created_at).toLocaleString("zh-TW")}</div>
+          </div>
+          <div style={{ fontSize: compact ? 13 : 15, fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>{command.title}</div>
+          {command.detail && !compact && <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.6, marginBottom: 6 }}>{command.detail}</div>}
+          <div style={{ fontSize: 11, color: "var(--text3)" }}>
+            👤 {command.owner_email}
+            {command.deadline && ` · 🕒 ${new Date(command.deadline).toLocaleString("zh-TW")}`}
+          </div>
+          {command.ai_reasoning && !compact && (
+            <div style={{ marginTop: 8, padding: "8px 10px", background: "rgba(168,85,247,0.08)", borderLeft: "2px solid #a855f7", borderRadius: 6, fontSize: 11, color: "var(--text2)", lineHeight: 1.5 }}>
+              <strong style={{ color: "#a855f7" }}>Claude 判斷：</strong> {command.ai_reasoning}
+            </div>
+          )}
+        </div>
+        {!compact && onUpdated && command.status === "pending" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <button onClick={dispatch} disabled={busy} style={{ background: "linear-gradient(135deg, #06b6d4, #0891b2)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>📢 推 LINE</button>
+            <button onClick={() => patch("done")} disabled={busy} style={{ background: "#10b981", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>✓ 完成</button>
+            <button onClick={() => patch("blocked")} disabled={busy} style={{ background: "transparent", color: "#fb923c", border: "1px solid #fb923c", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>卡住</button>
+            <button onClick={() => patch("ignored")} disabled={busy} style={{ background: "transparent", color: "#ef4444", border: "1px solid #ef4444", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>忽略</button>
+            {dispatchedAt && <div style={{ fontSize: 9, color: "#10b981", textAlign: "center", fontWeight: 700 }}>✓ {dispatchedAt}</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function V3NewCommandModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [pillarId, setPillarId] = useState("sales");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [title, setTitle] = useState("");
+  const [detail, setDetail] = useState("");
+  const [severity, setSeverity] = useState<V3Command["severity"]>("normal");
+  const [deadline, setDeadline] = useState("");
+  const [reasoning, setReasoning] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit() {
+    setSaving(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/v3/commands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pillar_id: pillarId,
+          owner_email: ownerEmail,
+          title,
+          detail: detail || null,
+          severity,
+          deadline: deadline || null,
+          ai_generated: false,
+          ai_reasoning: reasoning || null,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "新增失敗");
+      onCreated();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "新增失敗");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", borderRadius: 16, width: "min(540px, 100%)", maxHeight: "92vh", overflowY: "auto", padding: 28 }}>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6, color: "var(--text)" }}>+ 新增命令</div>
+        <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 20 }}>手動下一個命令給某位員工。會記錄為非 AI 產生，但仍會餵入學習迴圈。</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>支柱</label>
+              <select value={pillarId} onChange={(e) => setPillarId(e.target.value)} style={inputStyle}>
+                <option value="sales">💰 業務</option>
+                <option value="legal">⚖️ 法務</option>
+                <option value="recruit">🎯 招聘</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>嚴重度</label>
+              <select value={severity} onChange={(e) => setSeverity(e.target.value as V3Command["severity"])} style={inputStyle}>
+                <option value="info">提醒</option>
+                <option value="normal">一般</option>
+                <option value="high">重要</option>
+                <option value="critical">緊急</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>接收者 email *</label>
+            <input value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} style={inputStyle} placeholder="vincent@example.com" />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>命令標題 *</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} style={inputStyle} placeholder="例：今天聯繫 30 位 nschool 名單" />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>詳細說明</label>
+            <textarea value={detail} onChange={(e) => setDetail(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical" }} placeholder="該怎麼做、為什麼要做" />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>截止時間</label>
+            <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>判斷依據（學習用）</label>
+            <textarea value={reasoning} onChange={(e) => setReasoning(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="為什麼下這個命令" />
+          </div>
+          {err && <div style={{ color: "#ef4444", fontSize: 12 }}>{err}</div>}
+          <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+            <button onClick={onClose} style={{ flex: 1, background: "var(--bg2)", color: "var(--text2)", border: "1px solid var(--border)", borderRadius: 10, padding: "11px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>取消</button>
+            <button onClick={submit} disabled={saving || !ownerEmail || !title} style={{ flex: 1, background: saving || !ownerEmail || !title ? "var(--border)" : "linear-gradient(135deg, #fbbf24, #f59e0b)", color: "#fff", border: "none", borderRadius: 10, padding: "11px 16px", fontSize: 13, fontWeight: 700, cursor: saving || !ownerEmail || !title ? "not-allowed" : "pointer" }}>
+              {saving ? "送出中..." : "⚡ 派發命令"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Company Drilldown (單公司深度資料) ────────────────────────────────────
+
+function CompanyDrilldown({ brandId }: { brandId: CompanyScope }) {
+  const meta = COMPANY_OPTIONS.find((c) => c.id === brandId);
+  const [data, setData] = useState<ChairmanData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/chairman-overview", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.ok) setData(j);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [brandId]);
+
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text2)" }}>載入 {meta?.label} 戰況...</div>;
+  if (!data) return <div style={{ padding: 40, color: "#ef4444" }}>無法載入資料</div>;
+
+  const isRecruit = brandId === "moyuhunt";
+  const brand = isRecruit
+    ? data.recruit
+    : data.sales_brands.find((b) => b.id === brandId);
+
+  if (!brand) return <div style={{ padding: 40, color: "var(--text2)" }}>找不到 {meta?.label} 的資料</div>;
+
+  const colors = STATUS_COLORS[brand.status];
+
+  return (
+    <div>
+      {/* HERO — single company */}
+      <div style={{
+        background: `linear-gradient(135deg, ${brand.color}26 0%, ${brand.color}0d 60%, transparent 100%)`,
+        border: `1px solid ${brand.color}55`,
+        borderRadius: 18,
+        padding: "28px 32px",
+        marginBottom: 22,
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        <div style={{ position: "absolute", top: -50, right: -30, width: 200, height: 200, borderRadius: "50%", background: `radial-gradient(circle, ${brand.color}33, transparent 70%)` }} />
+        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 18 }}>
+          <div style={{ width: 60, height: 60, borderRadius: 14, background: brand.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800, color: "#fff" }}>
+            {isRecruit ? "🎯" : brand.name.slice(0, 1)}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text3)", letterSpacing: 1.5, marginBottom: 4 }}>
+              {isRecruit ? "獵頭公司 · RECRUITING" : "業務公司 · SALES"}
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: "var(--text)" }}>{brand.name}</div>
+            <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 4 }}>{brand.diagnosis}</div>
+          </div>
+          <div style={{ background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
+            {colors.label}
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics grid */}
+      {isRecruit ? (
+        <RecruitDrilldownDetails brand={brand} />
+      ) : (
+        <SalesDrilldownDetails brand={brand} />
+      )}
+
+      {/* TODO 置入該公司業務員列表 / KPI 趨勢 / 對練紀錄 */}
+      <div style={{ marginTop: 24, padding: 18, background: "var(--bg2)", border: "1px dashed var(--border)", borderRadius: 12, color: "var(--text3)", fontSize: 13, lineHeight: 1.7 }}>
+        <strong style={{ color: "var(--text2)" }}>下一步：</strong>
+        切到「人員管理」分頁可看到 {brand.name} 的所有業務員 / 候選人列表（自動套用此檢視範圍）。
+        點任一人可看深度資料：今日 KPI / 對練紀錄 / 突破日誌。
+      </div>
+    </div>
+  );
+}
+
+function SalesDrilldownDetails({ brand }: { brand: ChairmanBrand }) {
+  const callTarget = (brand.active_reps || 0) * 30;
+  const callProgress = callTarget > 0 ? Math.min(100, ((brand.today_calls || 0) / callTarget) * 100) : 0;
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 18 }}>
+        <BigMetric label="在線業務" value={brand.active_reps || 0} accent={brand.color} sub={`${brand.silent_reps || 0} 沒開口`} />
+        <BigMetric label="今日通數" value={brand.today_calls || 0} accent="#fbbf24" sub={`/ ${callTarget} 目標`} />
+        <BigMetric label="今日有效通" value={brand.today_valid_calls || 0} accent="#06b6d4" />
+        <BigMetric label="今日邀約" value={brand.today_appointments || 0} accent="#a855f7" sub={brand.call_to_appt_rate ? `${Math.round(brand.call_to_appt_rate * 100)}% 轉化` : ""} />
+        <BigMetric label="今日成交" value={brand.today_closures || 0} accent="#10b981" sub={brand.appt_to_close_rate ? `${Math.round(brand.appt_to_close_rate * 100)}% 收網` : ""} />
+        <BigMetric label="本週通數" value={brand.week_calls || 0} accent="#ef4444" sub={`本週成交 ${brand.week_closures || 0}`} />
+      </div>
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 10 }}>
+          <span style={{ color: "var(--text2)", fontWeight: 600 }}>每日通數達成率</span>
+          <span style={{ fontWeight: 700, color: callProgress >= 100 ? "#22c55e" : callProgress >= 70 ? "#fbbf24" : "#ef4444" }}>
+            {Math.round(callProgress)}% ({brand.today_calls || 0}/{callTarget})
+          </span>
+        </div>
+        <div style={{ height: 12, background: "var(--bg2)", borderRadius: 99, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${callProgress}%`, background: callProgress >= 100 ? "#22c55e" : callProgress >= 70 ? "#fbbf24" : "#ef4444", borderRadius: 99, transition: "width 0.5s" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecruitDrilldownDetails({ brand }: { brand: ChairmanBrand }) {
+  const stages = brand.funnel_by_stage || {};
+  const stageOrder = ["applied", "screening", "interview_1", "interview_2", "offer", "onboarded", "probation", "passed"];
+  const stageLabels: Record<string, string> = {
+    applied: "投遞", screening: "篩選", interview_1: "一面", interview_2: "二面", offer: "Offer", onboarded: "報到", probation: "試用", passed: "通過",
+  };
+  const max = Math.max(1, ...stageOrder.map((s) => stages[s] || 0));
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 18 }}>
+        <BigMetric label="漏斗中" value={brand.funnel_total || 0} accent={brand.color} />
+        <BigMetric label="本週新增" value={brand.this_week_new || 0} accent="#06b6d4" />
+        <BigMetric label="本月通過" value={brand.this_month_passed || 0} accent="#10b981" />
+        <BigMetric label="本月流失" value={brand.this_month_dropped || 0} accent="#ef4444" />
+        <BigMetric label="轉換率" value={`${Math.round((brand.conversion_rate || 0) * 100)}%`} accent="#a855f7" />
+      </div>
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: "var(--text)" }}>漏斗階段分布</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 140 }}>
+          {stageOrder.map((sid) => {
+            const count = stages[sid] || 0;
+            const h = 24 + (count / max) * 100;
+            return (
+              <div key={sid} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: count > 0 ? brand.color : "var(--text3)" }}>{count}</div>
+                <div style={{ height: h, width: "100%", background: count > 0 ? brand.color : "var(--bg2)", borderRadius: 6, opacity: count > 0 ? 0.85 : 0.4 }} />
+                <div style={{ fontSize: 10, color: "var(--text3)" }}>{stageLabels[sid]}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BigMetric({ label, value, accent, sub }: { label: string; value: number | string; accent: string; sub?: string }) {
+  return (
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+      <div style={{ fontSize: 11, color: "var(--text3)", fontWeight: 600, letterSpacing: 0.5, marginBottom: 6, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontSize: 30, fontWeight: 800, color: accent, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 6 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ─── v3 Org Chart Tab (組織架構：部門 / 職位 CRUD) ────────────────────────
+
+interface V3Department {
+  id: string;
+  code: string;
+  name: string;
+  icon: string;
+  color: string;
+  brand: string | null;
+  description: string | null;
+  lead_email: string | null;
+  display_order: number;
+  position_count: number;
+  user_count: number;
+  positions: V3Position[];
+}
+
+interface V3Position {
+  id: string;
+  department_id: string;
+  title: string;
+  level: string;
+  description: string | null;
+  responsibilities: string[];
+  base_kpi: { metric: string; target: number }[];
+  display_order: number;
+  user_count?: number;
+}
+
+const LEVEL_LABEL: Record<string, string> = {
+  staff: "員工",
+  lead: "組長",
+  manager: "主管",
+  director: "總監",
+};
+const LEVEL_COLOR: Record<string, string> = {
+  staff: "#94a3b8",
+  lead: "#06b6d4",
+  manager: "#7c6cf0",
+  director: "#fb923c",
+};
+
+interface OrgUser {
+  id: string;
+  email: string;
+  name: string;
+  brand: string;
+  role: string;
+  department_id: string | null;
+  position_id: string | null;
+  manager_email: string | null;
+}
+
+function V3OrgChartTab() {
+  const [departments, setDepartments] = useState<V3Department[]>([]);
+  const [users, setUsers] = useState<OrgUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [missingMigration, setMissingMigration] = useState(false);
+  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
+  const [showNewDept, setShowNewDept] = useState(false);
+  const [showNewPos, setShowNewPos] = useState(false);
+  const [editingPos, setEditingPos] = useState<V3Position | null>(null);
+  const [showAssign, setShowAssign] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [deptRes, userRes] = await Promise.all([
+        fetch("/api/v3/departments", { cache: "no-store" }),
+        fetch("/api/admin/users", { cache: "no-store" }),
+      ]);
+      const deptJson = await deptRes.json();
+      const userJson = await userRes.json();
+
+      if (!deptJson.ok) {
+        if (deptJson.missing_migration) {
+          setMissingMigration(true);
+          return;
+        }
+        throw new Error(deptJson.error || "讀取部門失敗");
+      }
+
+      setDepartments(deptJson.departments || []);
+      setUsers(userJson.users || []);
+      setSelectedDeptId((prev) => prev || deptJson.departments?.[0]?.id || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "讀取失敗");
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const unassignUser = async (userId: string) => {
+    if (!confirm("確定要從這個部門移除該員工嗎？")) return;
+    const res = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: userId, department_id: null, position_id: null }),
+    });
+    const json = await res.json();
+    if (json.user) load();
+    else alert(json.error || "更新失敗");
+  };
+
+  const selectedDept = departments.find((d) => d.id === selectedDeptId);
+
+  if (missingMigration) {
+    return (
+      <div style={{ background: "var(--card)", border: "1px solid rgba(124,108,240,0.4)", borderRadius: 16, padding: 32, maxWidth: 720 }}>
+        <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>🚧 ERP 資料表還沒建立</div>
+        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 16 }}>請到 Supabase SQL Editor 執行：</div>
+        <code style={{ display: "block", padding: "12px 16px", background: "var(--bg2)", borderRadius: 8, fontSize: 13, color: "var(--accent)", marginBottom: 12 }}>
+          supabase-migration-v3-erp.sql
+        </code>
+        <div style={{ fontSize: 12, color: "var(--text3)" }}>跑完會建立 v3_departments / v3_positions 並擴充 users 表。</div>
+      </div>
+    );
+  }
+
+  if (loading && departments.length === 0) {
+    return <div style={{ padding: 40, textAlign: "center", color: "var(--text2)" }}>載入組織架構中...</div>;
+  }
+
+  if (error) {
+    return (
+      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#ef4444" }}>
+        ⚠️ {error}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 4, color: "var(--text)" }}>🏢 組織架構</div>
+          <div style={{ fontSize: 12, color: "var(--text3)" }}>定義部門 → 職位 → 職責，新人註冊後就清楚自己該做什麼</div>
+        </div>
+        <button
+          onClick={() => setShowNewDept(true)}
+          style={{
+            background: "var(--accent)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 10,
+            padding: "10px 16px",
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          + 新增部門
+        </button>
+      </div>
+
+      {/* Two-column layout: 部門 list 在左、職位 detail 在右 */}
+      <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 20 }}>
+        {/* 部門列表 */}
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 12, height: "fit-content" }}>
+          <div style={{ fontSize: 11, color: "var(--text3)", fontWeight: 600, padding: "4px 8px 8px", letterSpacing: 0.5 }}>部門 ({departments.length})</div>
+          {departments.map((d) => {
+            const active = d.id === selectedDeptId;
+            return (
+              <button
+                key={d.id}
+                onClick={() => setSelectedDeptId(d.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  width: "100%",
+                  padding: "12px 12px",
+                  background: active ? `${d.color}18` : "transparent",
+                  border: active ? `1px solid ${d.color}55` : "1px solid transparent",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  marginBottom: 4,
+                  transition: "all 0.15s",
+                }}
+              >
+                <span style={{ fontSize: 22 }}>{d.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: active ? d.color : "var(--text)" }}>{d.name}</div>
+                  <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>
+                    {d.position_count} 職位 · {d.user_count} 人
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 職位 detail */}
+        <div>
+          {selectedDept ? (
+            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 24 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+                    <span style={{ fontSize: 32 }}>{selectedDept.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: selectedDept.color }}>{selectedDept.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text3)", fontFamily: "monospace" }}>{selectedDept.code}</div>
+                    </div>
+                  </div>
+                  {selectedDept.description && (
+                    <div style={{ fontSize: 13, color: "var(--text2)", marginTop: 8 }}>{selectedDept.description}</div>
+                  )}
+                  <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 12, color: "var(--text3)" }}>
+                    <span>👤 部門人數：<strong style={{ color: selectedDept.color }}>{selectedDept.user_count}</strong></span>
+                    <span>📋 職位數：<strong style={{ color: selectedDept.color }}>{selectedDept.position_count}</strong></span>
+                    {selectedDept.lead_email && <span>👑 主管：{selectedDept.lead_email}</span>}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowNewPos(true)}
+                  style={{
+                    background: selectedDept.color,
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "10px 16px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  + 新增職位
+                </button>
+              </div>
+
+              {/* 職位 list */}
+              <div style={{ display: "grid", gap: 12 }}>
+                {selectedDept.positions.length === 0 ? (
+                  <div style={{ padding: 32, textAlign: "center", color: "var(--text3)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+                    這個部門還沒任何職位 — 點上方「+ 新增職位」開始
+                  </div>
+                ) : (
+                  selectedDept.positions.map((p) => (
+                    <V3PositionCard
+                      key={p.id}
+                      position={p}
+                      onEdit={() => setEditingPos(p)}
+                      onDelete={async () => {
+                        if (!confirm(`確定刪除職位「${p.title}」？此操作會解除所有此職位用戶的綁定。`)) return;
+                        const res = await fetch(`/api/v3/positions?id=${p.id}`, { method: "DELETE" });
+                        const json = await res.json();
+                        if (json.ok) load();
+                        else alert(json.error || "刪除失敗");
+                      }}
+                    />
+                  ))
+                )}
+              </div>
+
+              {/* 部門成員 */}
+              <div style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>👥 部門成員 ({selectedDept.user_count})</div>
+                  <button
+                    onClick={() => setShowAssign(true)}
+                    style={{
+                      background: "transparent",
+                      color: selectedDept.color,
+                      border: `1px solid ${selectedDept.color}66`,
+                      borderRadius: 8,
+                      padding: "6px 14px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    + 指派員工
+                  </button>
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {users.filter((u) => u.department_id === selectedDept.id).length === 0 ? (
+                    <div style={{ padding: 20, textAlign: "center", color: "var(--text3)", border: "1px dashed var(--border)", borderRadius: 10, fontSize: 12 }}>
+                      還沒有員工 — 點「+ 指派員工」把人放進這個部門
+                    </div>
+                  ) : (
+                    users
+                      .filter((u) => u.department_id === selectedDept.id)
+                      .map((u) => {
+                        const pos = selectedDept.positions.find((p) => p.id === u.position_id);
+                        return (
+                          <div
+                            key={u.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 12,
+                              background: "var(--bg2)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 10,
+                              padding: "10px 14px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: "50%",
+                                background: `${selectedDept.color}22`,
+                                color: selectedDept.color,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: 700,
+                                fontSize: 13,
+                              }}
+                            >
+                              {(u.name || u.email || "?").slice(0, 1).toUpperCase()}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{u.name || "(未命名)"}</div>
+                              <div style={{ fontSize: 11, color: "var(--text3)" }}>{u.email}</div>
+                            </div>
+                            {pos ? (
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  padding: "4px 10px",
+                                  borderRadius: 6,
+                                  background: `${LEVEL_COLOR[pos.level] || "#94a3b8"}22`,
+                                  color: LEVEL_COLOR[pos.level] || "#94a3b8",
+                                }}
+                              >
+                                {pos.title}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: 10, color: "var(--text3)" }}>未指派職位</span>
+                            )}
+                            <button
+                              onClick={() => unassignUser(u.id)}
+                              style={{
+                                background: "transparent",
+                                border: "1px solid var(--border)",
+                                borderRadius: 6,
+                                padding: "4px 10px",
+                                fontSize: 11,
+                                cursor: "pointer",
+                                color: "var(--text3)",
+                              }}
+                            >
+                              移除
+                            </button>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: 60, textAlign: "center", color: "var(--text3)" }}>← 從左邊選一個部門</div>
+          )}
+        </div>
+      </div>
+
+      {showAssign && selectedDept && (
+        <V3AssignMemberModal
+          department={selectedDept}
+          users={users}
+          onClose={() => setShowAssign(false)}
+          onSaved={() => {
+            setShowAssign(false);
+            load();
+          }}
+        />
+      )}
+
+      {showNewDept && (
+        <V3DepartmentModal
+          onClose={() => setShowNewDept(false)}
+          onSaved={() => {
+            setShowNewDept(false);
+            load();
+          }}
+        />
+      )}
+      {showNewPos && selectedDept && (
+        <V3PositionModal
+          departmentId={selectedDept.id}
+          onClose={() => setShowNewPos(false)}
+          onSaved={() => {
+            setShowNewPos(false);
+            load();
+          }}
+        />
+      )}
+      {editingPos && (
+        <V3PositionModal
+          departmentId={editingPos.department_id}
+          existing={editingPos}
+          onClose={() => setEditingPos(null)}
+          onSaved={() => {
+            setEditingPos(null);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function V3PositionCard({ position, onEdit, onDelete }: { position: V3Position; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{position.title}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: `${LEVEL_COLOR[position.level] || "#94a3b8"}22`, color: LEVEL_COLOR[position.level] || "#94a3b8" }}>
+              {LEVEL_LABEL[position.level] || position.level}
+            </span>
+            {position.user_count !== undefined && position.user_count > 0 && (
+              <span style={{ fontSize: 11, color: "var(--text3)" }}>· {position.user_count} 人</span>
+            )}
+          </div>
+          {position.description && <div style={{ fontSize: 12, color: "var(--text2)" }}>{position.description}</div>}
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={onEdit} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", fontSize: 11, cursor: "pointer", color: "var(--text2)" }}>編輯</button>
+          <button onClick={onDelete} style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, padding: "6px 12px", fontSize: 11, cursor: "pointer", color: "#ef4444" }}>刪除</button>
+        </div>
+      </div>
+
+      {position.responsibilities && position.responsibilities.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text3)", marginBottom: 6, letterSpacing: 0.5, textTransform: "uppercase" }}>職責</div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--text2)", lineHeight: 1.7 }}>
+            {position.responsibilities.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {position.base_kpi && position.base_kpi.length > 0 && (
+        <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {position.base_kpi.map((k, i) => (
+            <span key={i} style={{ fontSize: 11, padding: "4px 10px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text2)" }}>
+              📊 {k.metric} ≥ <strong style={{ color: "var(--accent)" }}>{k.target}</strong>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function V3DepartmentModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ code: "", name: "", icon: "🏢", color: "#7c6cf0", description: "" });
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!form.code || !form.name) {
+      alert("代碼和名稱必填");
+      return;
+    }
+    setSaving(true);
+    const res = await fetch("/api/v3/departments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    const json = await res.json();
+    setSaving(false);
+    if (json.ok) onSaved();
+    else alert(json.error || "新增失敗");
+  };
+
+  return (
+    <ModalShell title="新增部門" onClose={onClose}>
+      <ModalField label="代碼 (英文，唯一)">
+        <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="e.g. sales" style={modalInputStyle} />
+      </ModalField>
+      <ModalField label="部門名稱">
+        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. 業務部" style={modalInputStyle} />
+      </ModalField>
+      <ModalField label="Icon (emoji)">
+        <input value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} style={modalInputStyle} />
+      </ModalField>
+      <ModalField label="顏色 (hex)">
+        <input value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} style={modalInputStyle} />
+      </ModalField>
+      <ModalField label="說明">
+        <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} style={{ ...modalInputStyle, resize: "vertical" }} />
+      </ModalField>
+      <ModalActions onCancel={onClose} onSubmit={submit} submitLabel={saving ? "儲存中..." : "新增"} />
+    </ModalShell>
+  );
+}
+
+function V3AssignMemberModal({
+  department,
+  users,
+  onClose,
+  onSaved,
+}: {
+  department: V3Department;
+  users: OrgUser[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedPositionId, setSelectedPositionId] = useState("");
+  const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // 顯示「不在當前部門」的用戶（可加入的對象）
+  const candidates = users
+    .filter((u) => u.department_id !== department.id)
+    .filter((u) => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return (u.name || "").toLowerCase().includes(s) || (u.email || "").toLowerCase().includes(s);
+    });
+
+  const submit = async () => {
+    if (!selectedUserId) {
+      alert("請先選擇員工");
+      return;
+    }
+    setSaving(true);
+    const res = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: selectedUserId,
+        department_id: department.id,
+        position_id: selectedPositionId || null,
+      }),
+    });
+    const json = await res.json();
+    setSaving(false);
+    if (json.user) onSaved();
+    else alert(json.error || "指派失敗");
+  };
+
+  return (
+    <ModalShell title={`指派員工到 ${department.icon} ${department.name}`} onClose={onClose}>
+      <ModalField label="搜尋員工">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="姓名 / Email"
+          style={modalInputStyle}
+        />
+      </ModalField>
+      <ModalField label={`選擇員工 (${candidates.length} 位可指派)`}>
+        <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
+          {candidates.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: "var(--text3)", fontSize: 12 }}>
+              所有員工都已在這個部門 — 或先到 人員管理 新增員工
+            </div>
+          ) : (
+            candidates.map((u) => {
+              const active = u.id === selectedUserId;
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => setSelectedUserId(u.id)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    padding: "10px 12px",
+                    background: active ? `${department.color}22` : "transparent",
+                    border: "none",
+                    borderBottom: "1px solid var(--border)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      background: active ? department.color : "var(--bg2)",
+                      color: active ? "#fff" : "var(--text2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 700,
+                      fontSize: 12,
+                    }}
+                  >
+                    {(u.name || u.email || "?").slice(0, 1).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{u.name || "(未命名)"}</div>
+                    <div style={{ fontSize: 10, color: "var(--text3)" }}>{u.email}</div>
+                  </div>
+                  {u.department_id && <span style={{ fontSize: 10, color: "var(--text3)" }}>已在其他部門</span>}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </ModalField>
+      <ModalField label="指派職位 (選填)">
+        <select
+          value={selectedPositionId}
+          onChange={(e) => setSelectedPositionId(e.target.value)}
+          style={modalInputStyle}
+        >
+          <option value="">— 暫不指派職位 —</option>
+          {department.positions.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.title} ({LEVEL_LABEL[p.level] || p.level})
+            </option>
+          ))}
+        </select>
+      </ModalField>
+      <ModalActions onCancel={onClose} onSubmit={submit} submitLabel={saving ? "指派中..." : "指派"} />
+    </ModalShell>
+  );
+}
+
+function V3PositionModal({
+  departmentId,
+  existing,
+  onClose,
+  onSaved,
+}: {
+  departmentId: string;
+  existing?: V3Position;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = useState(existing?.title || "");
+  const [level, setLevel] = useState(existing?.level || "staff");
+  const [description, setDescription] = useState(existing?.description || "");
+  const [responsibilitiesText, setResponsibilitiesText] = useState((existing?.responsibilities || []).join("\n"));
+  const [kpiText, setKpiText] = useState(JSON.stringify(existing?.base_kpi || [], null, 2));
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!title) {
+      alert("職位名稱必填");
+      return;
+    }
+    let kpi: { metric: string; target: number }[] = [];
+    try {
+      kpi = JSON.parse(kpiText || "[]");
+    } catch {
+      alert("KPI JSON 格式錯誤");
+      return;
+    }
+    const responsibilities = responsibilitiesText.split("\n").map((s) => s.trim()).filter(Boolean);
+
+    setSaving(true);
+    const url = "/api/v3/positions";
+    const method = existing ? "PATCH" : "POST";
+    const body = existing
+      ? { id: existing.id, title, level, description, responsibilities, base_kpi: kpi }
+      : { department_id: departmentId, title, level, description, responsibilities, base_kpi: kpi };
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const json = await res.json();
+    setSaving(false);
+    if (json.ok) onSaved();
+    else alert(json.error || "儲存失敗");
+  };
+
+  return (
+    <ModalShell title={existing ? "編輯職位" : "新增職位"} onClose={onClose}>
+      <ModalField label="職位名稱">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. 業務員" style={modalInputStyle} />
+      </ModalField>
+      <ModalField label="層級">
+        <select value={level} onChange={(e) => setLevel(e.target.value)} style={modalInputStyle}>
+          <option value="staff">員工</option>
+          <option value="lead">組長</option>
+          <option value="manager">主管</option>
+          <option value="director">總監</option>
+        </select>
+      </ModalField>
+      <ModalField label="說明">
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} style={{ ...modalInputStyle, resize: "vertical" }} />
+      </ModalField>
+      <ModalField label="職責 (一行一條)">
+        <textarea value={responsibilitiesText} onChange={(e) => setResponsibilitiesText(e.target.value)} rows={5} placeholder={"每日 30 通電話\n每週 5 邀約\n每月成交 ≥10 單"} style={{ ...modalInputStyle, resize: "vertical" }} />
+      </ModalField>
+      <ModalField label='KPI (JSON: [{"metric":"...","target":...}])'>
+        <textarea value={kpiText} onChange={(e) => setKpiText(e.target.value)} rows={4} style={{ ...modalInputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12 }} />
+      </ModalField>
+      <ModalActions onCancel={onClose} onSubmit={submit} submitLabel={saving ? "儲存中..." : existing ? "更新" : "新增"} />
+    </ModalShell>
+  );
+}
+
+const modalInputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  background: "var(--bg2)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  fontSize: 13,
+  color: "var(--text)",
+};
+
+function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,23,42,0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 100,
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--card)",
+          borderRadius: 16,
+          padding: 24,
+          maxWidth: 560,
+          width: "100%",
+          maxHeight: "90vh",
+          overflow: "auto",
+          border: "1px solid var(--border)",
+          boxShadow: "0 24px 60px rgba(15,23,42,0.25)",
+        }}
+      >
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20, color: "var(--text)" }}>{title}</div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ModalField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", marginBottom: 6, letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function ModalActions({ onCancel, onSubmit, submitLabel }: { onCancel: () => void; onSubmit: () => void; submitLabel: string }) {
+  return (
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+      <button onClick={onCancel} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 18px", fontSize: 13, cursor: "pointer", color: "var(--text2)" }}>取消</button>
+      <button onClick={onSubmit} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{submitLabel}</button>
+    </div>
+  );
+}
+
+// ─── Reusable section dropdown (取代分頁標籤的左上角下拉式選單) ────────────
+
+interface SectionDropdownOption {
+  id: string;
+  label: string;
+  icon: string;
+  desc?: string;
+}
+
+function SectionDropdown({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly SectionDropdownOption[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = options.find((o) => o.id === value) || options[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: 12,
+          padding: "10px 14px",
+          cursor: "pointer",
+          fontSize: 14,
+          fontWeight: 700,
+          color: "var(--text)",
+          minWidth: 220,
+          boxShadow: open ? "0 6px 20px rgba(15,23,42,0.08)" : "0 1px 3px rgba(15,23,42,0.04)",
+          transition: "all 0.15s",
+        }}
+      >
+        <span style={{ fontSize: 18 }}>{current.icon}</span>
+        <span style={{ flex: 1, textAlign: "left" }}>{current.label}</span>
+        <span style={{ fontSize: 10, color: "var(--text3)", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▼</span>
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            padding: 6,
+            minWidth: 280,
+            boxShadow: "0 12px 32px rgba(15,23,42,0.14)",
+            zIndex: 50,
+          }}
+        >
+          {options.map((opt) => {
+            const active = opt.id === value;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  onChange(opt.id);
+                  setOpen(false);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  width: "100%",
+                  padding: "10px 12px",
+                  background: active ? "var(--accent)" : "transparent",
+                  color: active ? "#fff" : "var(--text)",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  marginBottom: 2,
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{opt.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{opt.label}</div>
+                  {opt.desc && (
+                    <div style={{ fontSize: 10, color: active ? "rgba(255,255,255,0.85)" : "var(--text3)", marginTop: 2, fontWeight: 400 }}>
+                      {opt.desc}
+                    </div>
+                  )}
+                </div>
+                {active && <span style={{ fontSize: 12 }}>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── People Hub Tab (人員管理 — 業務員權限/姓名設定) ────────────────────────
+
+function PeopleHubTab({ token, scope }: { token: string; scope: CompanyScope }) {
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 4, color: "var(--text)" }}>👥 人員管理</div>
+        <div style={{ fontSize: 12, color: "var(--text3)" }}>
+          業務公司員工 — 帳號 / 權限 / 姓名設定
+          {scope !== "all" && (
+            <span style={{ marginLeft: 8, color: COMPANY_OPTIONS.find((c) => c.id === scope)?.color, fontWeight: 700 }}>
+              · 範圍：{COMPANY_OPTIONS.find((c) => c.id === scope)?.label}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <UsersTab token={token} />
+    </div>
+  );
+}
+
+// ─── System Hub Tab (系統管控 — 統籌 Claude/審核/系統設定) ─────────────────
+
+type SystemSubTab = "claude-tasks" | "approvals" | "system";
+
+function SystemHubTab({ token }: { token: string }) {
+  const [sub, setSub] = useState<SystemSubTab>("claude-tasks");
+
+  const subTabs: { id: SystemSubTab; label: string; icon: string; desc: string }[] = [
+    { id: "claude-tasks", label: "Claude 指派", icon: "🤖", desc: "AI 待辦任務 / 自動化指派" },
+    { id: "approvals", label: "審核中心", icon: "✅", desc: "註冊 / 變更請求審核" },
+    { id: "system", label: "系統設定", icon: "⚙️", desc: "全局參數 / 資料庫設定" },
+  ];
+
+  const current = subTabs.find((s) => s.id === sub) || subTabs[0];
+
+  return (
+    <div>
+      {/* Section header — title + dropdown selector on the left */}
+      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: "0 0 auto" }}>
+          <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 8, color: "var(--text)" }}>⚙️ 系統管控</div>
+          <SectionDropdown
+            options={subTabs}
+            value={sub}
+            onChange={(v) => setSub(v as SystemSubTab)}
+          />
+          <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 8, maxWidth: 320 }}>
+            {current.desc}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        {sub === "claude-tasks" && <ClaudeTasksTab token={token} />}
+        {sub === "approvals" && <ApprovalsTab token={token} />}
+        {sub === "system" && <SystemTab />}
       </div>
     </div>
   );
@@ -1839,13 +4402,21 @@ function UsersTab({ token }: { token: string }) {
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   const updateRole = async (userId: string, role: string) => {
-    await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, role }) });
+    try {
+      const res = await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, role }) });
+      const json = await res.json();
+      if (!json.user) alert(json.error || "更新角色失敗");
+    } catch { alert("網路錯誤"); }
     fetchUsers();
   };
 
   const toggleStatus = async (userId: string, currentStatus: string) => {
     const newStatus = currentStatus === "active" ? "inactive" : "active";
-    await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, status: newStatus }) });
+    try {
+      const res = await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, status: newStatus }) });
+      const json = await res.json();
+      if (!json.user) alert(json.error || "更新狀態失敗");
+    } catch { alert("網路錯誤"); }
     fetchUsers();
   };
 
