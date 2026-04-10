@@ -2,7 +2,7 @@
 
 import { brands } from "@/data/brands";
 
-export type CompanyType = "sales" | "recruit";
+export type CompanyType = "sales" | "recruit" | "hq";
 export type UserRole =
   | "chairman"
   | "sales_manager"
@@ -58,6 +58,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 const COMPANY_LABELS: Record<CompanyType, string> = {
   sales: "業務戰線",
   recruit: "獵頭戰線",
+  hq: "總公司",
 };
 
 export default function Sidebar({

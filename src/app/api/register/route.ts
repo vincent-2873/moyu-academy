@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         email,
         name: name || email.split("@")[0],
         brand: brand || "nschool",
-        role: "sales_rep",
+        role: brand === "hq" ? "ceo" : "sales_rep",
         status: "active",
       })
       .select("id")

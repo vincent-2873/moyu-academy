@@ -147,13 +147,17 @@ interface ModuleOverride {
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 const BRAND_LABELS: Record<string, string> = {
-  nschool: "nSchool 財經", xuemi: "XUEMI 學米", ooschool: "OOschool 無限", aischool: "AIschool 智能",
+  hq: "總公司", nschool: "nSchool 財經", xuemi: "XUEMI 學米", ooschool: "OOschool 無限", aischool: "AIschool 智能", moyuhunt: "墨宇獵頭",
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  super_admin: "超級管理員", brand_manager: "品牌主管", team_leader: "老祖宗",
+  super_admin: "超級管理員", ceo: "總經理", coo: "營運長", cfo: "財務長", director: "總監",
+  brand_manager: "品牌主管", team_leader: "老祖宗",
   trainer: "武公", reserve_cadre: "師傅", mentor: "師傅（帶訓）", sales_rep: "業務人員",
 };
+
+/** 高階角色 — 可看到所有部門 + 所有數據 */
+const HQ_ROLES = ["super_admin", "ceo", "coo", "cfo", "director"];
 
 const MODULE_TITLES: Record<number, string> = {
   1: "新人報到｜開發學習", 2: "架構對練｜後台學習", 3: "正式上機｜開發實戰",
@@ -4499,6 +4503,10 @@ function UsersTab({ token }: { token: string }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, fontSize: 12 }}>
           {[
             { role: "super_admin", label: "超級管理員", desc: "系統最高權限，可管理所有品牌、用戶、設定", perms: "全部功能", color: "var(--red)" },
+            { role: "ceo", label: "總經理", desc: "集團總經理，掌控所有部門與品牌的全局戰況", perms: "全部功能 + 所有部門數據", color: "var(--red)" },
+            { role: "coo", label: "營運長 COO", desc: "集團營運長，負責各品牌營運效率與流程優化", perms: "全部功能 + 所有部門數據", color: "#dc2626" },
+            { role: "cfo", label: "財務長 CFO", desc: "集團財務長，負責財務規劃與成本控制", perms: "全部功能 + 所有部門數據", color: "#dc2626" },
+            { role: "director", label: "總監", desc: "部門總監，跨品牌管理特定職能", perms: "全部功能 + 所有部門數據", color: "#ea580c" },
             { role: "brand_manager", label: "品牌主管", desc: "管理所屬品牌的團隊、訓練進度、KPI 審核", perms: "品牌管理、審核、報表", color: "var(--gold)" },
             { role: "team_leader", label: "老祖宗", desc: "據點最資深主管，負責整體帶隊方向與人員調配", perms: "團隊管理、師徒配對、KPI 審核", color: "var(--accent)" },
             { role: "trainer", label: "武公", desc: "負責新人培訓課程授課、SOP 教學、技能考核", perms: "訓練內容管理、測驗管理", color: "var(--teal)" },

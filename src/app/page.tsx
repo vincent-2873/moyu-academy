@@ -362,18 +362,25 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
     setError("");
 
     if (isRegister) {
-      // 獵頭只需簡單驗證，業務員需要品牌邀請碼
+      // 驗證邀請碼
       if (companyType === "sales") {
         const b = brands[brand];
         if (inviteCode !== b.inviteCode) {
           setError("邀請碼錯誤");
           return;
         }
-      } else if (inviteCode !== "MOYUHUNT") {
-        setError("獵頭邀請碼錯誤（提示：MOYUHUNT）");
-        return;
+      } else if (companyType === "recruit") {
+        if (inviteCode !== "MOYUHUNT") {
+          setError("獵頭邀請碼錯誤");
+          return;
+        }
+      } else if (companyType === "hq") {
+        if (inviteCode !== brands.hq.inviteCode) {
+          setError("總公司邀請碼錯誤");
+          return;
+        }
       }
-      const targetBrand = companyType === "recruit" ? "moyuhunt" : brand;
+      const targetBrand = companyType === "recruit" ? "moyuhunt" : companyType === "hq" ? "hq" : brand;
       const res = registerUser(email, password, name, targetBrand, companyType);
       if (!res.success) {
         setError(res.error || "註冊失敗");
@@ -521,7 +528,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
             <>
               <div className="mb-4">
                 <label className="block text-xs text-[var(--text2)] mb-2">我要加入</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setCompanyType("sales")}
@@ -546,6 +553,18 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                     🎯 獵頭公司
                     <p className="text-[10px] text-[var(--text3)] font-normal mt-0.5">招聘業務員的獵頭</p>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setCompanyType("hq")}
+                    className="px-3 py-3 rounded-lg border text-sm font-semibold transition-all"
+                    style={{
+                      borderColor: companyType === "hq" ? "#dc2626" : "var(--border)",
+                      background: companyType === "hq" ? "rgba(220,38,38,0.15)" : "var(--bg2)",
+                    }}
+                  >
+                    🏛️ 總公司
+                    <p className="text-[10px] text-[var(--text3)] font-normal mt-0.5">高階管理層</p>
+                  </button>
                 </div>
               </div>
               <div className="mb-4">
@@ -566,7 +585,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                     onChange={(e) => setBrand(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
                   >
-                    {Object.values(brands).map((b) => (
+                    {Object.values(brands).filter((b) => !["moyuhunt", "hq"].includes(b.id)).map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.fullName}
                       </option>
@@ -581,7 +600,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                   className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
-                  placeholder={companyType === "recruit" ? "獵頭邀請碼" : "品牌邀請碼"}
+                  placeholder={companyType === "hq" ? "總公司邀請碼" : companyType === "recruit" ? "獵頭邀請碼" : "品牌邀請碼"}
                   required
                 />
               </div>
