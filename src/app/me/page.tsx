@@ -360,6 +360,9 @@ export default function MePage() {
       {/* 未綁定 LINE 時自動顯示補綁 banner */}
       {data.profile?.email && <LineBindBanner email={data.profile.email} />}
 
+      {/* 今日晨報 — 早上打開看到的代辦清單 */}
+      {data.profile?.email && <DailyBriefingCard email={data.profile.email} />}
+
       {/* 個人業務數據卡片 — 對應 Metabase 同步進來的即時數字 */}
       {data.profile?.email && <MySalesMetricsCard email={data.profile.email} />}
 
@@ -987,6 +990,186 @@ function StatCell({
       >
         {value}
       </div>
+    </div>
+  );
+}
+
+// ─── 今日晨報卡片 (wake up, see what to do) ─────────────────────────────────
+
+interface BriefingAction {
+  priority: "critical" | "high" | "medium" | "low";
+  title: string;
+  detail: string;
+  source: string;
+  estimate?: string;
+}
+interface BriefingResponse {
+  ok: boolean;
+  bound: boolean;
+  email: string;
+  generatedAt: string;
+  profile?: { name: string; brand: string; team: string | null; org: string | null; level: string | null };
+  today?: { calls: number; connected: number; raw_appointments: number; appointments_show: number; closures: number; net_revenue_daily: number };
+  rule?: { name: string; severity: string; targets: { calls: number | null; call_minutes: number | null; raw_appointments: number | null } } | null;
+  shortfalls?: Array<{ metric: string; actual: number; min: number; delta: number }>;
+  headlineSummary?: string;
+  actions?: BriefingAction[];
+  teamContext?: { topPerformer: { name: string; revenue: number } | null; silent: Array<{ name: string; calls: number }> };
+  cached?: boolean;
+  message?: string;
+}
+
+const PRIORITY_STYLE: Record<BriefingAction["priority"], { bg: string; bar: string; label: string; icon: string }> = {
+  critical: { bg: "rgba(239,68,68,0.08)", bar: "#dc2626", label: "最高優先", icon: "🔴" },
+  high: { bg: "rgba(249,115,22,0.08)", bar: "#ea580c", label: "高", icon: "🟠" },
+  medium: { bg: "rgba(251,191,36,0.08)", bar: "#d97706", label: "中", icon: "🟡" },
+  low: { bg: "rgba(14,165,233,0.08)", bar: "#0891b2", label: "低", icon: "🔵" },
+};
+
+function DailyBriefingCard({ email }: { email: string }) {
+  const [data, setData] = useState<BriefingResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(
+    async (refresh = false) => {
+      if (refresh) setRefreshing(true);
+      try {
+        const url = `/api/me/daily-briefing?email=${encodeURIComponent(email)}${refresh ? "&refresh=1" : ""}`;
+        const res = await fetch(url, { cache: "no-store" });
+        const json = (await res.json()) as BriefingResponse;
+        setData(json);
+      } catch {
+        /* ignore */
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [email]
+  );
+
+  useEffect(() => {
+    load(false);
+  }, [load]);
+
+  if (loading) return null;
+  if (!data?.ok) return null;
+
+  if (!data.bound) {
+    return null; // Already covered by MySalesMetricsCard's "尚未綁定" message
+  }
+
+  const actions = data.actions || [];
+  const topPerformer = data.teamContext?.topPerformer;
+
+  return (
+    <div
+      style={{
+        margin: "20px 0",
+        padding: 24,
+        background: "linear-gradient(135deg, #fff7ed 0%, #ffffff 50%, #fef3c7 100%)",
+        border: "1px solid rgba(234,88,12,0.2)",
+        borderRadius: 18,
+        boxShadow: "0 14px 42px -18px rgba(234,88,12,0.22)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12, gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 12, color: "#92400e", fontWeight: 800, letterSpacing: 1 }}>☀️ 今日晨報</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: "#0f172a", marginTop: 6, lineHeight: 1.4 }}>
+            {data.headlineSummary}
+          </div>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+            {data.cached ? "📦 今日已生成 (可重新整理)" : "🆕 剛剛生成"} · {new Date(data.generatedAt).toLocaleString("zh-TW")}
+          </div>
+        </div>
+        <button
+          onClick={() => load(true)}
+          disabled={refreshing}
+          style={{
+            padding: "8px 14px",
+            borderRadius: 10,
+            border: "1.5px solid #fed7aa",
+            background: "#ffffff",
+            color: "#c2410c",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: refreshing ? "not-allowed" : "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {refreshing ? "重算中..." : "↻ 重新生成"}
+        </button>
+      </div>
+
+      {/* Action list */}
+      {actions.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {actions.map((a, i) => {
+            const style = PRIORITY_STYLE[a.priority] || PRIORITY_STYLE.medium;
+            return (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  padding: "12px 14px",
+                  background: style.bg,
+                  borderLeft: `4px solid ${style.bar}`,
+                  borderRadius: 10,
+                }}
+              >
+                <div style={{ fontSize: 18, flexShrink: 0 }}>{style.icon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>
+                      {i + 1}. {a.title}
+                    </span>
+                    {a.estimate && (
+                      <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>⏱ {a.estimate}</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#334155", marginTop: 4, lineHeight: 1.6 }}>{a.detail}</div>
+                  <div style={{ fontSize: 10, color: "#64748b", marginTop: 6, fontStyle: "italic" }}>
+                    📎 依據：{a.source}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Team context footer */}
+      {topPerformer && topPerformer.revenue > 0 && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: "10px 14px",
+            background: "rgba(22,163,74,0.08)",
+            borderRadius: 10,
+            fontSize: 12,
+            color: "#14532d",
+          }}
+        >
+          🏆 今日同組 MVP：<strong>{topPerformer.name}</strong> · ${topPerformer.revenue.toLocaleString()} — 別只打電話，今天一定要跟他對 1 個 objection 學法
+        </div>
+      )}
+      {data.teamContext?.silent && data.teamContext.silent.length > 0 && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: "10px 14px",
+            background: "rgba(239,68,68,0.08)",
+            borderRadius: 10,
+            fontSize: 12,
+            color: "#7f1d1d",
+          }}
+        >
+          🔴 今日掛蛋同事：{data.teamContext.silent.map((s) => s.name).join("、")} — 不要跟他們一起掉進舒適圈
+        </div>
+      )}
     </div>
   );
 }
