@@ -12,7 +12,7 @@
  * 哲學：員工註冊後就清楚自己該做什麼，不用問主管。
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import LineBindBanner from "@/components/LineBindBanner";
 
 interface Department {
@@ -362,6 +362,9 @@ export default function MePage() {
 
       {/* 個人業務數據卡片 — 對應 Metabase 同步進來的即時數字 */}
       {data.profile?.email && <MySalesMetricsCard email={data.profile.email} />}
+
+      {/* 戰情官對練 — 跟 Claude 復盤 / 對練 / 話術 */}
+      {data.profile?.email && <CoachChatCard email={data.profile.email} />}
 
       {/* Identity card */}
       {data.assigned && data.department && data.position ? (
@@ -984,6 +987,311 @@ function StatCell({
       >
         {value}
       </div>
+    </div>
+  );
+}
+
+// ─── 戰情官聊天卡片 ──────────────────────────────────────────────────────────
+
+type ChatMsg = { role: "user" | "assistant"; content: string };
+type ChatMode = "debrief" | "practice" | "objection";
+
+const MODE_LABEL: Record<ChatMode, { label: string; desc: string; icon: string }> = {
+  debrief: { label: "今日復盤", desc: "戰情官看你今天的數據，指出問題 + 具體補救", icon: "📊" },
+  practice: { label: "客戶對練", desc: "模擬難纏客戶，練習話術應對", icon: "🎭" },
+  objection: { label: "話術急救", desc: "遇到 objection 不知怎麼回，立刻拿到 3 句可直接講", icon: "💬" },
+};
+
+const QUICK_PROMPTS: Record<ChatMode, string[]> = {
+  debrief: [
+    "幫我看今天哪裡卡住了",
+    "我通次不夠該怎麼補",
+    "為什麼今天邀不到人",
+    "剩下的時間要怎麼安排",
+  ],
+  practice: [
+    "來練一個「我再考慮看看」",
+    "模擬一個對價格敏感的客戶",
+    "模擬老婆反對要諮詢的客戶",
+    "模擬有興趣但推到下週的客戶",
+  ],
+  objection: [
+    "客戶說「我沒錢」怎麼回",
+    "客戶說「我再想想」怎麼回",
+    "客戶說「我老婆不同意」怎麼回",
+    "客戶說「課程太貴」怎麼回",
+  ],
+};
+
+function CoachChatCard({ email }: { email: string }) {
+  const [mode, setMode] = useState<ChatMode>("debrief");
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Reset messages when mode changes
+  useEffect(() => {
+    setMessages([]);
+  }, [mode]);
+
+  // Auto-scroll to bottom on new message
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const send = async (override?: string) => {
+    const text = (override ?? input).trim();
+    if (!text || sending) return;
+    const userMsg: ChatMsg = { role: "user", content: text };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput("");
+    setSending(true);
+
+    // Placeholder assistant message that will stream
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+    try {
+      const res = await fetch("/api/me/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, mode, messages: newMessages }),
+      });
+      if (!res.ok || !res.body) {
+        throw new Error("chat API failed: " + res.status);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (!payload) continue;
+          try {
+            const parsed = JSON.parse(payload) as { delta?: string; done?: boolean; error?: string };
+            if (parsed.error) throw new Error(parsed.error);
+            if (parsed.delta) {
+              setMessages((prev) => {
+                const copy = [...prev];
+                const last = copy[copy.length - 1];
+                if (last?.role === "assistant") {
+                  copy[copy.length - 1] = { ...last, content: last.content + parsed.delta };
+                }
+                return copy;
+              });
+            }
+          } catch {
+            /* ignore parse errors */
+          }
+        }
+      }
+    } catch (err) {
+      setMessages((prev) => {
+        const copy = [...prev];
+        const last = copy[copy.length - 1];
+        if (last?.role === "assistant" && last.content === "") {
+          copy[copy.length - 1] = {
+            ...last,
+            content: "⚠️ 戰情官暫時無法回應：" + (err instanceof Error ? err.message : "unknown"),
+          };
+        }
+        return copy;
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        margin: "20px 0",
+        padding: 24,
+        background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+        border: "1px solid #e2e8f0",
+        borderRadius: 18,
+        boxShadow: "0 12px 40px -18px rgba(79,70,229,0.12)",
+      }}
+    >
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700 }}>🎯 戰情官</div>
+        <div style={{ fontSize: 20, fontWeight: 900, color: "#0f172a", marginTop: 4 }}>
+          {MODE_LABEL[mode].icon} {MODE_LABEL[mode].label}
+        </div>
+        <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{MODE_LABEL[mode].desc}</div>
+      </div>
+
+      {/* Mode selector */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {(Object.keys(MODE_LABEL) as ChatMode[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            style={{
+              padding: "8px 14px",
+              borderRadius: 10,
+              border: `1.5px solid ${mode === m ? "#4f46e5" : "#e2e8f0"}`,
+              background: mode === m ? "rgba(79,70,229,0.08)" : "#ffffff",
+              color: mode === m ? "#4f46e5" : "#64748b",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {MODE_LABEL[m].icon} {MODE_LABEL[m].label}
+          </button>
+        ))}
+      </div>
+
+      {/* Quick prompts */}
+      {messages.length === 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>💡 快速問（點一下直接問）</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {QUICK_PROMPTS[mode].map((q) => (
+              <button
+                key={q}
+                onClick={() => send(q)}
+                disabled={sending}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 999,
+                  border: "1px solid #e2e8f0",
+                  background: "#ffffff",
+                  fontSize: 12,
+                  color: "#475569",
+                  cursor: sending ? "not-allowed" : "pointer",
+                  opacity: sending ? 0.5 : 1,
+                }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Messages */}
+      {messages.length > 0 && (
+        <div
+          ref={scrollRef}
+          style={{
+            maxHeight: 400,
+            overflowY: "auto",
+            marginBottom: 12,
+            padding: 12,
+            background: "#f8fafc",
+            borderRadius: 12,
+            border: "1px solid #e2e8f0",
+          }}
+        >
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                marginBottom: 12,
+                display: "flex",
+                justifyContent: m.role === "user" ? "flex-end" : "flex-start",
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: "85%",
+                  padding: "10px 14px",
+                  borderRadius: 14,
+                  background: m.role === "user"
+                    ? "linear-gradient(135deg, #4f46e5, #06b6d4)"
+                    : "#ffffff",
+                  color: m.role === "user" ? "#fff" : "#0f172a",
+                  border: m.role === "user" ? "none" : "1px solid #e2e8f0",
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {m.content || (m.role === "assistant" && sending && i === messages.length - 1 ? "思考中…" : "")}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          placeholder={
+            mode === "debrief"
+              ? "問戰情官任何關於今天的事..."
+              : mode === "practice"
+              ? "告訴陪練官要練什麼場景..."
+              : "把客戶的 objection 貼上來..."
+          }
+          disabled={sending}
+          style={{
+            flex: 1,
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1.5px solid #e2e8f0",
+            background: "#ffffff",
+            fontSize: 13,
+            color: "#0f172a",
+            outline: "none",
+          }}
+        />
+        <button
+          onClick={() => send()}
+          disabled={!input.trim() || sending}
+          style={{
+            padding: "12px 22px",
+            borderRadius: 12,
+            border: "none",
+            background: !input.trim() || sending ? "#e2e8f0" : "linear-gradient(135deg, #4f46e5, #06b6d4)",
+            color: !input.trim() || sending ? "#94a3b8" : "#ffffff",
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: !input.trim() || sending ? "not-allowed" : "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          送出
+        </button>
+      </div>
+
+      {messages.length > 0 && (
+        <button
+          onClick={() => setMessages([])}
+          style={{
+            marginTop: 8,
+            padding: "4px 10px",
+            background: "transparent",
+            border: "none",
+            color: "#94a3b8",
+            fontSize: 11,
+            cursor: "pointer",
+          }}
+        >
+          ↻ 清空對話
+        </button>
+      )}
     </div>
   );
 }
