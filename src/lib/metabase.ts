@@ -370,6 +370,7 @@ export async function syncBrand(
       .from("metabase_sources")
       .update({
         last_sync_at: new Date().toISOString(),
+        last_sync_rows: 0, // 失敗時重置，避免 UI 顯示過期的成功筆數
         last_sync_status: "failed",
         last_sync_error: msg,
       })

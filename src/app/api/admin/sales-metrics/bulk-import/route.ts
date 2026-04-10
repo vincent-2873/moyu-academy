@@ -29,14 +29,58 @@ export async function OPTIONS() {
  *
  * 安全：service role only — 放在 admin 名下，正式 prod 建議加 token 驗證
  */
+/** 支援 3 種 body format：
+ *  1. application/json — 直接 { brand, date, cols, rows }
+ *  2. text/plain — raw body 就是 JSON 字串（給 sendBeacon / form POST 用）
+ *  3. application/x-www-form-urlencoded — body 是 "jsondata=<urlencoded-json>" (form POST from cross-origin)
+ */
+async function parseBody(req: NextRequest): Promise<{
+  brand?: string;
+  date?: string;
+  cols?: string[];
+  rows?: unknown[][];
+} | null> {
+  const ct = (req.headers.get("content-type") || "").toLowerCase();
+  try {
+    if (ct.includes("application/json")) {
+      return await req.json();
+    }
+    const text = await req.text();
+    if (!text) return null;
+
+    // form-urlencoded: jsondata=...
+    if (ct.includes("application/x-www-form-urlencoded") || text.startsWith("jsondata=")) {
+      const params = new URLSearchParams(text);
+      const jsondata = params.get("jsondata");
+      if (jsondata) return JSON.parse(jsondata);
+    }
+
+    // text/plain or no content-type — try plain JSON first
+    try {
+      return JSON.parse(text);
+    } catch {
+      // last resort: maybe it's "key=value\njson" from text/plain form enctype
+      const eqIdx = text.indexOf("=");
+      if (eqIdx > 0) {
+        const rest = text.slice(eqIdx + 1).trim();
+        return JSON.parse(rest);
+      }
+      throw new Error("unparseable body");
+    }
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { brand, date, cols, rows } = body as {
-    brand?: string;
-    date?: string;
-    cols?: string[];
-    rows?: unknown[][];
-  };
+  const body = await parseBody(req);
+  if (!body) {
+    return Response.json(
+      { ok: false, error: "invalid body (expect json/text/form with brand,date,cols,rows)" },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+  const { brand, date, cols, rows } = body;
 
   if (!brand || !date || !Array.isArray(cols) || !Array.isArray(rows)) {
     return Response.json(
