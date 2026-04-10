@@ -19,9 +19,10 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 
 interface LineStateRaw {
   csrf: string;
-  mode: "login" | "register";
+  mode: "login" | "register" | "bind";
   brand: string;
   name: string;
+  bindEmail?: string;
   ts: number;
 }
 
@@ -120,17 +121,9 @@ export async function GET(req: NextRequest) {
     pictureUrl?: string;
   };
 
-  // 3. 寫 Supabase — 先查是否已有同 line_user_id 的 user
+  // 3. 寫 Supabase — 根據 mode 分岔
   const supabase = getSupabaseAdmin();
 
-  // 嘗試用 line_user_id 找既有帳號
-  const { data: existingByLine } = await supabase
-    .from("users")
-    .select("id, email, name, brand, role, status")
-    .eq("line_user_id", profile.userId)
-    .maybeSingle();
-
-  let userEmail: string;
   let userRecord: {
     id: string;
     email: string;
@@ -140,8 +133,70 @@ export async function GET(req: NextRequest) {
     status: string;
   };
 
+  // ── mode=bind：補綁既有帳號 ──
+  if (state.mode === "bind" && state.bindEmail) {
+    // 找既有 email 的 user
+    const { data: existingByEmail, error: fetchErr } = await supabase
+      .from("users")
+      .select("id, email, name, brand, role, status, line_user_id")
+      .eq("email", state.bindEmail)
+      .maybeSingle();
+
+    if (fetchErr || !existingByEmail) {
+      return new Response(
+        `補綁失敗：找不到帳號 ${state.bindEmail}`,
+        { status: 404 }
+      );
+    }
+
+    // 確認這個 LINE userId 還沒被別人綁走
+    if (existingByEmail.line_user_id && existingByEmail.line_user_id !== profile.userId) {
+      return new Response(
+        `此帳號已經綁定過另一個 LINE，無法覆蓋`,
+        { status: 409 }
+      );
+    }
+    const { data: collision } = await supabase
+      .from("users")
+      .select("id, email")
+      .eq("line_user_id", profile.userId)
+      .neq("email", state.bindEmail)
+      .maybeSingle();
+    if (collision) {
+      return new Response(
+        `這個 LINE 已經綁到另一個帳號 ${collision.email}`,
+        { status: 409 }
+      );
+    }
+
+    const { data: updated, error: updErr } = await supabase
+      .from("users")
+      .update({
+        line_user_id: profile.userId,
+        line_bound_at: new Date().toISOString(),
+      })
+      .eq("id", existingByEmail.id)
+      .select("id, email, name, brand, role, status")
+      .single();
+
+    if (updErr || !updated) {
+      return new Response(
+        `補綁失敗：${updErr?.message || "unknown"}`,
+        { status: 500 }
+      );
+    }
+    userRecord = updated;
+    return buildRedirect(origin, userRecord);
+  }
+
+  // ── mode=login/register：原本流程（line_user_id 查 → 找不到就建新 user）──
+  const { data: existingByLine } = await supabase
+    .from("users")
+    .select("id, email, name, brand, role, status")
+    .eq("line_user_id", profile.userId)
+    .maybeSingle();
+
   if (existingByLine) {
-    userEmail = existingByLine.email;
     userRecord = existingByLine;
   } else {
     // 新用戶 — 用 LINE userId 當 email-like identifier（LINE 沒給 email 的情況下）
@@ -165,11 +220,17 @@ export async function GET(req: NextRequest) {
     if (insErr || !newUser) {
       return new Response(`insert user failed: ${insErr?.message || "unknown"}`, { status: 500 });
     }
-    userEmail = newUser.email;
     userRecord = newUser;
   }
 
-  // 4. 把使用者資訊寫到短期 cookie，前端讀到就能完成本地 session bootstrap
+  return buildRedirect(origin, userRecord);
+}
+
+/** 共用：302 回首頁 + 清 oauth cookie + 放 session cookie 讓前台 bootstrap */
+function buildRedirect(
+  origin: string,
+  userRecord: { email: string; name: string; brand: string; role: string }
+): Response {
   const sessionPayload = Buffer.from(
     JSON.stringify({
       email: userRecord.email,
@@ -189,12 +250,9 @@ export async function GET(req: NextRequest) {
     "Set-Cookie",
     `moyu_oauth_nonce=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`
   );
-  // Non-httpOnly so frontend can read and bootstrap local session then delete it
   headers.append(
     "Set-Cookie",
     `moyu_oauth_session=${sessionPayload}; Path=/; Max-Age=120; Secure; SameSite=Lax`
   );
-  // suppress string concat for unused var
-  void userEmail;
   return new Response(null, { status: 302, headers });
 }

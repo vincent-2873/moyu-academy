@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import LineBindBanner from "@/components/LineBindBanner";
 
 interface Department {
   id: string;
@@ -355,6 +356,9 @@ export default function MePage() {
         </div>
         <button onClick={handleLogout} style={logoutBtn}>登出</button>
       </div>
+
+      {/* 未綁定 LINE 時自動顯示補綁 banner */}
+      {data.profile?.email && <LineBindBanner email={data.profile.email} />}
 
       {/* Identity card */}
       {data.assigned && data.department && data.position ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import LineBindBanner from "@/components/LineBindBanner";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
@@ -223,6 +224,7 @@ export default function AdminPage() {
 
   return (
     <div className="admin-light" style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
+      {session.email && <LineBindBanner email={session.email} variant="top" />}
       {/* Sidebar */}
       <aside style={{ width: 240, background: "var(--bg2)", borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 10, boxShadow: "2px 0 8px rgba(15,23,42,0.04)" }}>
         <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)" }}>

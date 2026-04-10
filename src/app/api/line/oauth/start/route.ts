@@ -26,9 +26,10 @@ export async function GET(req: NextRequest) {
   }
 
   const url = new URL(req.url);
-  const mode = (url.searchParams.get("mode") || "login") as "login" | "register";
+  const mode = (url.searchParams.get("mode") || "login") as "login" | "register" | "bind";
   const brand = url.searchParams.get("brand") || "";
   const name = url.searchParams.get("name") || "";
+  const bindEmail = url.searchParams.get("email") || "";
 
   // state 同時兼 CSRF 與 intent carrier — 只把關鍵欄位放進去，不放敏感資料
   const stateRaw = {
@@ -36,6 +37,7 @@ export async function GET(req: NextRequest) {
     mode,
     brand,
     name,
+    bindEmail, // mode=bind 時把要補綁的 email 帶在這裡
     ts: Date.now(),
   };
   const state = Buffer.from(JSON.stringify(stateRaw)).toString("base64url");
