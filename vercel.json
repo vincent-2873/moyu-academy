@@ -25,6 +25,11 @@
       "comment": "業務數據警報規則 — 整點跑一次，UTC 01:00-14:00 = 台北 09:00-22:00",
       "path": "/api/cron/sales-metrics-rules",
       "schedule": "5 1-14 * * *"
+    },
+    {
+      "comment": "每日個人晨報 LINE 推播 — 台灣時間 09:00 = UTC 01:00",
+      "path": "/api/cron/daily-briefing-push",
+      "schedule": "0 1 * * *"
     }
   ]
 }
