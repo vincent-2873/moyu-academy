@@ -245,7 +245,7 @@ export default function MePage() {
       <div style={loginWrap}>
         <div style={loginCard}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>👋</div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, color: "#fff" }}>墨宇學院 · 我的工作台</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, color: "#fff" }}>墨宇戰情中樞 · 我的戰情</h1>
           <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 20 }}>
             {mode === "login" ? "輸入你的工作 email，看看今天 Claude 給你什麼任務" : "首次加入請填寫下方資料"}
           </p>
@@ -349,7 +349,7 @@ export default function MePage() {
       {/* Header */}
       <div style={headerStyle}>
         <div>
-          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>墨宇學院 · 我的工作台</div>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>墨宇戰情中樞 · 我的戰情</div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: "#fff", margin: 0 }}>{data.profile?.name || "(未命名)"}</h1>
           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>{data.profile?.email}</div>
         </div>

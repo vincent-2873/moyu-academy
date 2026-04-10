@@ -5,8 +5,12 @@
       "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/cron/claude-autoscan",
+      "path": "/api/cron/daily-todo-push",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/claude-autoscan",
+      "schedule": "30 1 * * *"
     },
     {
       "path": "/api/cron/breakthrough-engine",

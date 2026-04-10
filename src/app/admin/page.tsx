@@ -227,9 +227,9 @@ export default function AdminPage() {
       <aside style={{ width: 240, background: "var(--bg2)", borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 10, boxShadow: "2px 0 8px rgba(15,23,42,0.04)" }}>
         <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ fontSize: 18, fontWeight: 700, background: "linear-gradient(135deg, var(--accent), var(--teal))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            墨宇學院 Admin
+            墨宇戰情中樞
           </div>
-          <div style={{ color: "var(--text3)", fontSize: 12, marginTop: 2 }}>管理後台</div>
+          <div style={{ color: "var(--text3)", fontSize: 12, marginTop: 2 }}>指揮後台</div>
         </div>
         <nav style={{ flex: 1, padding: "8px 0" }}>
           {tabs.map((t) => (
@@ -339,9 +339,9 @@ function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
     <div className="admin-light" style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: "48px 40px", width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(15,23,42,0.08)" }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg, var(--accent), var(--teal))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 14px" }}>🎓</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>墨宇學院 Admin</div>
-          <div style={{ color: "var(--text3)", fontSize: 14, marginTop: 4 }}>管理後台登入</div>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg, var(--accent), var(--teal))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 14px" }}>⚔️</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>墨宇戰情中樞</div>
+          <div style={{ color: "var(--text3)", fontSize: 14, marginTop: 4 }}>指揮後台登入</div>
         </div>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>

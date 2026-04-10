@@ -342,6 +342,12 @@ function HelpBot() {
 }
 
 /* ===================== AUTH ===================== */
+interface BindingInfo {
+  code: string;
+  lineFriendUrl: string | null;
+  mode: "register" | "login";
+}
+
 function AuthPage({ onLogin }: { onLogin: () => void }) {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState("");
@@ -351,6 +357,39 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
   const [companyType, setCompanyType] = useState<CompanyType>("hq");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
+  const [binding, setBinding] = useState<BindingInfo | null>(null);
+  const [bindingPolling, setBindingPolling] = useState(false);
+
+  // Poll LINE 綁定狀態，偵測到綁定完成就走完登入流程
+  useEffect(() => {
+    if (!binding) return;
+    let cancelled = false;
+    setBindingPolling(true);
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`/api/line/binding-status?code=${encodeURIComponent(binding.code)}`);
+        const data = await res.json();
+        if (data?.bound && data.user) {
+          // 綁定完成：同步本地帳號並進入系統
+          restoreUserFromCloud(email, password || email, data.user);
+          setBinding(null);
+          setBindingPolling(false);
+          onLogin();
+          return;
+        }
+      } catch {
+        /* ignore, retry */
+      }
+    };
+    const id = setInterval(tick, 3000);
+    tick();
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      setBindingPolling(false);
+    };
+  }, [binding, email, password, onLogin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -396,38 +435,130 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
         setError(`註冊成功但雲端同步失敗: ${syncResult.error}，管理員可能暫時看不到您的帳號。`);
         return;
       }
-      // LINE 綁定改為選用，註冊後直接登入
-      const loginRes = loginUser(email, password);
-      if (loginRes.success) onLogin();
-    } else {
-      const res = loginUser(email, password);
-      if (res.success) {
-        onLogin();
+      // 強制 LINE 綁定：拿到綁定碼就跳綁定畫面，禁止直接進系統
+      if (syncResult.lineBindingRequired && syncResult.lineBindingCode) {
+        setBinding({
+          code: syncResult.lineBindingCode,
+          lineFriendUrl: syncResult.lineFriendUrl || null,
+          mode: "register",
+        });
         return;
       }
-      // If not found locally, check Supabase (user may have cleared cache)
-      if (res.error === "LOCAL_NOT_FOUND") {
-        try {
-          const cloudRes = await fetch("/api/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
-          });
-          if (cloudRes.ok) {
-            const { user: cloudUser } = await cloudRes.json();
-            restoreUserFromCloud(email, password, cloudUser);
-            onLogin();
+      // 理論上不會走到這（後端一定會回綁定碼），保險：直接擋住並要求重試
+      setError("註冊完成但沒拿到 LINE 綁定碼，請重新整理再試一次");
+    } else {
+      // 優先直接打後端：後端是 LINE 綁定真實來源
+      try {
+        const cloudRes = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const cloudData = await cloudRes.json();
+
+        // 403 + LINE_BIND_REQUIRED → 跳綁定畫面
+        if (cloudRes.status === 403 && cloudData?.error === "LINE_BIND_REQUIRED") {
+          if (cloudData.lineBindingCode) {
+            setBinding({
+              code: cloudData.lineBindingCode,
+              lineFriendUrl: cloudData.lineFriendUrl || null,
+              mode: "login",
+            });
             return;
           }
-        } catch {
-          // Fall through to error
+          setError("此帳號尚未綁定 LINE，且系統無法產生綁定碼，請聯繫管理員");
+          return;
         }
-        setError("找不到此帳號，請先註冊");
-        return;
+
+        if (cloudRes.ok && cloudData?.user) {
+          restoreUserFromCloud(email, password || email, cloudData.user);
+          onLogin();
+          return;
+        }
+
+        if (cloudRes.status === 404) {
+          setError("找不到此帳號，請先註冊");
+          return;
+        }
+        setError(cloudData?.error || "登入失敗");
+      } catch {
+        setError("無法連接伺服器，請稍後再試");
       }
-      setError(res.error || "登入失敗");
     }
   };
+
+  // ── 綁定 LINE 畫面 ──（註冊或登入時尚未綁定會跳這一頁）
+  if (binding) {
+    return (
+      <div className="h-screen flex items-center justify-center px-4">
+        <div className="w-full max-w-md bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 sm:p-8">
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-3">🔗</div>
+            <h1 className="text-2xl font-bold mb-2">綁定 LINE 完成啟用</h1>
+            <p className="text-sm text-[var(--text3)]">
+              {binding.mode === "register"
+                ? "帳號建立成功。系統所有代辦、警報、每日命令都會透過 LINE 發送，請先完成綁定再進入系統。"
+                : "此帳號尚未綁定 LINE。系統規定綁定完成才能登入。"}
+            </p>
+          </div>
+
+          <ol className="text-sm text-[var(--text2)] space-y-3 mb-6">
+            <li className="flex gap-2">
+              <span className="font-bold text-[var(--accent)]">1.</span>
+              <span>
+                加入「墨宇小精靈」LINE 官方帳號
+                {binding.lineFriendUrl ? (
+                  <>
+                    ：
+                    <a
+                      href={binding.lineFriendUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[var(--accent)] underline"
+                    >
+                      點此加入
+                    </a>
+                  </>
+                ) : (
+                  "（在 LINE 搜尋官方帳號 ID，請向管理員索取）"
+                )}
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span className="font-bold text-[var(--accent)]">2.</span>
+              <span>在 LINE 對話框輸入下方綁定碼：</span>
+            </li>
+          </ol>
+
+          <div
+            className="text-center py-6 mb-6 rounded-xl border-2 border-dashed"
+            style={{ borderColor: "var(--accent)", background: "rgba(102,126,234,0.08)" }}
+          >
+            <div className="text-xs text-[var(--text3)] mb-1">綁定碼（24 小時內有效）</div>
+            <div className="text-4xl font-black tracking-[0.3em] text-[var(--accent)] font-mono">
+              {binding.code}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-[var(--text2)] mb-4">
+            <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
+            <span>{bindingPolling ? "等待你在 LINE 輸入綁定碼..." : "準備偵測綁定狀態"}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setBinding(null);
+              setError("");
+            }}
+            className="w-full py-2.5 rounded-lg text-sm text-[var(--text2)] border border-[var(--border)] hover:bg-[var(--bg2)]"
+          >
+            取消，返回登入
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex items-center justify-center px-4">

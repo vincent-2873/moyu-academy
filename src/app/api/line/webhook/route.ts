@@ -4,13 +4,13 @@ import { NextRequest } from "next/server";
 import crypto from "crypto";
 
 /**
- * LINE Webhook（墨宇小精靈）
+ * LINE Webhook（墨宇小精靈 — 墨宇戰情中樞）
  *
  * 用戶綁定流程：
  *   1. 用戶在系統註冊 → /api/register 產生 6 位綁定碼，存進 line_bindings 表
- *   2. 註冊頁顯示「請加入墨宇小精靈 LINE@ 並輸入綁定碼 ABC123」
- *   3. 用戶加 LINE@ → 我們收到 follow 事件 → 回覆「請輸入你的 6 位綁定碼」
- *   4. 用戶輸入綁定碼 → 我們收到 message 事件 → 查 line_bindings → 找到 email
+ *   2. 註冊頁顯示「請加入墨宇小精靈 LINE 官方帳號並輸入綁定碼 ABC123」
+ *   3. 用戶加 LINE 官方帳號 → 收到 follow 事件 → 回覆「請輸入你的 6 位綁定碼」
+ *   4. 用戶輸入綁定碼 → 收到 message 事件 → 查 line_bindings → 找到 email
  *      → 把 line_user_id 寫回 users 表 → 回覆「綁定成功！」
  *
  * 環境變數：
@@ -33,16 +33,15 @@ function verifySignature(body: string, signature: string | null): boolean {
   return hash === signature;
 }
 
-const HELLO_TEXT = `👋 歡迎加入墨宇小精靈！
+const HELLO_TEXT = `⚔️ 歡迎加入墨宇小精靈
 
-我是 Claude，墨宇學院的監測系統，我會在這裡推播：
-• 🚧 系統卡住的緊急通知
-• 🔴 業務異常警報
-• 🤖 Claude 指派的任務
-• 📊 每日戰報
+我是 Claude，墨宇戰情中樞的指揮核心，透過這個頻道對你下達命令：
+• 🔴 業務異常即時開火
+• 🟠 每日必做任務推播
+• 🚧 系統卡住時的越級警報
+• 📊 逾期未完成會升級到主管
 
-請輸入你的 6 位「綁定碼」完成帳號連結。
-（綁定碼會在你註冊時顯示在後台）`;
+先輸入你的 6 位「綁定碼」完成身分綁定，綁定之前系統不會放你進來。`;
 
 const BIND_CODE_REGEX = /^[A-Z0-9]{6}$/;
 
@@ -119,7 +118,7 @@ export async function POST(request: NextRequest) {
 
         await lineReply(
           event.replyToken,
-          `✅ 綁定成功！\n\n你的帳號 ${binding.email} 已連結到墨宇小精靈。\n\n之後系統的緊急通知都會直接推到這裡。`
+          `✅ 綁定完成\n\n${binding.email} 已納入墨宇戰情中樞。\n\n從現在起，每日命令、異常警報、逾期追殺都會直接推到這裡。\n現在可以回到系統登入。`
         );
         continue;
       }
@@ -127,7 +126,7 @@ export async function POST(request: NextRequest) {
       // 預設回覆
       await lineReply(
         event.replyToken,
-        "我只接收 6 位「綁定碼」（範例：ABC123）。\n如果還沒註冊請先到 https://moyusales.vercel.app 註冊。"
+        "我只接收 6 位「綁定碼」（範例：ABC123）。\n還沒註冊先去 https://moyusales.vercel.app 註冊，完成綁定之前你進不了系統。"
       );
     }
 
