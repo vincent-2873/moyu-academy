@@ -448,45 +448,22 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
           {isRegister && (
             <>
               <div className="mb-4">
-                <label className="block text-xs text-[var(--text2)] mb-2">我要加入</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCompanyType("sales")}
-                    className="px-3 py-3 rounded-lg border text-sm font-semibold transition-all"
-                    style={{
-                      borderColor: companyType === "sales" ? "var(--accent)" : "var(--border)",
-                      background: companyType === "sales" ? "rgba(124,108,240,0.15)" : "var(--bg2)",
-                    }}
-                  >
-                    💼 業務公司
-                    <p className="text-[10px] text-[var(--text3)] font-normal mt-0.5">賣課程的業務員</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCompanyType("recruit")}
-                    className="px-3 py-3 rounded-lg border text-sm font-semibold transition-all"
-                    style={{
-                      borderColor: companyType === "recruit" ? "#fb923c" : "var(--border)",
-                      background: companyType === "recruit" ? "rgba(251,146,60,0.15)" : "var(--bg2)",
-                    }}
-                  >
-                    🎯 獵頭公司
-                    <p className="text-[10px] text-[var(--text3)] font-normal mt-0.5">招聘業務員的獵頭</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCompanyType("hq")}
-                    className="px-3 py-3 rounded-lg border text-sm font-semibold transition-all"
-                    style={{
-                      borderColor: companyType === "hq" ? "#dc2626" : "var(--border)",
-                      background: companyType === "hq" ? "rgba(220,38,38,0.15)" : "var(--bg2)",
-                    }}
-                  >
-                    🏛️ 總公司
-                    <p className="text-[10px] text-[var(--text3)] font-normal mt-0.5">總公司</p>
-                  </button>
-                </div>
+                <label className="block text-xs text-[var(--text2)] mb-1">我要加入</label>
+                <select
+                  value={companyType}
+                  onChange={(e) => setCompanyType(e.target.value as CompanyType)}
+                  className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                >
+                  <optgroup label="── 業務體系 ──">
+                    <option value="sales">💼 業務公司 — 賣課程的業務員</option>
+                  </optgroup>
+                  <optgroup label="── 招聘體系 ──">
+                    <option value="recruit">🎯 獵頭公司 — 招聘業務員的獵頭</option>
+                  </optgroup>
+                  <optgroup label="── 集團管理 ──">
+                    <option value="hq">🏛️ 總公司</option>
+                  </optgroup>
+                </select>
               </div>
               <div className="mb-4">
                 <label className="block text-xs text-[var(--text2)] mb-1">姓名</label>
