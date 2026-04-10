@@ -15,6 +15,11 @@
     {
       "path": "/api/cron/breakthrough-engine",
       "schedule": "0 2 * * *"
+    },
+    {
+      "comment": "Metabase 業務數據同步 — 每 15 分，UTC 01:00-14:00 = 台北 09:00-22:00",
+      "path": "/api/cron/metabase-sync",
+      "schedule": "*/15 1-14 * * *"
     }
   ]
 }
