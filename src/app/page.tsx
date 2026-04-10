@@ -435,13 +435,21 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
         setError(`註冊成功但雲端同步失敗: ${syncResult.error}，管理員可能暫時看不到您的帳號。`);
         return;
       }
-      // 強制 LINE 綁定：拿到綁定碼就跳綁定畫面，禁止直接進系統
+      // 強制 LINE 綁定：拿到綁定碼就跳綁定畫面，並直接打開 LINE 綁定流程
       if (syncResult.lineBindingRequired && syncResult.lineBindingCode) {
         setBinding({
           code: syncResult.lineBindingCode,
           lineFriendUrl: syncResult.lineFriendUrl || null,
           mode: "register",
         });
+        // 自動彈出 LINE：手機會直接喚起 LINE app，桌面會開新分頁
+        if (syncResult.lineFriendUrl) {
+          try {
+            window.open(syncResult.lineFriendUrl, "_blank", "noopener,noreferrer");
+          } catch {
+            /* popup blocker, user can still click button */
+          }
+        }
         return;
       }
       // 理論上不會走到這（後端一定會回綁定碼），保險：直接擋住並要求重試
@@ -456,7 +464,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
         });
         const cloudData = await cloudRes.json();
 
-        // 403 + LINE_BIND_REQUIRED → 跳綁定畫面
+        // 403 + LINE_BIND_REQUIRED → 跳綁定畫面，直接彈 LINE
         if (cloudRes.status === 403 && cloudData?.error === "LINE_BIND_REQUIRED") {
           if (cloudData.lineBindingCode) {
             setBinding({
@@ -464,6 +472,13 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
               lineFriendUrl: cloudData.lineFriendUrl || null,
               mode: "login",
             });
+            if (cloudData.lineFriendUrl) {
+              try {
+                window.open(cloudData.lineFriendUrl, "_blank", "noopener,noreferrer");
+              } catch {
+                /* popup blocker */
+              }
+            }
             return;
           }
           setError("此帳號尚未綁定 LINE，且系統無法產生綁定碼，請聯繫管理員");
@@ -489,60 +504,69 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
 
   // ── 綁定 LINE 畫面 ──（註冊或登入時尚未綁定會跳這一頁）
   if (binding) {
+    // LINE Basic ID for oaMessage deep link — 從 friend URL 反推 @xxxx
+    const basicIdMatch = binding.lineFriendUrl?.match(/%40([\w\d]+)|@([\w\d]+)/);
+    const basicId = basicIdMatch?.[1] || basicIdMatch?.[2] || "";
+    const sendCodeUrl = basicId
+      ? `https://line.me/R/oaMessage/%40${basicId}/?${encodeURIComponent(binding.code)}`
+      : null;
+
     return (
       <div className="h-screen flex items-center justify-center px-4">
         <div className="w-full max-w-md bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 sm:p-8">
           <div className="text-center mb-6">
-            <div className="text-4xl mb-3">🔗</div>
-            <h1 className="text-2xl font-bold mb-2">綁定 LINE 完成啟用</h1>
+            <div className="text-5xl mb-3">📱</div>
+            <h1 className="text-2xl font-bold mb-2">用 LINE 一鍵綁定</h1>
             <p className="text-sm text-[var(--text3)]">
               {binding.mode === "register"
-                ? "帳號建立成功。系統所有代辦、警報、每日命令都會透過 LINE 發送，請先完成綁定再進入系統。"
-                : "此帳號尚未綁定 LINE。系統規定綁定完成才能登入。"}
+                ? "帳號已建立。系統的命令、警報、每日必做都走 LINE 推播，綁定完成才能進入。"
+                : "此帳號尚未綁定 LINE，綁定完成才能登入。"}
             </p>
           </div>
 
-          <ol className="text-sm text-[var(--text2)] space-y-3 mb-6">
-            <li className="flex gap-2">
-              <span className="font-bold text-[var(--accent)]">1.</span>
-              <span>
-                加入「墨宇小精靈」LINE 官方帳號
-                {binding.lineFriendUrl ? (
-                  <>
-                    ：
-                    <a
-                      href={binding.lineFriendUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[var(--accent)] underline"
-                    >
-                      點此加入
-                    </a>
-                  </>
-                ) : (
-                  "（在 LINE 搜尋官方帳號 ID，請向管理員索取）"
-                )}
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="font-bold text-[var(--accent)]">2.</span>
-              <span>在 LINE 對話框輸入下方綁定碼：</span>
-            </li>
-          </ol>
+          {/* 步驟 ①：加入 LINE 官方帳號 */}
+          {binding.lineFriendUrl && (
+            <a
+              href={binding.lineFriendUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="block w-full text-center py-4 mb-3 rounded-xl font-bold text-white text-lg transition-all hover:shadow-xl active:scale-[0.98]"
+              style={{ background: "linear-gradient(135deg, #06C755, #00B900)" }}
+            >
+              ① 加入 墨宇小精靈 LINE
+            </a>
+          )}
 
           <div
-            className="text-center py-6 mb-6 rounded-xl border-2 border-dashed"
+            className="text-center py-5 mb-3 rounded-xl border-2 border-dashed"
             style={{ borderColor: "var(--accent)", background: "rgba(102,126,234,0.08)" }}
           >
-            <div className="text-xs text-[var(--text3)] mb-1">綁定碼（24 小時內有效）</div>
+            <div className="text-xs text-[var(--text3)] mb-1">你的綁定碼（24 小時內有效）</div>
             <div className="text-4xl font-black tracking-[0.3em] text-[var(--accent)] font-mono">
               {binding.code}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-[var(--text2)] mb-4">
+          {/* 步驟 ②：一鍵送出綁定碼（LINE oaMessage deep link） */}
+          {sendCodeUrl && (
+            <a
+              href={sendCodeUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="block w-full text-center py-4 mb-3 rounded-xl font-bold text-white text-lg transition-all hover:shadow-xl active:scale-[0.98]"
+              style={{ background: "linear-gradient(135deg, var(--accent), var(--teal))" }}
+            >
+              ② 一鍵送出綁定碼
+            </a>
+          )}
+
+          <p className="text-xs text-[var(--text3)] text-center mb-4 leading-relaxed">
+            手機：點「①」加好友 → 回來點「②」會直接開 LINE 聊天室並把碼填好，按送出即可
+          </p>
+
+          <div className="flex items-center justify-center gap-2 text-sm text-[var(--text2)] mb-4">
             <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
-            <span>{bindingPolling ? "等待你在 LINE 輸入綁定碼..." : "準備偵測綁定狀態"}</span>
+            <span>{bindingPolling ? "等待 LINE 綁定..." : "準備偵測綁定狀態"}</span>
           </div>
 
           <button
@@ -579,7 +603,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
 
         <form
           onSubmit={handleSubmit}
-          className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 sm:p-8"
+          className="auth-card p-6 sm:p-8"
         >
           <h2 className="text-xl font-bold mb-6">
             {isRegister ? "建立帳號" : "登入"}
@@ -592,7 +616,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                 <select
                   value={companyType}
                   onChange={(e) => setCompanyType(e.target.value as CompanyType)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                  className="auth-input"
                 >
                   <option value="hq">🏛️ 墨宇股份有限公司</option>
                   <option value="sales">💼 業務公司</option>
@@ -606,7 +630,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                  className="auth-input"
                   required
                 />
               </div>
@@ -616,7 +640,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                   <select
                     value={brand}
                     onChange={(e) => setBrand(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                    className="auth-input"
                   >
                     {Object.values(brands).filter((b) => !["moyuhunt", "hq"].includes(b.id)).map((b) => (
                       <option key={b.id} value={b.id}>
@@ -632,7 +656,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
                   type="text"
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                  className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                  className="auth-input"
                   placeholder={
                     companyType === "hq" ? "墨宇股份有限公司邀請碼" :
                     companyType === "recruit" ? "獵頭邀請碼" :
@@ -651,7 +675,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+              className="auth-input"
               required
             />
           </div>
@@ -662,7 +686,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+              className="auth-input"
               required
             />
           </div>
@@ -673,10 +697,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
 
           <button
             type="submit"
-            className="w-full py-3 rounded-lg font-bold text-white transition-all hover:shadow-lg"
-            style={{
-              background: "linear-gradient(135deg, var(--accent), var(--teal))",
-            }}
+            className="auth-btn-primary"
           >
             {isRegister ? "註冊" : "登入"}
           </button>

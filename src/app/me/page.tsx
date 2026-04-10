@@ -232,10 +232,10 @@ export default function MePage() {
     const tabBtn = (active: boolean): React.CSSProperties => ({
       flex: 1,
       padding: "10px 0",
-      background: active ? "rgba(124,108,240,0.18)" : "transparent",
-      color: active ? "#fff" : "#94a3b8",
+      background: active ? "rgba(79,70,229,0.12)" : "transparent",
+      color: active ? "#4f46e5" : "#64748b",
       border: "1px solid",
-      borderColor: active ? "rgba(124,108,240,0.6)" : "rgba(255,255,255,0.1)",
+      borderColor: active ? "rgba(124,108,240,0.6)" : "#e2e8f0",
       borderRadius: 10,
       fontSize: 13,
       fontWeight: 700,
@@ -245,7 +245,7 @@ export default function MePage() {
       <div style={loginWrap}>
         <div style={loginCard}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>👋</div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, color: "#fff" }}>墨宇戰情中樞 · 我的戰情</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, color: "#0f172a" }}>墨宇戰情中樞 · 我的戰情</h1>
           <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 20 }}>
             {mode === "login" ? "輸入你的工作 email，看看今天 Claude 給你什麼任務" : "首次加入請填寫下方資料"}
           </p>
@@ -290,7 +290,7 @@ export default function MePage() {
                 style={{ ...loginInput, appearance: "none" }}
               >
                 {BRAND_OPTIONS.map((b) => (
-                  <option key={b.id} value={b.id} style={{ background: "#0f172a" }}>{b.label}</option>
+                  <option key={b.id} value={b.id} style={{ background: "#ffffff" }}>{b.label}</option>
                 ))}
               </select>
               <input
@@ -336,7 +336,7 @@ export default function MePage() {
     return (
       <div style={fullScreenMsg}>
         <div style={{ fontSize: 40, marginBottom: 16 }}>🤔</div>
-        <div style={{ marginBottom: 8, fontSize: 18, color: "#fff", fontWeight: 700 }}>找不到這個 email</div>
+        <div style={{ marginBottom: 8, fontSize: 18, color: "#0f172a", fontWeight: 700 }}>找不到這個 email</div>
         <div style={{ marginBottom: 24, color: "#94a3b8", fontSize: 13 }}>{data.message}</div>
         <button onClick={handleLogout} style={loginBtn}>換一個 email</button>
       </div>
@@ -350,7 +350,7 @@ export default function MePage() {
       <div style={headerStyle}>
         <div>
           <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>墨宇戰情中樞 · 我的戰情</div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "#fff", margin: 0 }}>{data.profile?.name || "(未命名)"}</h1>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: "#0f172a", margin: 0 }}>{data.profile?.name || "(未命名)"}</h1>
           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>{data.profile?.email}</div>
         </div>
         <button onClick={handleLogout} style={logoutBtn}>登出</button>
@@ -375,11 +375,11 @@ export default function MePage() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: dept.color, letterSpacing: 0.5, textTransform: "uppercase" }}>
                     {dept.name}
                   </div>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", marginTop: 2 }}>{pos.title}</div>
-                  {pos.description && <div style={{ fontSize: 12, color: "#cbd5e1", marginTop: 4 }}>{pos.description}</div>}
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "#0f172a", marginTop: 2 }}>{pos.title}</div>
+                  {pos.description && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{pos.description}</div>}
                   {data.manager && (
                     <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 8 }}>
-                      👑 主管：<strong style={{ color: "#fff" }}>{data.manager.name}</strong> ({data.manager.email})
+                      👑 主管：<strong style={{ color: "#0f172a" }}>{data.manager.name}</strong> ({data.manager.email})
                     </div>
                   )}
                 </div>
@@ -415,8 +415,8 @@ export default function MePage() {
                       <div
                         key={i}
                         style={{
-                          background: "rgba(255,255,255,0.06)",
-                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "rgba(15,23,42,0.04)",
+                          border: "1px solid #e2e8f0",
                           borderRadius: 8,
                           padding: "8px 14px",
                           fontSize: 12,
@@ -444,14 +444,14 @@ export default function MePage() {
         >
           <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#fbbf24", marginBottom: 6 }}>等待主管指派部門與職位</div>
-          <div style={{ fontSize: 13, color: "#cbd5e1" }}>請聯絡你的主管，到後台組織架構幫你設定部門和職位後就會看到完整工作內容</div>
+          <div style={{ fontSize: 13, color: "#64748b" }}>請聯絡你的主管，到後台組織架構幫你設定部門和職位後就會看到完整工作內容</div>
         </div>
       )}
 
       {/* My projects */}
       {data.projects && data.projects.length > 0 && (
         <div style={sectionCard}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginBottom: 14 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", marginBottom: 14 }}>
             📁 我負責的專案 <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400 }}>({data.projects.length})</span>
           </div>
           <div style={{ display: "grid", gap: 10 }}>
@@ -463,16 +463,16 @@ export default function MePage() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       {pillar && <span style={{ fontSize: 16 }}>{pillar.icon}</span>}
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>{p.name}</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{p.name}</span>
                     </div>
                     <span style={{ fontSize: 11, color: health.color, fontWeight: 700 }}>{health.label}</span>
                   </div>
                   <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 8 }}>🎯 {p.goal}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ flex: 1, height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ flex: 1, height: 6, background: "rgba(15,23,42,0.06)", borderRadius: 3, overflow: "hidden" }}>
                       <div style={{ width: `${p.progress}%`, height: "100%", background: pillar?.color || "#7c6cf0", borderRadius: 3 }} />
                     </div>
-                    <span style={{ fontSize: 11, color: "#cbd5e1" }}>{p.progress}%</span>
+                    <span style={{ fontSize: 11, color: "#64748b" }}>{p.progress}%</span>
                   </div>
                 </div>
               );
@@ -484,14 +484,14 @@ export default function MePage() {
       {/* Today's commands */}
       <div style={sectionCard}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "#0f172a" }}>
             ⚡ 今日命令 <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400 }}>({data.commands?.pending.length || 0})</span>
           </div>
           <button onClick={load} style={refreshBtn}>🔄 重新整理</button>
         </div>
 
         {(!data.commands?.pending || data.commands.pending.length === 0) ? (
-          <div style={{ padding: 32, textAlign: "center", color: "#94a3b8", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 12 }}>
+          <div style={{ padding: 32, textAlign: "center", color: "#94a3b8", border: "1px dashed #e2e8f0", borderRadius: 12 }}>
             🎉 今天沒有待辦命令 — 繼續推進你的專案
           </div>
         ) : (
@@ -508,7 +508,7 @@ export default function MePage() {
 
 function MiniStat({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+    <div style={{ background: "rgba(15,23,42,0.04)", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
       <div style={{ fontSize: 22, fontWeight: 800, color }}>{value}</div>
       <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{label}</div>
     </div>
@@ -525,8 +525,8 @@ function CommandCard({ command, onAction, busy }: { command: Command; onAction: 
   return (
     <div
       style={{
-        background: "rgba(255,255,255,0.04)",
-        border: `1px solid ${isOverdue ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.1)"}`,
+        background: "rgba(15,23,42,0.03)",
+        border: `1px solid ${isOverdue ? "rgba(239,68,68,0.4)" : "#e2e8f0"}`,
         borderLeft: `3px solid ${sev.color}`,
         borderRadius: 10,
         padding: "14px 16px",
@@ -547,8 +547,8 @@ function CommandCard({ command, onAction, busy }: { command: Command; onAction: 
         {isOverdue && <span style={{ fontSize: 10, color: "#ef4444", fontWeight: 700 }}>已逾期</span>}
       </div>
 
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 6 }}>{command.title}</div>
-      {command.detail && <div style={{ fontSize: 12, color: "#cbd5e1", marginBottom: 8, whiteSpace: "pre-wrap" }}>{command.detail}</div>}
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 6 }}>{command.title}</div>
+      {command.detail && <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8, whiteSpace: "pre-wrap" }}>{command.detail}</div>}
 
       {command.deadline && (
         <div style={{ fontSize: 11, color: isOverdue ? "#ef4444" : "#94a3b8", marginBottom: 10 }}>
@@ -566,10 +566,10 @@ function CommandCard({ command, onAction, busy }: { command: Command; onAction: 
             style={{
               width: "100%",
               padding: 10,
-              background: "rgba(0,0,0,0.3)",
-              border: "1px solid rgba(255,255,255,0.15)",
+              background: "#f8fafc",
+              border: "1px solid #cbd5e1",
               borderRadius: 8,
-              color: "#fff",
+              color: "#0f172a",
               fontSize: 12,
               resize: "vertical",
             }}
@@ -585,20 +585,20 @@ function CommandCard({ command, onAction, busy }: { command: Command; onAction: 
             >
               送出
             </button>
-            <button onClick={() => setShowBlocked(false)} style={{ ...actionBtn, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "#94a3b8" }}>
+            <button onClick={() => setShowBlocked(false)} style={{ ...actionBtn, background: "transparent", border: "1px solid #cbd5e1", color: "#94a3b8" }}>
               取消
             </button>
           </div>
         </div>
       ) : (
         <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-          <button disabled={busy} onClick={() => onAction(command.id, "done")} style={{ ...actionBtn, background: "#22c55e", color: "#fff", opacity: busy ? 0.5 : 1 }}>
+          <button disabled={busy} onClick={() => onAction(command.id, "done")} style={{ ...actionBtn, background: "#22c55e", color: "#0f172a", opacity: busy ? 0.5 : 1 }}>
             {busy ? "處理中..." : "✓ 完成"}
           </button>
           <button disabled={busy} onClick={() => setShowBlocked(true)} style={{ ...actionBtn, background: "#fbbf24", color: "#000", opacity: busy ? 0.5 : 1 }}>
             🚧 卡住
           </button>
-          <button disabled={busy} onClick={() => onAction(command.id, "ignored")} style={{ ...actionBtn, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "#94a3b8", opacity: busy ? 0.5 : 1 }}>
+          <button disabled={busy} onClick={() => onAction(command.id, "ignored")} style={{ ...actionBtn, background: "transparent", border: "1px solid #cbd5e1", color: "#94a3b8", opacity: busy ? 0.5 : 1 }}>
             ✗ 忽略
           </button>
         </div>
@@ -607,14 +607,14 @@ function CommandCard({ command, onAction, busy }: { command: Command; onAction: 
   );
 }
 
-// ─── Styles ────
+// ─── Styles（淺色主題） ────
 const pageWrap: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(180deg, #0f172a, #020617)",
+  background: "linear-gradient(180deg, #f4f6fb 0%, #eef2ff 100%)",
   padding: "32px 24px",
   maxWidth: 960,
   margin: "0 auto",
-  color: "#e2e8f0",
+  color: "#0f172a",
 };
 
 const headerStyle: React.CSSProperties = {
@@ -627,23 +627,25 @@ const headerStyle: React.CSSProperties = {
 };
 
 const sectionCard: React.CSSProperties = {
-  background: "rgba(15,23,42,0.6)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
   borderRadius: 16,
   padding: 24,
   marginBottom: 20,
+  boxShadow: "0 10px 30px -16px rgba(15,23,42,0.10)",
 };
 
 const projectCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
   borderRadius: 10,
   padding: "12px 14px",
 };
 
 const loginWrap: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(180deg, #0f172a, #020617)",
+  background:
+    "linear-gradient(135deg, #f4f6fb 0%, #eef2ff 50%, #f5f3ff 100%)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -651,42 +653,46 @@ const loginWrap: React.CSSProperties = {
 };
 
 const loginCard: React.CSSProperties = {
-  background: "rgba(15,23,42,0.7)",
-  border: "1px solid rgba(255,255,255,0.1)",
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
   borderRadius: 20,
   padding: 36,
   maxWidth: 420,
   width: "100%",
   textAlign: "center",
+  boxShadow: "0 24px 70px -24px rgba(79,70,229,0.25)",
 };
 
 const loginInput: React.CSSProperties = {
   width: "100%",
   padding: "12px 16px",
-  background: "rgba(0,0,0,0.3)",
-  border: "1px solid rgba(255,255,255,0.15)",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
   borderRadius: 10,
-  color: "#fff",
+  color: "#0f172a",
   fontSize: 14,
   marginBottom: 12,
+  transition: "border-color 0.15s, box-shadow 0.15s",
 };
 
 const loginBtn: React.CSSProperties = {
   width: "100%",
   padding: "12px 16px",
-  background: "linear-gradient(135deg, #7c6cf0, #06b6d4)",
-  color: "#fff",
+  background: "linear-gradient(135deg, #4f46e5, #06b6d4)",
+  color: "#0f172a",
   border: "none",
   borderRadius: 10,
   fontSize: 14,
   fontWeight: 700,
   cursor: "pointer",
+  boxShadow: "0 10px 24px -10px rgba(79,70,229,0.5)",
+  transition: "transform 0.15s, box-shadow 0.15s",
 };
 
 const logoutBtn: React.CSSProperties = {
-  background: "transparent",
-  color: "#94a3b8",
-  border: "1px solid rgba(255,255,255,0.15)",
+  background: "#ffffff",
+  color: "#475569",
+  border: "1px solid #e2e8f0",
   borderRadius: 8,
   padding: "8px 14px",
   fontSize: 12,
@@ -696,7 +702,7 @@ const logoutBtn: React.CSSProperties = {
 const refreshBtn: React.CSSProperties = {
   background: "transparent",
   color: "#94a3b8",
-  border: "1px solid rgba(255,255,255,0.15)",
+  border: "1px solid #cbd5e1",
   borderRadius: 8,
   padding: "6px 12px",
   fontSize: 11,

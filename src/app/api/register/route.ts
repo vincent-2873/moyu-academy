@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
         email,
         name: name || email.split("@")[0],
         brand: brand || "nschool",
-        role: brand === "hq" ? "ceo" : brand === "legal" ? "director" : "sales_rep",
+        role: brand === "hq" || brand === "legal" ? "super_admin" : "sales_rep",
         status: "active",
       })
       .select("id")
