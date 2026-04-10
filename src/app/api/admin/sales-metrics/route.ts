@@ -100,9 +100,21 @@ function addMetric(a: Metric, b: Metric): Metric {
 
 export async function GET(req: NextRequest) {
   const brand = req.nextUrl.searchParams.get("brand");
-  const period = (req.nextUrl.searchParams.get("period") || "day") as "day" | "week" | "month";
+  const period = (req.nextUrl.searchParams.get("period") || "day") as "day" | "week" | "month" | "custom";
   const date = req.nextUrl.searchParams.get("date") || todayTaipei();
-  const { start, end } = periodRange(period, date);
+  const customStart = req.nextUrl.searchParams.get("start");
+  const customEnd = req.nextUrl.searchParams.get("end");
+
+  let start: string;
+  let end: string;
+  if (period === "custom" && customStart && customEnd) {
+    start = customStart;
+    end = customEnd;
+  } else {
+    const range = periodRange(period === "custom" ? "day" : period, date);
+    start = range.start;
+    end = range.end;
+  }
 
   const supabase = getSupabaseAdmin();
 

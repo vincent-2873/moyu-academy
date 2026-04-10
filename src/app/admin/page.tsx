@@ -6262,7 +6262,7 @@ interface SalesSource {
 interface SalesMetricsResponse {
   ok: boolean;
   date: string;
-  period?: "day" | "week" | "month";
+  period?: "day" | "week" | "month" | "custom";
   range?: { start: string; end: string };
   brand: string;
   count: number;
@@ -6409,7 +6409,14 @@ function buildHierarchy(rows: SalesMetricsRow[]): HierarchyOrg[] {
 function SalesMetricsTab({ token: _token }: { token: string }) {
   void _token;
   const [selectedBrand, setSelectedBrand] = useState<string>("");
-  const [selectedPeriod, setSelectedPeriod] = useState<"day" | "week" | "month">("day");
+  const [selectedPeriod, setSelectedPeriod] = useState<"day" | "week" | "month" | "custom">("day");
+  // Custom date range (initially = today)
+  const todayStr = (() => {
+    const tw = new Date(Date.now() + 8 * 3600000);
+    return tw.toISOString().slice(0, 10);
+  })();
+  const [customStart, setCustomStart] = useState<string>(todayStr);
+  const [customEnd, setCustomEnd] = useState<string>(todayStr);
   const [data, setData] = useState<SalesMetricsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -6418,26 +6425,38 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
   const [collapsedOrgs, setCollapsedOrgs] = useState<Record<string, boolean>>({});
   const [collapsedTeams, setCollapsedTeams] = useState<Record<string, boolean>>({});
 
-  const load = useCallback(async (brand: string | undefined, period: "day" | "week" | "month") => {
-    setLoading(true);
-    setMsg(null);
-    try {
-      const params = new URLSearchParams();
-      if (brand) params.set("brand", brand);
-      params.set("period", period);
-      const res = await fetch(`/api/admin/sales-metrics?${params.toString()}`, { cache: "no-store" });
-      const json = (await res.json()) as SalesMetricsResponse;
-      setData(json);
-    } catch (err) {
-      setMsg(err instanceof Error ? err.message : "載入失敗");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (
+      brand: string | undefined,
+      period: "day" | "week" | "month" | "custom",
+      start?: string,
+      end?: string
+    ) => {
+      setLoading(true);
+      setMsg(null);
+      try {
+        const params = new URLSearchParams();
+        if (brand) params.set("brand", brand);
+        params.set("period", period);
+        if (period === "custom" && start && end) {
+          params.set("start", start);
+          params.set("end", end);
+        }
+        const res = await fetch(`/api/admin/sales-metrics?${params.toString()}`, { cache: "no-store" });
+        const json = (await res.json()) as SalesMetricsResponse;
+        setData(json);
+      } catch (err) {
+        setMsg(err instanceof Error ? err.message : "載入失敗");
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    load(selectedBrand || undefined, selectedPeriod);
-  }, [selectedBrand, selectedPeriod, load]);
+    load(selectedBrand || undefined, selectedPeriod, customStart, customEnd);
+  }, [selectedBrand, selectedPeriod, customStart, customEnd, load]);
 
   const triggerSync = async () => {
     setSyncing(true);
@@ -6465,7 +6484,7 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
           (Array.isArray(json.results) ? json.results.reduce((s: number, r: { rows: number }) => s + r.rows, 0) : 0);
         setMsg(`✅ 同步完成：${totalRows} 筆`);
       }
-      await load(selectedBrand || undefined, selectedPeriod);
+      await load(selectedBrand || undefined, selectedPeriod, customStart, customEnd);
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "同步失敗");
     } finally {
@@ -6545,13 +6564,14 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
         </div>
       )}
 
-      {/* Period selector */}
+      {/* Period selector + custom date range */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "var(--text3)", fontWeight: 700 }}>時間：</span>
         {([
           { id: "day", label: "今天" },
           { id: "week", label: "本週" },
           { id: "month", label: "本月" },
+          { id: "custom", label: "自訂" },
         ] as const).map((p) => (
           <button
             key={p.id}
@@ -6570,7 +6590,41 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
             {p.label}
           </button>
         ))}
-        {data?.range && (
+        {selectedPeriod === "custom" && (
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input
+              type="date"
+              value={customStart}
+              max={todayStr}
+              onChange={(e) => setCustomStart(e.target.value)}
+              style={{
+                padding: "5px 8px",
+                borderRadius: 8,
+                border: "1.5px solid var(--border)",
+                fontSize: 12,
+                background: "var(--card)",
+                color: "var(--text)",
+              }}
+            />
+            <span style={{ fontSize: 12, color: "var(--text3)" }}>→</span>
+            <input
+              type="date"
+              value={customEnd}
+              min={customStart}
+              max={todayStr}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              style={{
+                padding: "5px 8px",
+                borderRadius: 8,
+                border: "1.5px solid var(--border)",
+                fontSize: 12,
+                background: "var(--card)",
+                color: "var(--text)",
+              }}
+            />
+          </div>
+        )}
+        {data?.range && selectedPeriod !== "custom" && (
           <span style={{ fontSize: 11, color: "var(--text3)", marginLeft: 8 }}>
             {data.range.start === data.range.end ? data.range.start : `${data.range.start} → ${data.range.end}`}
           </span>
