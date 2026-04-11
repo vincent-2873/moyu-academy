@@ -30,6 +30,11 @@
       "comment": "每日個人晨報 LINE 推播 — 台灣時間 09:00 = UTC 01:00",
       "path": "/api/cron/daily-briefing-push",
       "schedule": "0 1 * * *"
+    },
+    {
+      "comment": "Claude-from-LINE 派送器 — 每分鐘跑，讀 Vincent 從 LINE 下的指令 -> 跑 Claude -> 推回 LINE",
+      "path": "/api/cron/line-inbound-dispatcher",
+      "schedule": "* * * * *"
     }
   ]
 }
