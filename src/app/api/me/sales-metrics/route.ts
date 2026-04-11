@@ -233,6 +233,24 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Provenance — 拉該品牌的 metabase_source 狀態讓前端顯示「資料來源 / 最後同步」
+  const { data: sources } = await supabase
+    .from("metabase_sources")
+    .select("brand, question_id, question_name, last_sync_at, last_sync_rows, last_sync_status")
+    .eq("brand", profile.brand)
+    .limit(1);
+  const provenance =
+    sources && sources.length > 0
+      ? {
+          brand: sources[0].brand as string,
+          questionId: sources[0].question_id as number,
+          questionName: sources[0].question_name as string | null,
+          lastSyncAt: sources[0].last_sync_at as string | null,
+          lastSyncRows: sources[0].last_sync_rows as number | null,
+          lastSyncStatus: sources[0].last_sync_status as string | null,
+        }
+      : null;
+
   return Response.json({
     ok: true,
     email,
@@ -244,5 +262,6 @@ export async function GET(req: NextRequest) {
     dailyTrend,
     rule: matchedRule || null,
     shortfalls,
+    provenance,
   });
 }

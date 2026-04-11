@@ -366,6 +366,9 @@ export default function MePage() {
       {/* 個人業務數據卡片 — 對應 Metabase 同步進來的即時數字 */}
       {data.profile?.email && <MySalesMetricsCard email={data.profile.email} />}
 
+      {/* 成就里程碑 — 新人看得見的進度、老人拿得到的長期目標 */}
+      {data.profile?.email && <AchievementsCard email={data.profile.email} />}
+
       {/* 戰情官對練 — 跟 Claude 復盤 / 對練 / 話術 */}
       {data.profile?.email && <CoachChatCard email={data.profile.email} />}
 
@@ -788,6 +791,14 @@ interface MySalesResponse {
     severity: string;
   } | null;
   shortfalls?: MyShortfall[];
+  provenance?: {
+    brand: string;
+    questionId: number;
+    questionName: string | null;
+    lastSyncAt: string | null;
+    lastSyncRows: number | null;
+    lastSyncStatus: string | null;
+  } | null;
 }
 
 const BRAND_CN: Record<string, string> = {
@@ -926,8 +937,50 @@ function MySalesMetricsCard({ email }: { email: string }) {
       <PeriodGrid label="今天" metric={today} tone="#4f46e5" />
       <PeriodGrid label="本週" metric={week} tone="#0891b2" />
       <PeriodGrid label="本月" metric={month} tone="#db2777" />
+
+      {/* Provenance footer */}
+      {data.provenance && (
+        <div
+          style={{
+            marginTop: 12,
+            paddingTop: 10,
+            borderTop: "1px dashed #e2e8f0",
+            fontSize: 10,
+            color: "#94a3b8",
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+            lineHeight: 1.5,
+          }}
+        >
+          <span>📡 資料來源：Metabase #{data.provenance.questionId}</span>
+          {data.provenance.questionName && <span>· {data.provenance.questionName}</span>}
+          {data.provenance.lastSyncAt && (
+            <span>
+              · 最後同步 <strong style={{ color: "#64748b" }}>{formatSyncAge(data.provenance.lastSyncAt)}</strong>
+            </span>
+          )}
+          {data.provenance.lastSyncStatus && data.provenance.lastSyncStatus !== "success" && (
+            <span style={{ color: "#dc2626" }}>· ⚠️ {data.provenance.lastSyncStatus}</span>
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+function formatSyncAge(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = now - then;
+  if (diffMs < 0) return "剛剛";
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "剛剛";
+  if (mins < 60) return `${mins} 分鐘前`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} 小時前`;
+  const days = Math.round(hours / 24);
+  return `${days} 天前`;
 }
 
 function PeriodGrid({
@@ -992,6 +1045,230 @@ function StatCell({
         }}
       >
         {value}
+      </div>
+    </div>
+  );
+}
+
+// ─── 成就里程碑卡片 (新人看得見進度 / 老人長期目標) ───────────────────────
+
+interface Achievement {
+  id: string;
+  tier: "rookie" | "growing" | "veteran" | "elite";
+  icon: string;
+  title: string;
+  description: string;
+  target: number;
+  actual: number;
+  pct: number;
+  unlocked: boolean;
+  unlockedAt?: string;
+}
+
+interface AchievementsResponse {
+  ok: boolean;
+  bound: boolean;
+  stats?: {
+    totalAchievements: number;
+    unlockedCount: number;
+    daysActive: number;
+    longestStreak: number;
+    currentStreak: number;
+  };
+  recentlyUnlocked?: Achievement[];
+  inProgress?: Achievement[];
+  upNext?: Achievement[];
+  unlocked?: Achievement[];
+}
+
+const TIER_COLORS: Record<Achievement["tier"], { bg: string; border: string; text: string; label: string }> = {
+  rookie: { bg: "#eff6ff", border: "#93c5fd", text: "#2563eb", label: "新人" },
+  growing: { bg: "#f0fdf4", border: "#86efac", text: "#16a34a", label: "成長" },
+  veteran: { bg: "#fef3c7", border: "#fcd34d", text: "#d97706", label: "老手" },
+  elite: { bg: "#fce7f3", border: "#f9a8d4", text: "#db2777", label: "菁英" },
+};
+
+function AchievementsCard({ email }: { email: string }) {
+  const [data, setData] = useState<AchievementsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/me/achievements?email=${encodeURIComponent(email)}`, { cache: "no-store" });
+        const json = (await res.json()) as AchievementsResponse;
+        if (!cancelled) setData(json);
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+  }, [email]);
+
+  if (loading) return null;
+  if (!data || !data.ok || !data.bound) return null;
+
+  const stats = data.stats!;
+  const recent = data.recentlyUnlocked || [];
+  const upNext = data.upNext || [];
+  const unlocked = data.unlocked || [];
+
+  return (
+    <div
+      style={{
+        margin: "20px 0",
+        padding: 24,
+        background: "linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%)",
+        border: "1px solid #fcd34d",
+        borderRadius: 18,
+        boxShadow: "0 12px 40px -18px rgba(234,88,12,0.25)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontSize: 12, color: "#b45309", fontWeight: 700 }}>🏅 成就里程碑</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: "#0f172a", marginTop: 4 }}>
+            {stats.unlockedCount} / {stats.totalAchievements}
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#b45309", marginLeft: 8 }}>
+              已解鎖
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: "#92400e", marginTop: 4 }}>
+            活躍 {stats.daysActive} 天 · 最長連續 {stats.longestStreak} 天 · 目前連續 {stats.currentStreak} 天
+          </div>
+        </div>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 8,
+            border: "1px solid #fcd34d",
+            background: "#fff",
+            fontSize: 11,
+            fontWeight: 700,
+            color: "#b45309",
+            cursor: "pointer",
+          }}
+        >
+          {expanded ? "收起 ▲" : "看全部 ▼"}
+        </button>
+      </div>
+
+      {/* 剛解鎖 */}
+      {recent.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#b45309", marginBottom: 8 }}>
+            ✨ 最近 7 天解鎖
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+            {recent.map((a) => (
+              <AchievementCell key={a.id} a={a} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 下一個目標 */}
+      {upNext.length > 0 && (
+        <div style={{ marginBottom: expanded ? 14 : 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#b45309", marginBottom: 8 }}>
+            🎯 下一個目標
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+            {upNext.map((a) => (
+              <AchievementCell key={a.id} a={a} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 全部 (expanded) */}
+      {expanded && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#b45309", marginBottom: 8, marginTop: 14 }}>
+            🏆 所有已解鎖 ({unlocked.length})
+          </div>
+          {unlocked.length > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+              {unlocked.map((a) => (
+                <AchievementCell key={a.id} a={a} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "#92400e", padding: "12px 0" }}>
+              還沒有任何解鎖 — 開始打第一通電話吧！
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AchievementCell({ a }: { a: Achievement }) {
+  const tone = TIER_COLORS[a.tier];
+  return (
+    <div
+      style={{
+        background: a.unlocked ? tone.bg : "#ffffff",
+        border: `1px solid ${a.unlocked ? tone.border : "#e2e8f0"}`,
+        borderRadius: 10,
+        padding: "10px 12px",
+        opacity: a.unlocked ? 1 : 0.85,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <div style={{ fontSize: 20, filter: a.unlocked ? "none" : "grayscale(0.7)" }}>{a.icon}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", lineHeight: 1.2 }}>
+            {a.title}
+          </div>
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: tone.text,
+              textTransform: "uppercase",
+              marginTop: 2,
+            }}
+          >
+            {tone.label}
+          </div>
+        </div>
+        {a.unlocked && (
+          <div style={{ fontSize: 14, color: tone.text }}>✓</div>
+        )}
+      </div>
+      <div style={{ fontSize: 10, color: "#64748b", marginBottom: 6, lineHeight: 1.4 }}>
+        {a.description}
+      </div>
+      <div
+        style={{
+          height: 6,
+          background: "#f1f5f9",
+          borderRadius: 4,
+          overflow: "hidden",
+          position: "relative",
+        }}
+      >
+        <div
+          style={{
+            width: `${a.pct}%`,
+            height: "100%",
+            background: tone.text,
+            transition: "width 0.6s ease",
+          }}
+        />
+      </div>
+      <div style={{ fontSize: 10, color: "#64748b", marginTop: 4, display: "flex", justifyContent: "space-between" }}>
+        <span>
+          {a.actual.toLocaleString()} / {a.target.toLocaleString()}
+        </span>
+        <span style={{ fontWeight: 700, color: tone.text }}>{a.pct}%</span>
       </div>
     </div>
   );
