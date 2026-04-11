@@ -22,7 +22,10 @@ function todayTaipei(): string {
 }
 
 /** 依 period 算出起訖日期 */
-function periodRange(period: "day" | "week" | "month", anchor: string): { start: string; end: string } {
+function periodRange(
+  period: "day" | "week" | "month" | "last7" | "last14" | "prevMonth",
+  anchor: string
+): { start: string; end: string } {
   const d = new Date(anchor + "T00:00:00Z");
   if (period === "day") {
     return { start: anchor, end: anchor };
@@ -37,6 +40,24 @@ function periodRange(period: "day" | "week" | "month", anchor: string): { start:
     end.setUTCDate(end.getUTCDate() + 6);
     return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
   }
+  if (period === "last7") {
+    const start = new Date(d);
+    start.setUTCDate(start.getUTCDate() - 6);
+    return { start: start.toISOString().slice(0, 10), end: anchor };
+  }
+  if (period === "last14") {
+    const start = new Date(d);
+    start.setUTCDate(start.getUTCDate() - 13);
+    return { start: start.toISOString().slice(0, 10), end: anchor };
+  }
+  if (period === "prevMonth") {
+    const start = new Date(d);
+    start.setUTCDate(1);
+    start.setUTCMonth(start.getUTCMonth() - 1);
+    const end = new Date(d);
+    end.setUTCDate(0); // last day of previous month
+    return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+  }
   // month
   const start = new Date(d);
   start.setUTCDate(1);
@@ -44,6 +65,48 @@ function periodRange(period: "day" | "week" | "month", anchor: string): { start:
   end.setUTCMonth(end.getUTCMonth() + 1);
   end.setUTCDate(0); // last day of that month
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
+
+/**
+ * 資料完整性檢查 — 漏斗規則：
+ *   有通時通次 → 才有邀約
+ *   有邀約 → 才有出席 (或未出席)
+ *   有出席 → 才有成交 (或未成交)
+ *
+ * 違反規則 = Metabase 源頭資料有問題 (跨日切割 / 同步漏 / 業務手動填錯)
+ */
+interface DataIssue {
+  salesperson: string;
+  email: string | null;
+  date: string;
+  kind: "closures_without_shows" | "shows_without_appts" | "appts_without_calls" | "connected_without_calls";
+  detail: string;
+}
+function checkIntegrity(r: {
+  name?: string | null;
+  email?: string | null;
+  date: string;
+  calls: number;
+  connected: number;
+  raw_appointments: number;
+  appointments_show: number;
+  closures: number;
+}): DataIssue[] {
+  const issues: DataIssue[] = [];
+  const who = r.name || r.email || "(unknown)";
+  if (r.connected > 0 && r.calls === 0) {
+    issues.push({ salesperson: who, email: r.email || null, date: r.date, kind: "connected_without_calls", detail: `接通 ${r.connected} 通次 0` });
+  }
+  if (r.raw_appointments > 0 && r.calls === 0) {
+    issues.push({ salesperson: who, email: r.email || null, date: r.date, kind: "appts_without_calls", detail: `邀約 ${r.raw_appointments} 通次 0` });
+  }
+  if (r.appointments_show > r.raw_appointments) {
+    issues.push({ salesperson: who, email: r.email || null, date: r.date, kind: "shows_without_appts", detail: `出席 ${r.appointments_show} > 邀約 ${r.raw_appointments}` });
+  }
+  if (r.closures > r.appointments_show) {
+    issues.push({ salesperson: who, email: r.email || null, date: r.date, kind: "closures_without_shows", detail: `成交 ${r.closures} > 出席 ${r.appointments_show}` });
+  }
+  return issues;
 }
 
 type Metric = {
@@ -150,7 +213,15 @@ function computeRates(m: Metric): FunnelRates {
 
 export async function GET(req: NextRequest) {
   const brand = req.nextUrl.searchParams.get("brand");
-  const period = (req.nextUrl.searchParams.get("period") || "day") as "day" | "week" | "month" | "custom";
+  const period = (req.nextUrl.searchParams.get("period") || "month") as
+    | "day"
+    | "week"
+    | "month"
+    | "last7"
+    | "last14"
+    | "prevMonth"
+    | "custom"
+    | "auto";
   const date = req.nextUrl.searchParams.get("date") || todayTaipei();
   const customStart = req.nextUrl.searchParams.get("start");
   const customEnd = req.nextUrl.searchParams.get("end");
@@ -160,8 +231,23 @@ export async function GET(req: NextRequest) {
   if (period === "custom" && customStart && customEnd) {
     start = customStart;
     end = customEnd;
+  } else if (period === "auto") {
+    // 用實際有資料的最早/最晚日期，讓空月份不會一片空白
+    const supabaseProbe = getSupabaseAdmin();
+    let probe = supabaseProbe.from("sales_metrics_daily").select("date").order("date", { ascending: true }).limit(1);
+    if (brand) probe = probe.eq("brand", brand);
+    const first = await probe;
+    let probe2 = supabaseProbe.from("sales_metrics_daily").select("date").order("date", { ascending: false }).limit(1);
+    if (brand) probe2 = probe2.eq("brand", brand);
+    const last = await probe2;
+    start = (first.data && first.data[0]?.date) || date;
+    end = (last.data && last.data[0]?.date) || date;
+  } else if (period === "day" || period === "week" || period === "month" || period === "last7" || period === "last14" || period === "prevMonth") {
+    const range = periodRange(period, date);
+    start = range.start;
+    end = range.end;
   } else {
-    const range = periodRange(period === "custom" ? "day" : period, date);
+    const range = periodRange("month", date);
     start = range.start;
     end = range.end;
   }
@@ -309,6 +395,54 @@ export async function GET(req: NextRequest) {
   const datesWithData = new Set(typedRows.map((r) => r.date));
   const missingDates = daysInRange.filter((d) => !datesWithData.has(d));
 
+  // Daily trend — 每日的彙總（給前端畫趨勢圖）
+  const dailyMap = new Map<string, Metric & { date: string }>();
+  for (const r of typedRows) {
+    const existing = dailyMap.get(r.date);
+    if (existing) {
+      existing.calls += r.calls;
+      existing.call_minutes = (Number(existing.call_minutes) || 0) + (Number(r.call_minutes) || 0);
+      existing.connected += r.connected;
+      existing.raw_appointments += r.raw_appointments;
+      existing.appointments_show += r.appointments_show;
+      existing.raw_demos += r.raw_demos;
+      existing.closures += r.closures;
+      existing.net_revenue_daily = (Number(existing.net_revenue_daily) || 0) + (Number(r.net_revenue_daily) || 0);
+      existing.net_revenue_contract = (Number(existing.net_revenue_contract) || 0) + (Number(r.net_revenue_contract) || 0);
+    } else {
+      dailyMap.set(r.date, {
+        date: r.date,
+        calls: r.calls,
+        call_minutes: Number(r.call_minutes) || 0,
+        connected: r.connected,
+        raw_appointments: r.raw_appointments,
+        appointments_show: r.appointments_show,
+        raw_demos: r.raw_demos,
+        closures: r.closures,
+        net_revenue_daily: Number(r.net_revenue_daily) || 0,
+        net_revenue_contract: Number(r.net_revenue_contract) || 0,
+      });
+    }
+  }
+  const dailyTrend = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+  // Data integrity issues — 原始 row level 檢查（跨日前）
+  const dataIssues: DataIssue[] = [];
+  for (const r of typedRows) {
+    for (const issue of checkIntegrity({
+      name: r.name,
+      email: r.email,
+      date: r.date,
+      calls: r.calls,
+      connected: r.connected,
+      raw_appointments: r.raw_appointments,
+      appointments_show: r.appointments_show,
+      closures: r.closures,
+    })) {
+      dataIssues.push(issue);
+    }
+  }
+
   return Response.json({
     ok: true,
     date,
@@ -321,6 +455,8 @@ export async function GET(req: NextRequest) {
     orgAggregate,
     brandSummary,
     brandRates,
+    dailyTrend,
+    dataIssues,
     sources: sources || [],
     missingDates,
     daysInRange: daysInRange.length,

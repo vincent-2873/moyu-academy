@@ -6270,10 +6270,30 @@ interface FunnelRatesDTO {
   orderRevenueEstimate: number;
 }
 
+interface DailyTrendPoint {
+  date: string;
+  calls: number;
+  connected: number;
+  call_minutes: number;
+  raw_appointments: number;
+  appointments_show: number;
+  raw_demos: number;
+  closures: number;
+  net_revenue_daily: number;
+}
+
+interface DataIssue {
+  salesperson: string;
+  email: string | null;
+  date: string;
+  kind: string;
+  detail: string;
+}
+
 interface SalesMetricsResponse {
   ok: boolean;
   date: string;
-  period?: "day" | "week" | "month" | "custom";
+  period?: "day" | "week" | "month" | "last7" | "last14" | "prevMonth" | "custom" | "auto";
   range?: { start: string; end: string };
   brand: string;
   count: number;
@@ -6285,6 +6305,8 @@ interface SalesMetricsResponse {
   missingDates?: string[];
   daysInRange?: number;
   daysWithData?: number;
+  dailyTrend?: DailyTrendPoint[];
+  dataIssues?: DataIssue[];
 }
 
 // Brand display names — app_id 是英文技術代碼，UI 顯示中文全名
@@ -6424,7 +6446,7 @@ function buildHierarchy(rows: SalesMetricsRow[]): HierarchyOrg[] {
 function SalesMetricsTab({ token: _token }: { token: string }) {
   void _token;
   const [selectedBrand, setSelectedBrand] = useState<string>("");
-  const [selectedPeriod, setSelectedPeriod] = useState<"day" | "week" | "month" | "custom">("day");
+  const [selectedPeriod, setSelectedPeriod] = useState<"day" | "week" | "month" | "last7" | "last14" | "prevMonth" | "custom" | "auto">("auto");
   // Custom date range (initially = today)
   const todayStr = (() => {
     const tw = new Date(Date.now() + 8 * 3600000);
@@ -6443,7 +6465,7 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
   const load = useCallback(
     async (
       brand: string | undefined,
-      period: "day" | "week" | "month" | "custom",
+      period: "day" | "week" | "month" | "last7" | "last14" | "prevMonth" | "custom" | "auto",
       start?: string,
       end?: string
     ) => {
@@ -6583,9 +6605,12 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "var(--text3)", fontWeight: 700 }}>時間：</span>
         {([
+          { id: "auto", label: "有資料的全部" },
           { id: "day", label: "今天" },
-          { id: "week", label: "本週" },
+          { id: "last7", label: "近7天" },
+          { id: "last14", label: "近14天" },
           { id: "month", label: "本月" },
+          { id: "prevMonth", label: "上月" },
           { id: "custom", label: "自訂" },
         ] as const).map((p) => (
           <button
@@ -6742,46 +6767,85 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
             </div>
           )}
 
-          {/* Summary cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 12 }}>
-            <MetricCard label="通次" value={summary.calls.toLocaleString()} color="#4f46e5" />
-            <MetricCard label="接通" value={summary.connected.toLocaleString()} color="#0891b2" />
-            <MetricCard label="通時(分)" value={Math.round(summary.call_minutes).toLocaleString()} color="#0d9488" />
-            <MetricCard label="原始邀約" value={summary.raw_appointments} color="#d97706" />
-            <MetricCard label="邀約出席" value={summary.appointments_show} color="#ea580c" />
-            <MetricCard label="DEMO" value={summary.raw_demos} color="#7c3aed" />
-            <MetricCard label="成交" value={summary.closures} color="#16a34a" highlight />
-            <MetricCard label="淨業績" value={`$${Math.round(summary.net_revenue_daily).toLocaleString()}`} color="#db2777" highlight />
-          </div>
-
-          {/* Funnel rates bar — miao-miao 風格的轉換漏斗率 */}
-          {data?.brandRates && (
+          {/* Data integrity issues — 違反漏斗規則的髒資料 */}
+          {data?.dataIssues && data.dataIssues.length > 0 && (
             <div
               style={{
-                marginBottom: 24,
-                padding: "14px 16px",
-                background: "linear-gradient(90deg, rgba(79,70,229,0.04), rgba(219,39,119,0.04))",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
+                marginBottom: 14,
+                padding: "10px 14px",
+                background: "rgba(239,68,68,0.06)",
+                border: "1px dashed rgba(239,68,68,0.45)",
+                borderRadius: 10,
+                fontSize: 12,
+                color: "#991b1b",
               }}
             >
-              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text3)", marginBottom: 8 }}>
-                🎯 轉換漏斗 (品牌 · {data.range?.start} → {data.range?.end})
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <RateChip label="接通率" rate={data.brandRates.connectRate} tone="#0891b2" note={`${summary.connected} / ${summary.calls}`} />
-                <span style={{ color: "var(--text3)" }}>→</span>
-                <RateChip label="邀約率" rate={data.brandRates.inviteRate} tone="#d97706" note={`${summary.raw_appointments} / ${summary.connected}`} />
-                <span style={{ color: "var(--text3)" }}>→</span>
-                <RateChip label="出席率" rate={data.brandRates.showRate} tone="#ea580c" note={`${summary.appointments_show} / ${summary.raw_appointments}`} />
-                <span style={{ color: "var(--text3)" }}>→</span>
-                <RateChip label="成交率" rate={data.brandRates.closeRate} tone="#16a34a" note={`${summary.closures} / ${summary.appointments_show}`} />
-                <div style={{ flex: 1 }} />
-                <RateChip label="客單價" rate={data.brandRates.avgDealSize} tone="#db2777" format="money" />
-                <RateChip label="訂單業績(預估)" rate={data.brandRates.orderRevenueEstimate} tone="#c026d3" format="money" suffix="" />
-                <RateChip label="單通平均" rate={data.brandRates.avgCallMinutes} tone="#0d9488" suffix="分" />
-              </div>
+              🔴 資料完整性警告 — 有 {data.dataIssues.length} 筆違反漏斗規則（應該「有通次→才有接通→邀約→出席→成交」）:
+              <ul style={{ margin: "6px 0 0 18px", lineHeight: 1.6 }}>
+                {data.dataIssues.slice(0, 10).map((i, idx) => (
+                  <li key={idx}>
+                    <strong>{i.salesperson}</strong>（{i.date}）: {i.detail}
+                  </li>
+                ))}
+                {data.dataIssues.length > 10 && <li>...還有 {data.dataIssues.length - 10} 筆</li>}
+              </ul>
             </div>
+          )}
+
+          {/* MIAO-MIAO 風格：4 大 Funnel Card + 淨業績 + 訂單業績 */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 18 }}>
+            <FunnelBigCard
+              label="通次"
+              value={summary.calls.toLocaleString()}
+              subLabel="接通率"
+              subValue={data?.brandRates?.connectRate}
+              tone="#4f46e5"
+            />
+            <FunnelBigCard
+              label="邀約"
+              value={summary.raw_appointments.toLocaleString()}
+              subLabel="接通→邀約"
+              subValue={data?.brandRates?.inviteRate}
+              tone="#d97706"
+            />
+            <FunnelBigCard
+              label="出席"
+              value={summary.appointments_show.toLocaleString()}
+              subLabel="邀約→出席"
+              subValue={data?.brandRates?.showRate}
+              tone="#ea580c"
+            />
+            <FunnelBigCard
+              label="成交"
+              value={`${summary.closures} 件`}
+              subLabel="出席→成交"
+              subValue={data?.brandRates?.closeRate}
+              tone="#16a34a"
+            />
+            <FunnelBigCard
+              label="淨業績"
+              value={`NT$${formatMillions(summary.net_revenue_daily)}`}
+              subLabel="客單價"
+              subValueRaw={data?.brandRates?.avgDealSize}
+              subValueFormat="money"
+              tone="#db2777"
+              highlight
+            />
+            <FunnelBigCard
+              label="訂單業績（預估）"
+              value={`NT$${formatMillions((data?.brandRates?.orderRevenueEstimate) || Math.round(summary.net_revenue_daily * 1.1))}`}
+              subLabel="淨業績 × 1.1"
+              tone="#c026d3"
+              highlight
+            />
+          </div>
+
+          {/* 業績趨勢 — 每日營收趨勢圖 */}
+          {data?.dailyTrend && data.dailyTrend.length > 0 && (
+            <DailyTrendChart
+              trend={data.dailyTrend}
+              totalRevenue={summary.net_revenue_daily}
+            />
           )}
 
           {/* Hierarchical drill-down: Org → Team → Individual */}
@@ -7009,6 +7073,162 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function formatMillions(n: number): string {
+  // 小於 10 萬顯示千元 (1K), 10 萬以上顯示萬
+  if (!isFinite(n)) return "0";
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}萬`;
+  return Math.round(n).toLocaleString();
+}
+
+function FunnelBigCard({
+  label,
+  value,
+  subLabel,
+  subValue,
+  subValueRaw,
+  subValueFormat,
+  tone,
+  highlight,
+}: {
+  label: string;
+  value: string | number;
+  subLabel?: string;
+  subValue?: number | null;
+  subValueRaw?: number | null;
+  subValueFormat?: "percent" | "money";
+  tone: string;
+  highlight?: boolean;
+}) {
+  const subDisplay = (() => {
+    if (subValue != null) return `${(subValue * 100).toFixed(1)}%`;
+    if (subValueRaw != null) {
+      if (subValueFormat === "money") return `$${Math.round(subValueRaw).toLocaleString()}`;
+      return subValueRaw.toString();
+    }
+    return null;
+  })();
+  return (
+    <div
+      style={{
+        background: "var(--card)",
+        border: `1px solid ${highlight ? tone : "var(--border)"}`,
+        borderRadius: 16,
+        padding: "16px 18px",
+        position: "relative",
+        overflow: "hidden",
+        boxShadow: highlight ? `0 12px 30px -14px ${tone}33` : "0 4px 16px -10px rgba(15,23,42,0.08)",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 4,
+          background: tone,
+        }}
+      />
+      <div style={{ fontSize: 12, color: "var(--text3)", fontWeight: 700, marginBottom: 6 }}>
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 28,
+          fontWeight: 900,
+          color: highlight ? tone : "var(--text)",
+          lineHeight: 1.1,
+        }}
+      >
+        {value}
+      </div>
+      {subLabel && subDisplay != null && (
+        <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 6 }}>
+          {subLabel} <strong style={{ color: tone }}>{subDisplay}</strong>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DailyTrendChart({
+  trend,
+  totalRevenue,
+}: {
+  trend: DailyTrendPoint[];
+  totalRevenue: number;
+}) {
+  if (trend.length === 0) return null;
+  const maxRevenue = Math.max(...trend.map((d) => d.net_revenue_daily), 1);
+  return (
+    <div
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: 16,
+        marginBottom: 20,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)" }}>📈 業績趨勢</div>
+        <div style={{ fontSize: 12, color: "var(--text3)" }}>
+          區間合計 <strong style={{ color: "#db2777" }}>NT${formatMillions(totalRevenue)}</strong>
+        </div>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${trend.length}, 1fr)`,
+          gap: 4,
+          alignItems: "end",
+          height: 140,
+          padding: "0 4px",
+        }}
+      >
+        {trend.map((d) => {
+          const pct = Math.max(3, (d.net_revenue_daily / maxRevenue) * 100);
+          return (
+            <div
+              key={d.date}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
+              title={`${d.date}  NT$${formatMillions(d.net_revenue_daily)}  (${d.calls} 通 · ${d.closures} 成交)`}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  color: "var(--text3)",
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  height: 12,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {d.net_revenue_daily > 0 ? `$${formatMillions(d.net_revenue_daily)}` : ""}
+              </div>
+              <div
+                style={{
+                  width: "100%",
+                  background: d.net_revenue_daily > 0
+                    ? "linear-gradient(180deg, #db2777, #be185d)"
+                    : "var(--border)",
+                  borderRadius: 4,
+                  height: `${pct}%`,
+                  minHeight: 3,
+                  transition: "height 0.4s ease",
+                }}
+              />
+              <div style={{ fontSize: 9, color: "var(--text3)", whiteSpace: "nowrap" }}>
+                {d.date.slice(5)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
