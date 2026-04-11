@@ -377,6 +377,9 @@ export default function MePage() {
       {/* 今日晨報 — 早上打開看到的代辦清單 */}
       {data.profile?.email && <DailyBriefingCard email={data.profile.email} />}
 
+      {/* 我的任務 — DB 裡的 v3_commands (Claude 自動派 + 主管手動派) */}
+      {data.profile?.email && <MyCommandsCard email={data.profile.email} />}
+
       {/* 個人業務數據卡片 — 對應 Metabase 同步進來的即時數字 */}
       {data.profile?.email && <MySalesMetricsCard email={data.profile.email} />}
 
@@ -859,6 +862,202 @@ const BRAND_CN: Record<string, string> = {
   xlab: "XLAB AI 實驗室",
   aischool: "AI 未來學院",
 };
+
+interface V3Command {
+  id: string;
+  title: string;
+  detail: string | null;
+  severity: "info" | "normal" | "high" | "critical";
+  status: "pending" | "acknowledged" | "done" | "blocked" | "ignored";
+  ai_generated: boolean;
+  ai_reasoning: string | null;
+  created_at: string;
+  deadline: string | null;
+}
+
+function MyCommandsCard({ email }: { email: string }) {
+  const [cmds, setCmds] = useState<V3Command[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/v3/commands?owner=${encodeURIComponent(email)}`, { cache: "no-store" });
+      const j = await r.json();
+      if (j.ok) {
+        // Only show today + pending/acknowledged (hide old and done)
+        const todayStr = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+        setCmds(
+          (j.commands || []).filter((c: V3Command) => {
+            const d = new Date(c.created_at).toISOString().slice(0, 10);
+            return d === todayStr && (c.status === "pending" || c.status === "acknowledged");
+          })
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [email]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const mark = async (id: string, status: "done" | "blocked" | "ignored") => {
+    setBusyId(id);
+    try {
+      await fetch("/api/v3/commands", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+      setCmds((s) => s.filter((c) => c.id !== id));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (loading) return null;
+  if (cmds.length === 0) return null;
+
+  const sevTone: Record<V3Command["severity"], { bg: string; bar: string; label: string }> = {
+    critical: { bg: "rgba(239,68,68,0.08)", bar: "#dc2626", label: "🔴 最高" },
+    high: { bg: "rgba(249,115,22,0.08)", bar: "#ea580c", label: "🟠 高" },
+    normal: { bg: "rgba(251,191,36,0.08)", bar: "#d97706", label: "🟡 中" },
+    info: { bg: "rgba(14,165,233,0.08)", bar: "#0891b2", label: "🔵 低" },
+  };
+
+  return (
+    <div
+      style={{
+        margin: "20px 0",
+        padding: 24,
+        background: "linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%)",
+        border: "1.5px solid rgba(14,165,233,0.35)",
+        borderRadius: 18,
+        boxShadow: "0 12px 40px -18px rgba(14,165,233,0.2)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 13, color: "#0369a1", fontWeight: 800, letterSpacing: 1 }}>📋 我的今日任務</div>
+        <div style={{ fontSize: 11, color: "#64748b" }}>
+          {cmds.length} 項待辦 · 主管 / Claude 指派
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {cmds.map((c) => {
+          const t = sevTone[c.severity];
+          const busy = busyId === c.id;
+          return (
+            <div
+              key={c.id}
+              style={{
+                display: "flex",
+                gap: 12,
+                padding: "12px 14px",
+                background: t.bg,
+                borderLeft: `4px solid ${t.bar}`,
+                borderRadius: 10,
+                opacity: busy ? 0.5 : 1,
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 10, color: t.bar, fontWeight: 800 }}>{t.label}</span>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>
+                    {c.title}
+                  </span>
+                  {c.ai_generated ? (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        background: "rgba(79,70,229,0.1)",
+                        color: "#4f46e5",
+                        padding: "1px 6px",
+                        borderRadius: 4,
+                        fontWeight: 700,
+                      }}
+                    >
+                      🤖 Claude
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        background: "rgba(234,88,12,0.1)",
+                        color: "#ea580c",
+                        padding: "1px 6px",
+                        borderRadius: 4,
+                        fontWeight: 700,
+                      }}
+                    >
+                      👤 主管
+                    </span>
+                  )}
+                </div>
+                {c.detail && (
+                  <div style={{ fontSize: 12, color: "#334155", marginTop: 4, lineHeight: 1.5 }}>
+                    {c.detail}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => mark(c.id, "done")}
+                    disabled={busy}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 8,
+                      border: "1.5px solid #16a34a",
+                      background: "#ffffff",
+                      color: "#16a34a",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: busy ? "wait" : "pointer",
+                    }}
+                  >
+                    ✅ 完成
+                  </button>
+                  <button
+                    onClick={() => mark(c.id, "blocked")}
+                    disabled={busy}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "1.5px solid #e2e8f0",
+                      background: "#ffffff",
+                      color: "#dc2626",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: busy ? "wait" : "pointer",
+                    }}
+                  >
+                    🚧 卡住
+                  </button>
+                  <button
+                    onClick={() => mark(c.id, "ignored")}
+                    disabled={busy}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "1.5px solid #e2e8f0",
+                      background: "#ffffff",
+                      color: "#64748b",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: busy ? "wait" : "pointer",
+                    }}
+                  >
+                    ⏭️ 跳過
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function MySalesMetricsCard({ email }: { email: string }) {
   const [data, setData] = useState<MySalesResponse | null>(null);

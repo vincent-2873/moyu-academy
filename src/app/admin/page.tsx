@@ -6614,6 +6614,9 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
         </div>
       )}
 
+      {/* 🚨 主管注意清單 — 今日要特別關心的人 (自動偵測 + 一鍵指派) */}
+      <AttentionPanel rows={rows} onAssigned={() => load(selectedBrand || undefined, selectedPeriod, customStart, customEnd)} />
+
       {/* Period selector + custom date range */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "var(--text3)", fontWeight: 700 }}>時間：</span>
@@ -6680,6 +6683,23 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
         {data?.range && selectedPeriod !== "custom" && (
           <span style={{ fontSize: 11, color: "var(--text3)", marginLeft: 8 }}>
             {data.range.start === data.range.end ? data.range.start : `${data.range.start} → ${data.range.end}`}
+          </span>
+        )}
+        {data?.daysInRange != null && data.daysInRange > 0 && data.daysWithData != null && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "3px 8px",
+              borderRadius: 6,
+              marginLeft: 8,
+              background: data.daysWithData === data.daysInRange ? "rgba(34,197,94,0.1)" : "rgba(251,191,36,0.15)",
+              color: data.daysWithData === data.daysInRange ? "#16a34a" : "#b45309",
+              border: data.daysWithData === data.daysInRange ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(251,191,36,0.4)",
+            }}
+            title={data.daysWithData === data.daysInRange ? "資料齊全" : "部分日期缺資料，統計可能失真"}
+          >
+            {data.daysWithData}/{data.daysInRange} 天 實資料
           </span>
         )}
       </div>
@@ -7261,6 +7281,256 @@ const BRAND_COLORS: Record<string, string> = {
   aischool: "#db2777",
   hq: "#64748b",
 };
+
+/**
+ * 🚨 主管注意清單 — 自動偵測今天要特別關心的人
+ *
+ * 偵測邏輯：
+ *   1. 全天 0 通 (沒上班) — severity=critical
+ *   2. 今天落後 pace > 40% (下午 2 點還不到一半) — severity=high
+ *   3. 連續 0 成交且有打通次 (打得多但不成交，技術問題) — severity=high
+ *   4. 單日通次破百 + 無成交 (量多質差，需 coaching) — severity=medium
+ *
+ * 每個人旁邊有「📤 快速指派」按鈕 — 一鍵 POST /api/v3/commands 派 3 個建議任務
+ */
+interface AttentionPerson {
+  email: string | null;
+  name: string;
+  team: string | null;
+  brand: string;
+  calls: number;
+  closures: number;
+  reason: string;
+  severity: "critical" | "high" | "medium";
+  suggestedTasks: Array<{ title: string; detail: string; severity: "critical" | "high" | "normal" }>;
+}
+
+function detectAttention(rows: SalesMetricsRow[]): AttentionPerson[] {
+  const list: AttentionPerson[] = [];
+  for (const r of rows) {
+    const calls = Number(r.calls) || 0;
+    const closures = Number(r.closures) || 0;
+    const appointments = Number(r.raw_appointments) || 0;
+    const shows = Number(r.appointments_show) || 0;
+    const name = r.name || r.email || "(未命名)";
+    const email = r.email || null;
+    const team = r.team || null;
+    const brand = r.brand || "-";
+
+    // Rule 1: 全天 0 通 — critical
+    if (calls === 0) {
+      list.push({
+        email, name, team, brand, calls, closures,
+        reason: "整天 0 通電話",
+        severity: "critical",
+        suggestedTasks: [
+          { title: "立即開始打電話", detail: "不論發生什麼事，先撥出第 1 通電話，把節奏找回來", severity: "critical" },
+          { title: "跟主管報告狀態", detail: "LINE 說明今天發生什麼事，為什麼上午沒上班", severity: "high" },
+          { title: "下午 3:00 前衝 30 通", detail: "從現在到 15:00 目標 30 通，均速每 5 分鐘 1 通", severity: "high" },
+        ],
+      });
+      continue;
+    }
+
+    // Rule 2: 通次破百但無成交 (量多質差)
+    if (calls >= 100 && closures === 0) {
+      list.push({
+        email, name, team, brand, calls, closures,
+        reason: `打 ${calls} 通 · 0 成交 (量多質差)`,
+        severity: "high",
+        suggestedTasks: [
+          { title: "聽錄音自我診斷", detail: "挑今天 3 通最久的錄音 (超過 3 分鐘)，用戰情官 6 維度打分", severity: "high" },
+          { title: "1-on-1 跟主管復盤", detail: "下班前 15 分鐘跟主管復盤：為什麼量到了成交沒來？", severity: "high" },
+          { title: "換開場白話術", detail: "原本的開場白不管用了，今天換一套試 20 通看轉換率", severity: "normal" },
+        ],
+      });
+      continue;
+    }
+
+    // Rule 3: 有打但邀約 0 (接通率可能有問題)
+    if (calls >= 30 && appointments === 0) {
+      list.push({
+        email, name, team, brand, calls, closures,
+        reason: `打 ${calls} 通 · 0 邀約 (轉換卡住)`,
+        severity: "high",
+        suggestedTasks: [
+          { title: "找老手陪打 10 通", detail: "請組內最強的業務坐旁邊，陪打 10 通現場教", severity: "high" },
+          { title: "今天內至少拿 1 個邀約", detail: "目標不是量，是 1 個邀約就好，證明手感還在", severity: "high" },
+          { title: "看 3 個最近成交的錄音", detail: "下班前研究別人怎麼轉邀約", severity: "normal" },
+        ],
+      });
+      continue;
+    }
+
+    // Rule 4: 有邀約有出席但沒成交 (close rate 卡住)
+    if (shows >= 2 && closures === 0) {
+      list.push({
+        email, name, team, brand, calls, closures,
+        reason: `${shows} 出席 · 0 成交 (結案卡住)`,
+        severity: "medium",
+        suggestedTasks: [
+          { title: "做結案話術演練", detail: "找主管或同事演練 3 次「要錢」話術，下一個 demo 就用", severity: "high" },
+          { title: "review 今天 demo 錄音", detail: "每場 demo 找出 1 個可以更直接 ask 的時點", severity: "normal" },
+        ],
+      });
+    }
+  }
+  // Sort by severity then by reason
+  const order = { critical: 0, high: 1, medium: 2 };
+  list.sort((a, b) => order[a.severity] - order[b.severity]);
+  return list;
+}
+
+function AttentionPanel({ rows, onAssigned }: { rows: SalesMetricsRow[]; onAssigned: () => void }) {
+  const attention = detectAttention(rows);
+  const [assigningEmail, setAssigningEmail] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  if (attention.length === 0) {
+    return (
+      <div
+        style={{
+          marginBottom: 16,
+          padding: "12px 16px",
+          background: "rgba(34,197,94,0.06)",
+          border: "1px solid rgba(34,197,94,0.25)",
+          borderRadius: 12,
+          fontSize: 12,
+          color: "#14532d",
+          fontWeight: 600,
+        }}
+      >
+        ✅ 今日無異常 — 所有業務狀態正常
+      </div>
+    );
+  }
+
+  const assignAll = async (person: AttentionPerson) => {
+    if (!person.email) {
+      setMsg("❌ 這個人沒有 email 無法指派");
+      return;
+    }
+    setAssigningEmail(person.email);
+    try {
+      for (const t of person.suggestedTasks) {
+        await fetch("/api/v3/commands", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            owner_email: person.email,
+            pillar_id: "sales",
+            title: t.title,
+            detail: t.detail,
+            severity: t.severity,
+            ai_generated: false,
+            ai_reasoning: `主管在 /admin 手動指派 (因: ${person.reason})`,
+            deadline: new Date(Date.now() + 6 * 3600 * 1000).toISOString(),
+          }),
+        });
+      }
+      setMsg(`✅ 已派 ${person.suggestedTasks.length} 項任務給 ${person.name}`);
+      onAssigned();
+    } catch (e) {
+      setMsg(`❌ 指派失敗: ${e instanceof Error ? e.message : "unknown"}`);
+    } finally {
+      setAssigningEmail(null);
+    }
+  };
+
+  const sevTone = {
+    critical: { bg: "rgba(239,68,68,0.08)", bar: "#dc2626", icon: "🔴" },
+    high: { bg: "rgba(234,88,12,0.08)", bar: "#ea580c", icon: "🟠" },
+    medium: { bg: "rgba(251,191,36,0.08)", bar: "#d97706", icon: "🟡" },
+  };
+
+  return (
+    <div
+      style={{
+        marginBottom: 20,
+        padding: "14px 18px",
+        background: "linear-gradient(90deg, rgba(239,68,68,0.06), rgba(251,191,36,0.06))",
+        border: "1.5px solid rgba(239,68,68,0.3)",
+        borderRadius: 14,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#7f1d1d" }}>
+          🚨 今日要特別關心的 {attention.length} 人
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text3)" }}>
+          Claude 自動偵測 · 一鍵指派任務 (寫進 v3_commands)
+        </div>
+      </div>
+      {msg && (
+        <div
+          style={{
+            marginBottom: 10,
+            padding: "6px 10px",
+            background: msg.startsWith("✅") ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+            border: `1px solid ${msg.startsWith("✅") ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
+            borderRadius: 6,
+            fontSize: 11,
+            color: msg.startsWith("✅") ? "#14532d" : "#7f1d1d",
+          }}
+        >
+          {msg}
+        </div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {attention.map((p, i) => {
+          const t = sevTone[p.severity];
+          const busy = assigningEmail === p.email;
+          return (
+            <div
+              key={`${p.email || p.name}-${i}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "10px 14px",
+                background: t.bg,
+                borderLeft: `4px solid ${t.bar}`,
+                borderRadius: 8,
+                flexWrap: "wrap",
+                opacity: busy ? 0.5 : 1,
+              }}
+            >
+              <div style={{ fontSize: 16 }}>{t.icon}</div>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: "var(--text)" }}>
+                  {p.name}
+                  {p.team && (
+                    <span style={{ fontSize: 10, color: "var(--text3)", fontWeight: 500, marginLeft: 6 }}>
+                      {p.team} · {p.brand}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: "#0f172a", marginTop: 2 }}>{p.reason}</div>
+              </div>
+              <button
+                onClick={() => assignAll(p)}
+                disabled={busy}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  border: `1.5px solid ${t.bar}`,
+                  background: t.bar,
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: busy ? "wait" : "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {busy ? "指派中..." : `📤 派 ${p.suggestedTasks.length} 項任務`}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function BrandCompareCard({ brands }: { brands: BrandCompareRow[] }) {
   const maxRevenue = Math.max(...brands.map((b) => b.net_revenue_daily), 1);

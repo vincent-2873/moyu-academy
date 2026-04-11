@@ -140,6 +140,44 @@ export async function GET(req: NextRequest) {
         results.push({ email: u.email, status: "no_data" });
         continue;
       }
+
+      // 🆕 把 briefing.actions 寫進 v3_commands → 業務 /me 頁面看得到 + 主管 /admin 看得到
+      //    這是「自動派任務」的核心邏輯 — Claude 不只建議，是直接指派
+      if (briefing.actions && briefing.actions.length > 0) {
+        const priorityMap: Record<string, string> = {
+          critical: "critical",
+          high: "high",
+          medium: "normal",
+          low: "info",
+        };
+        // 清掉今天已經 insert 過的 (避免重跑 cron 重複)
+        const todayIso = new Date().toISOString().slice(0, 10);
+        await supabase
+          .from("v3_commands")
+          .delete()
+          .eq("owner_email", u.email)
+          .eq("ai_generated", true)
+          .gte("created_at", todayIso + "T00:00:00Z")
+          .lt("created_at", todayIso + "T23:59:59Z")
+          .eq("pillar_id", "sales");
+        // Bulk insert
+        const rows = briefing.actions.slice(0, 8).map((a) => ({
+          owner_email: u.email,
+          pillar_id: "sales",
+          title: a.title,
+          detail: a.detail,
+          severity: priorityMap[a.priority] || "normal",
+          status: "pending",
+          ai_generated: true,
+          ai_reasoning: "daily_briefing auto-assigned",
+          deadline: new Date(Date.now() + 12 * 3600 * 1000).toISOString(), // 12 hr from now
+        }));
+        const { error: cmdErr } = await supabase.from("v3_commands").insert(rows);
+        if (cmdErr) {
+          console.error("[daily-briefing-push] v3_commands insert failed:", cmdErr.message);
+        }
+      }
+
       // Push via LINE (直接指定 line_user_id 避免再去 users 表查一次)
       const pushRes = await linePush({
         title: `☀️ ${briefing.profile?.name || u.name} 今日晨報`,
