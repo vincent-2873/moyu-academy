@@ -18,10 +18,11 @@ import crypto from "crypto";
  */
 
 interface LineEvent {
-  type: "follow" | "unfollow" | "message" | "join" | "leave" | string;
+  type: "follow" | "unfollow" | "message" | "join" | "leave" | "postback" | string;
   replyToken?: string;
   source: { userId?: string; type: string };
   message?: { type: string; text?: string };
+  postback?: { data: string; params?: Record<string, string> };
   timestamp: number;
 }
 
@@ -70,6 +71,57 @@ export async function POST(request: NextRequest) {
     // ── follow 事件：用戶第一次加 LINE@
     if (event.type === "follow" && event.replyToken) {
       await lineReply(event.replyToken, HELLO_TEXT);
+      continue;
+    }
+
+    // ── postback 事件：用戶按了 Flex Message 的按鈕
+    // data 格式: "cmd=done&id=<uuid>" / "cmd=blocked&id=<uuid>" / "cmd=skipped&id=<uuid>"
+    if (event.type === "postback" && event.postback && event.replyToken) {
+      const params = new URLSearchParams(event.postback.data);
+      const cmd = params.get("cmd");
+      const id = params.get("id");
+      if (cmd && id && ["done", "blocked", "skipped", "acknowledged", "ignored"].includes(cmd)) {
+        // Map cmd → status (skipped → ignored)
+        const status = cmd === "skipped" ? "ignored" : cmd;
+        const updates: Record<string, unknown> = { status };
+        if (status === "done") updates.done_at = new Date().toISOString();
+        if (status === "acknowledged") updates.acknowledged_at = new Date().toISOString();
+
+        // Fetch the command first for context
+        const { data: before } = await supabase
+          .from("v3_commands")
+          .select("id, title, owner_email")
+          .eq("id", id)
+          .maybeSingle();
+
+        const { error: updateErr } = await supabase
+          .from("v3_commands")
+          .update(updates)
+          .eq("id", id);
+
+        if (updateErr || !before) {
+          await lineReply(event.replyToken, `❌ 找不到這個任務 (id=${id.slice(0, 8)}...)`);
+        } else {
+          // Write to v3_response_log for learning
+          const createdAt = Date.now(); // fallback - we didn't fetch created_at
+          await supabase.from("v3_response_log").insert({
+            command_id: id,
+            owner_email: before.owner_email || "",
+            action: status,
+            response_time_seconds: Math.floor((Date.now() - createdAt) / 1000),
+            note: `from LINE postback`,
+          });
+
+          const label = status === "done" ? "✅ 已完成" : status === "blocked" ? "🚧 已標記卡住 (主管會看到)" : "⏭️ 已跳過";
+          await lineReply(
+            event.replyToken,
+            `${label}\n\n任務：${before.title}\n\n✨ 記錄已更新，主管 /admin 和你 /me 都會同步看到`
+          );
+        }
+        continue;
+      }
+      // Unknown postback
+      await lineReply(event.replyToken, `⚠️ 不認識的按鈕動作: ${event.postback.data.slice(0, 50)}`);
       continue;
     }
 

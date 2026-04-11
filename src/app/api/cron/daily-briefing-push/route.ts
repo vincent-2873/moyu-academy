@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { linePush } from "@/lib/line-notify";
+import { linePush, buildCommandsFlex } from "@/lib/line-notify";
 import { NextRequest } from "next/server";
 
 /*
@@ -143,8 +143,9 @@ export async function GET(req: NextRequest) {
 
       // 🆕 把 briefing.actions 寫進 v3_commands → 業務 /me 頁面看得到 + 主管 /admin 看得到
       //    這是「自動派任務」的核心邏輯 — Claude 不只建議，是直接指派
+      let insertedCmds: Array<{ id: string; title: string; detail: string | null; severity: "info" | "normal" | "high" | "critical" }> = [];
       if (briefing.actions && briefing.actions.length > 0) {
-        const priorityMap: Record<string, string> = {
+        const priorityMap: Record<string, "critical" | "high" | "normal" | "info"> = {
           critical: "critical",
           high: "high",
           medium: "normal",
@@ -172,21 +173,46 @@ export async function GET(req: NextRequest) {
           ai_reasoning: "daily_briefing auto-assigned",
           deadline: new Date(Date.now() + 12 * 3600 * 1000).toISOString(), // 12 hr from now
         }));
-        const { error: cmdErr } = await supabase.from("v3_commands").insert(rows);
+        const { data: inserted, error: cmdErr } = await supabase
+          .from("v3_commands")
+          .insert(rows)
+          .select("id, title, detail, severity");
         if (cmdErr) {
           console.error("[daily-briefing-push] v3_commands insert failed:", cmdErr.message);
+        } else if (inserted) {
+          insertedCmds = inserted as typeof insertedCmds;
         }
       }
 
-      // Push via LINE (直接指定 line_user_id 避免再去 users 表查一次)
-      const pushRes = await linePush({
-        title: `☀️ ${briefing.profile?.name || u.name} 今日晨報`,
-        body: msg,
-        priority: briefing.rule?.severity === "critical" ? "critical" : "high",
-        lineUserId: u.line_user_id,
-        userEmail: u.email,
-        reason: "daily_briefing",
-      });
+      // 📱 Push via LINE — 用 Flex Message carousel 讓業務可以在手機直接點完成/卡住/跳過
+      // 第 1 則: 文字晨報 (headline + team context)
+      // 第 2 則: Flex carousel (每個 action 一個 bubble + 3 個 postback 按鈕)
+      let pushRes;
+      if (insertedCmds.length > 0) {
+        const flex = buildCommandsFlex(
+          insertedCmds,
+          `☀️ ${briefing.profile?.name || u.name} 今日 ${insertedCmds.length} 項任務`
+        );
+        pushRes = await linePush({
+          title: `☀️ ${briefing.profile?.name || u.name} 今日晨報`,
+          body: `☀️ ${briefing.profile?.name || u.name} 今日 ${insertedCmds.length} 項任務 — 點按鈕直接標記狀態`,
+          flexMessage: flex,
+          priority: briefing.rule?.severity === "critical" ? "critical" : "high",
+          lineUserId: u.line_user_id,
+          userEmail: u.email,
+          reason: "daily_briefing",
+        });
+      } else {
+        // fallback to text
+        pushRes = await linePush({
+          title: `☀️ ${briefing.profile?.name || u.name} 今日晨報`,
+          body: msg,
+          priority: briefing.rule?.severity === "critical" ? "critical" : "high",
+          lineUserId: u.line_user_id,
+          userEmail: u.email,
+          reason: "daily_briefing",
+        });
+      }
       if (pushRes.ok) {
         results.push({ email: u.email, status: "pushed" });
       } else {

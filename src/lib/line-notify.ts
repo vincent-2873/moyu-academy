@@ -32,6 +32,133 @@ export interface LinePushOptions {
   userEmail?: string;
   /** 為什麼推播（blocked / task / alert / system / register） */
   reason?: string;
+  /**
+   * 可選：直接送 LINE Flex Message / Template（取代純文字 body）
+   * 這個若設定，body 只會被當 altText
+   * 典型用途：待辦任務清單 with ✅/🚧/⏭️ postback 按鈕
+   */
+  flexMessage?: Record<string, unknown>;
+  /** 可選：Quick Reply items (postback) — 附在 text message 上 */
+  quickReply?: Array<{
+    label: string;
+    data: string; // postback data, e.g. "cmd=done&id=uuid"
+  }>;
+}
+
+/** 建構 v3_commands 的 Flex Message carousel — 給 daily briefing / attention push 用 */
+export function buildCommandsFlex(
+  commands: Array<{
+    id: string;
+    title: string;
+    detail: string | null;
+    severity: "info" | "normal" | "high" | "critical";
+  }>,
+  headerText: string
+): Record<string, unknown> {
+  const sevColor = {
+    critical: "#dc2626",
+    high: "#ea580c",
+    normal: "#d97706",
+    info: "#0891b2",
+  };
+  const sevIcon = {
+    critical: "🔴",
+    high: "🟠",
+    normal: "🟡",
+    info: "🔵",
+  };
+  // 最多 10 個 bubble (LINE 限制 12 per carousel)
+  const bubbles = commands.slice(0, 10).map((c) => ({
+    type: "bubble",
+    size: "kilo",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: sevColor[c.severity] || "#d97706",
+      paddingAll: "12px",
+      contents: [
+        {
+          type: "text",
+          text: `${sevIcon[c.severity] || "🟡"} ${c.title.slice(0, 40)}`,
+          color: "#ffffff",
+          size: "sm",
+          weight: "bold",
+          wrap: true,
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: (c.detail || "").slice(0, 200),
+          wrap: true,
+          size: "xxs",
+          color: "#334155",
+        },
+      ],
+      paddingAll: "12px",
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#16a34a",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: "✅ 完成了",
+            data: `cmd=done&id=${c.id}`,
+            displayText: `✅ 我完成了：${c.title.slice(0, 20)}`,
+          },
+        },
+        {
+          type: "box",
+          layout: "horizontal",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "🚧 卡住",
+                data: `cmd=blocked&id=${c.id}`,
+                displayText: `🚧 卡住：${c.title.slice(0, 20)}`,
+              },
+            },
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "⏭️ 跳過",
+                data: `cmd=skipped&id=${c.id}`,
+                displayText: `⏭️ 跳過：${c.title.slice(0, 20)}`,
+              },
+            },
+          ],
+        },
+      ],
+      paddingAll: "12px",
+    },
+  }));
+  return {
+    type: "flex",
+    altText: headerText,
+    contents: {
+      type: "carousel",
+      contents: bubbles,
+    },
+  };
 }
 
 export interface LinePushResult {
@@ -118,7 +245,28 @@ export async function linePush(opts: LinePushOptions): Promise<LinePushResult> {
     return { ok: true, mode: "stub", resolvedUserId: resolvedUserId || undefined };
   }
 
-  // LIVE MODE
+  // LIVE MODE — 建構訊息 array
+  const messages: Array<Record<string, unknown>> = [];
+  if (opts.flexMessage) {
+    messages.push(opts.flexMessage);
+  } else {
+    const textMsg: Record<string, unknown> = { type: "text", text: message };
+    if (opts.quickReply && opts.quickReply.length > 0) {
+      textMsg.quickReply = {
+        items: opts.quickReply.slice(0, 13).map((q) => ({
+          type: "action",
+          action: {
+            type: "postback",
+            label: q.label.slice(0, 20),
+            data: q.data,
+            displayText: q.label.slice(0, 20),
+          },
+        })),
+      };
+    }
+    messages.push(textMsg);
+  }
+
   try {
     const res = await fetch("https://api.line.me/v2/bot/message/push", {
       method: "POST",
@@ -128,7 +276,7 @@ export async function linePush(opts: LinePushOptions): Promise<LinePushResult> {
       },
       body: JSON.stringify({
         to: resolvedUserId,
-        messages: [{ type: "text", text: message }],
+        messages,
       }),
     });
 

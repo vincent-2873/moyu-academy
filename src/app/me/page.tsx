@@ -2352,9 +2352,50 @@ function RecordingAnalyzeCard({ email }: { email: string }) {
   const [scenario, setScenario] = useState(SCENARIO_OPTIONS[0]);
   const [outcome, setOutcome] = useState<string>("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [result, setResult] = useState<RecordingAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      setError(`檔案太大 (${(file.size / 1024 / 1024).toFixed(1)}MB)，上限 25MB`);
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    setResult(null);
+    setUploadProgress(`📤 上傳中 ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
+    try {
+      const fd = new FormData();
+      fd.append("email", email);
+      fd.append("audio", file);
+      fd.append("call_context", `${scenario}${outcome ? " · " + outcome : ""}`);
+      setUploadProgress("🎙️ 轉文字中 (Whisper)...");
+      const res = await fetch("/api/me/recording-upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setError(json.error || "上傳失敗");
+        return;
+      }
+      if (json.transcript_pending) {
+        setError(
+          `📁 檔案已存到 Supabase Storage 但還無法自動轉文字。請主管在 Vercel 加 OPENAI_API_KEY 或 GROQ_API_KEY env var，之後此功能就會自動跑。\n\nStorage path: ${json.storage_path}`
+        );
+        return;
+      }
+      setUploadProgress("🧠 Claude 打分中...");
+      setTranscript(json.transcript || "");
+      setResult(json.analysis);
+      setUploadProgress(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "network error");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const analyze = async () => {
     if (transcript.trim().length < 50) {
@@ -2465,6 +2506,84 @@ function RecordingAnalyzeCard({ email }: { email: string }) {
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* 🎙️ 錄音檔上傳區 (Whisper → Claude 自動 score) */}
+          <div
+            style={{
+              marginBottom: 14,
+              padding: 16,
+              background: "linear-gradient(135deg, rgba(79,70,229,0.04), rgba(219,39,119,0.04))",
+              border: "2px dashed rgba(79,70,229,0.35)",
+              borderRadius: 12,
+              textAlign: "center",
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const f = e.dataTransfer.files?.[0];
+              if (f) handleFileUpload(f);
+            }}
+          >
+            <div style={{ fontSize: 28, marginBottom: 6 }}>🎙️</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>
+              直接上傳錄音檔 (免貼逐字稿)
+            </div>
+            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 10 }}>
+              支援 mp3 / wav / m4a / webm · 25MB 以內 · Whisper 自動轉文字 → Claude 6 維度打分
+            </div>
+            <label
+              style={{
+                display: "inline-block",
+                padding: "10px 20px",
+                background: uploading
+                  ? "#cbd5e1"
+                  : "linear-gradient(135deg, #4f46e5, #db2777)",
+                color: "#ffffff",
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: uploading ? "not-allowed" : "pointer",
+                boxShadow: uploading ? "none" : "0 8px 20px -8px rgba(79,70,229,0.4)",
+              }}
+            >
+              {uploading ? "處理中..." : "📁 選擇錄音檔"}
+              <input
+                type="file"
+                accept="audio/*,.mp3,.wav,.m4a,.webm"
+                disabled={uploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFileUpload(f);
+                }}
+                style={{ display: "none" }}
+              />
+            </label>
+            {uploadProgress && (
+              <div style={{ fontSize: 11, color: "#4f46e5", marginTop: 8, fontWeight: 700 }}>
+                {uploadProgress}
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              margin: "14px 0 10px",
+              fontSize: 11,
+              color: "#94a3b8",
+              fontWeight: 700,
+            }}
+          >
+            <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+            <span>或手動貼逐字稿</span>
+            <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
           </div>
 
           {/* Transcript textarea */}
