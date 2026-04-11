@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 1. 抓 user
-    const { data: user, error: userErr } = await supabase
+    let { data: user, error: userErr } = await supabase
       .from("users")
       .select("*")
       .eq("email", email)
@@ -39,6 +39,50 @@ export async function GET(request: NextRequest) {
     if (userErr) {
       return Response.json({ ok: false, error: userErr.message }, { status: 500 });
     }
+
+    // 1a. 如果 users 表沒有這個 email，但 sales_metrics_daily 有 → 自動 provision
+    //     這樣新業務一進 Metabase 就能看自己的 /me 頁面，不用等管理員建帳號
+    if (!user) {
+      const { data: salesRow } = await supabase
+        .from("sales_metrics_daily")
+        .select("name, brand, team, org, level")
+        .eq("email", email)
+        .order("date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (salesRow) {
+        // 從 sales data 自動建 user row
+        const name = (salesRow.name as string) || email.split("@")[0];
+        const brand = (salesRow.brand as string) || "nschool";
+        const now = new Date().toISOString();
+        const { data: created, error: createErr } = await supabase
+          .from("users")
+          .insert({
+            email,
+            name,
+            brand,
+            role: "sales",
+            status: "active",
+            password: "", // 空密碼，強制走 LINE OAuth 或管理員事後補
+            created_at: now,
+            updated_at: now,
+          })
+          .select("*")
+          .single();
+        if (createErr) {
+          // 無法自動 provision 就回既有邏輯
+          return Response.json({
+            ok: true,
+            registered: false,
+            message: `這個 email 在 Metabase 有業務資料但無法自動建帳號：${createErr.message}`,
+            autoProvisionFailed: true,
+          });
+        }
+        user = created;
+      }
+    }
+
     if (!user) {
       return Response.json({
         ok: true,
