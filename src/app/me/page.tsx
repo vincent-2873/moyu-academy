@@ -805,6 +805,19 @@ interface MySalesResponse {
     severity: string;
   } | null;
   shortfalls?: MyShortfall[];
+  paceCheck?: {
+    now: string;
+    shiftStart: string;
+    shiftEnd: string;
+    elapsedPct: number;
+    expectedCalls: number;
+    actualCalls: number;
+    behind: number;
+    ahead: number;
+    callsPerHourRequired: number;
+    totalTarget: number;
+    severity: "critical" | "high" | "medium" | "ok";
+  } | null;
   provenance?: {
     brand: string;
     questionId: number;
@@ -932,6 +945,27 @@ function MySalesMetricsCard({ email }: { email: string }) {
           </div>
         </div>
       </div>
+
+      {/* 🔴 PaceCheck — 時間感壓迫橫條 */}
+      {data.paceCheck && data.paceCheck.severity !== "ok" && data.paceCheck.elapsedPct > 0 && (
+        <PaceBanner pace={data.paceCheck} />
+      )}
+      {data.paceCheck && data.paceCheck.severity === "ok" && data.paceCheck.ahead > 0 && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "10px 14px",
+            background: "linear-gradient(90deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))",
+            border: "1.5px solid rgba(34,197,94,0.4)",
+            borderRadius: 12,
+            fontSize: 12,
+            color: "#14532d",
+            fontWeight: 700,
+          }}
+        >
+          ✅ 現在 {data.paceCheck.now} · 應達 {data.paceCheck.expectedCalls} 通 · 你 {data.paceCheck.actualCalls} 通 · 超前 {data.paceCheck.ahead} 通 — 節奏很好，繼續
+        </div>
+      )}
 
       {/* Rule / shortfall alert */}
       {rule && shortfalls.length > 0 && (
@@ -1231,6 +1265,106 @@ function formatSyncAge(iso: string): string {
   if (hours < 24) return `${hours} 小時前`;
   const days = Math.round(hours / 24);
   return `${days} 天前`;
+}
+
+function PaceBanner({
+  pace,
+}: {
+  pace: {
+    now: string;
+    shiftStart: string;
+    shiftEnd: string;
+    elapsedPct: number;
+    expectedCalls: number;
+    actualCalls: number;
+    behind: number;
+    callsPerHourRequired: number;
+    totalTarget: number;
+    severity: "critical" | "high" | "medium" | "ok";
+  };
+}) {
+  const tones = {
+    critical: { bg: "linear-gradient(90deg,#dc2626,#b91c1c)", text: "#ffffff", icon: "🔴🔴🔴" },
+    high: { bg: "linear-gradient(90deg,#ea580c,#c2410c)", text: "#ffffff", icon: "🔴" },
+    medium: { bg: "linear-gradient(90deg,#f59e0b,#d97706)", text: "#451a03", icon: "🟠" },
+    ok: { bg: "#ffffff", text: "#0f172a", icon: "✅" },
+  };
+  const t = tones[pace.severity];
+  return (
+    <div
+      style={{
+        marginBottom: 14,
+        padding: "14px 18px",
+        background: t.bg,
+        borderRadius: 14,
+        color: t.text,
+        boxShadow: "0 12px 30px -14px rgba(220,38,38,0.35)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 22 }}>{t.icon}</div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={{ fontSize: 11, opacity: 0.85, fontWeight: 700 }}>
+            ⏰ 現在 {pace.now} · 上班 {pace.shiftStart}-{pace.shiftEnd} · 過去 {pace.elapsedPct}%
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>
+            落後 {pace.behind} 通 · 剩下每小時要衝 {pace.callsPerHourRequired} 通
+          </div>
+        </div>
+      </div>
+      {/* 進度對比條 */}
+      <div style={{ display: "flex", gap: 16, fontSize: 12, fontWeight: 700 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ opacity: 0.75, marginBottom: 4 }}>應達</div>
+          <div style={{ fontSize: 20, fontWeight: 900 }}>{pace.expectedCalls}</div>
+        </div>
+        <div style={{ opacity: 0.6, fontSize: 20, alignSelf: "center" }}>vs</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ opacity: 0.75, marginBottom: 4 }}>你</div>
+          <div style={{ fontSize: 20, fontWeight: 900 }}>{pace.actualCalls}</div>
+        </div>
+        <div style={{ opacity: 0.6, fontSize: 20, alignSelf: "center" }}>/</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ opacity: 0.75, marginBottom: 4 }}>全日目標</div>
+          <div style={{ fontSize: 20, fontWeight: 900 }}>{pace.totalTarget}</div>
+        </div>
+      </div>
+      {/* 進度橫條視覺化 */}
+      <div
+        style={{
+          marginTop: 10,
+          height: 10,
+          background: "rgba(255,255,255,0.2)",
+          borderRadius: 5,
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* 應達線 (白色半透明) */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: `${(pace.expectedCalls / pace.totalTarget) * 100}%`,
+            background: "rgba(255,255,255,0.35)",
+          }}
+        />
+        {/* 實際 (實色) */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: `${(pace.actualCalls / pace.totalTarget) * 100}%`,
+            background: "#ffffff",
+          }}
+        />
+      </div>
+    </div>
+  );
 }
 
 function PersonalRateCell({
@@ -1606,7 +1740,12 @@ interface BriefingResponse {
   shortfalls?: Array<{ metric: string; actual: number; min: number; delta: number }>;
   headlineSummary?: string;
   actions?: BriefingAction[];
-  teamContext?: { topPerformer: { name: string; revenue: number } | null; silent: Array<{ name: string; calls: number }> };
+  teamContext?: {
+    topPerformer: { name: string; revenue: number } | null;
+    silent: Array<{ name: string; calls: number }>;
+    yesterdayMvp?: { name: string; deltaCalls: number; todayCalls: number } | null;
+    myImprovement?: { deltaCalls: number; deltaRevenue: number } | null;
+  };
   cached?: boolean;
   message?: string;
 }
@@ -1858,6 +1997,68 @@ function DailyBriefingCard({ email }: { email: string }) {
             })}
           </div>
         </>
+      )}
+
+      {/* 昨日進步正回饋 + 自我進步 */}
+      {data.teamContext?.yesterdayMvp && data.teamContext.yesterdayMvp.deltaCalls > 0 && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: "10px 14px",
+            background: "linear-gradient(90deg, rgba(34,197,94,0.12), rgba(132,204,22,0.06))",
+            border: "1.5px solid rgba(34,197,94,0.35)",
+            borderRadius: 10,
+            fontSize: 12,
+            color: "#14532d",
+            fontWeight: 600,
+          }}
+        >
+          🚀 昨日進步 MVP: <strong>{data.teamContext.yesterdayMvp.name}</strong>
+          {" · 多打了 "}
+          <strong>+{data.teamContext.yesterdayMvp.deltaCalls}</strong>
+          {" 通 (到 "}
+          {data.teamContext.yesterdayMvp.todayCalls} 通)
+          {" — 你呢？"}
+        </div>
+      )}
+      {data.teamContext?.myImprovement && (
+        <div
+          style={{
+            marginTop: 6,
+            padding: "10px 14px",
+            background:
+              data.teamContext.myImprovement.deltaCalls > 0
+                ? "rgba(59,130,246,0.08)"
+                : "rgba(251,191,36,0.08)",
+            border: `1.5px solid ${
+              data.teamContext.myImprovement.deltaCalls > 0 ? "rgba(59,130,246,0.3)" : "rgba(251,191,36,0.35)"
+            }`,
+            borderRadius: 10,
+            fontSize: 12,
+            color: "#0f172a",
+            fontWeight: 600,
+          }}
+        >
+          {data.teamContext.myImprovement.deltaCalls > 0 ? "📈" : "📉"} 你昨天 vs 前天
+          {" · 通次 "}
+          <strong
+            style={{
+              color: data.teamContext.myImprovement.deltaCalls > 0 ? "#16a34a" : "#dc2626",
+            }}
+          >
+            {data.teamContext.myImprovement.deltaCalls > 0 ? "+" : ""}
+            {data.teamContext.myImprovement.deltaCalls}
+          </strong>
+          {" · 業績 "}
+          <strong
+            style={{
+              color: data.teamContext.myImprovement.deltaRevenue > 0 ? "#16a34a" : "#dc2626",
+            }}
+          >
+            {data.teamContext.myImprovement.deltaRevenue > 0 ? "+$" : "$"}
+            {data.teamContext.myImprovement.deltaRevenue.toLocaleString()}
+          </strong>
+        </div>
       )}
 
       {/* Team context footer */}

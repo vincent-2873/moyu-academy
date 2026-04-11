@@ -426,6 +426,54 @@ export async function GET(req: NextRequest) {
   }
   const dailyTrend = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
+  // 🌐 品牌橫向對比 — 拉全部 brand 的 same-period 彙總（忽略 brand filter）
+  let brandCompare: Array<{
+    brand: string;
+    people: number;
+    calls: number;
+    connected: number;
+    raw_appointments: number;
+    appointments_show: number;
+    closures: number;
+    net_revenue_daily: number;
+    rates: FunnelRates;
+  }> = [];
+  if (!brand) {
+    // 在全集團視角才算品牌對比 (避免單品牌 view 重複計算)
+    const byBrand = new Map<string, { people: Set<string>; m: Metric }>();
+    for (const r of typedRows) {
+      const b = r.brand || "(unknown)";
+      const entry = byBrand.get(b) || { people: new Set<string>(), m: emptyMetric() };
+      if (r.email) entry.people.add(r.email);
+      else if (r.salesperson_id) entry.people.add(r.salesperson_id);
+      entry.m = addMetric(entry.m, {
+        calls: r.calls,
+        call_minutes: Number(r.call_minutes) || 0,
+        connected: r.connected,
+        raw_appointments: r.raw_appointments,
+        appointments_show: r.appointments_show,
+        raw_demos: r.raw_demos,
+        closures: r.closures,
+        net_revenue_daily: Number(r.net_revenue_daily) || 0,
+        net_revenue_contract: Number(r.net_revenue_contract) || 0,
+      });
+      byBrand.set(b, entry);
+    }
+    brandCompare = Array.from(byBrand.entries())
+      .map(([br, v]) => ({
+        brand: br,
+        people: v.people.size,
+        calls: v.m.calls,
+        connected: v.m.connected,
+        raw_appointments: v.m.raw_appointments,
+        appointments_show: v.m.appointments_show,
+        closures: v.m.closures,
+        net_revenue_daily: v.m.net_revenue_daily,
+        rates: computeRates(v.m),
+      }))
+      .sort((a, b) => b.net_revenue_daily - a.net_revenue_daily);
+  }
+
   // Data integrity issues — 原始 row level 檢查（跨日前）
   const dataIssues: DataIssue[] = [];
   for (const r of typedRows) {
@@ -457,6 +505,7 @@ export async function GET(req: NextRequest) {
     brandRates,
     dailyTrend,
     dataIssues,
+    brandCompare,
     sources: sources || [],
     missingDates,
     daysInRange: daysInRange.length,

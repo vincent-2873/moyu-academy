@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
   // 定義成就列表
   type Def = Omit<Achievement, "actual" | "pct" | "unlocked" | "unlockedAt">;
   const defs: Array<Def & { actual: number; unlockedAt?: string | null }> = [
-    // ROOKIE (新人第 1 週)
+    // ROOKIE (新人第 1 週) — 大量小勝利讓新人有希望
     {
       id: "first_call",
       tier: "rookie",
@@ -157,6 +157,36 @@ export async function GET(req: NextRequest) {
       target: 1,
       actual: cum.calls,
       unlockedAt: firstDate.first_call || undefined,
+    },
+    {
+      id: "first_10_calls",
+      tier: "rookie",
+      icon: "🔟",
+      title: "累積 10 通",
+      description: "熱身階段已結束，聲線熟了",
+      metric: "cum.calls",
+      target: 10,
+      actual: cum.calls,
+    },
+    {
+      id: "first_30_minutes",
+      tier: "rookie",
+      icon: "⏰",
+      title: "單日累計通時 30 分",
+      description: "半小時等於跨過新人門檻",
+      metric: "cum.call_minutes",
+      target: 30,
+      actual: cum.call_minutes,
+    },
+    {
+      id: "first_connected",
+      tier: "rookie",
+      icon: "✅",
+      title: "第一次有人接起來",
+      description: "對方真的聽到你的聲音",
+      metric: "cum.connected",
+      target: 1,
+      actual: cum.connected,
     },
     {
       id: "first_100_calls",

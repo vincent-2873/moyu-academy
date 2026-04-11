@@ -6290,6 +6290,18 @@ interface DataIssue {
   detail: string;
 }
 
+interface BrandCompareRow {
+  brand: string;
+  people: number;
+  calls: number;
+  connected: number;
+  raw_appointments: number;
+  appointments_show: number;
+  closures: number;
+  net_revenue_daily: number;
+  rates: FunnelRatesDTO;
+}
+
 interface SalesMetricsResponse {
   ok: boolean;
   date: string;
@@ -6307,6 +6319,7 @@ interface SalesMetricsResponse {
   daysWithData?: number;
   dailyTrend?: DailyTrendPoint[];
   dataIssues?: DataIssue[];
+  brandCompare?: BrandCompareRow[];
 }
 
 // Brand display names — app_id 是英文技術代碼，UI 顯示中文全名
@@ -6848,6 +6861,11 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
             />
           )}
 
+          {/* 🌐 品牌橫向對比 — 只在 全集團 view 顯示 */}
+          {data?.brandCompare && data.brandCompare.length > 1 && (
+            <BrandCompareCard brands={data.brandCompare} />
+          )}
+
           {/* 🏆 排行榜 — 最主要的「看一眼就懂」視角 */}
           <RankingTable rows={rows} brandRates={data?.brandRates || null} />
 
@@ -7227,6 +7245,125 @@ function DailyTrendChart({
               />
               <div style={{ fontSize: 9, color: "var(--text3)", whiteSpace: "nowrap" }}>
                 {d.date.slice(5)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const BRAND_COLORS: Record<string, string> = {
+  nschool: "#4F46E5",
+  xuemi: "#ea580c",
+  ooschool: "#0891b2",
+  aischool: "#db2777",
+  hq: "#64748b",
+};
+
+function BrandCompareCard({ brands }: { brands: BrandCompareRow[] }) {
+  const maxRevenue = Math.max(...brands.map((b) => b.net_revenue_daily), 1);
+  return (
+    <div
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: 20,
+        marginBottom: 20,
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", marginBottom: 14 }}>
+        🌐 品牌橫向對比 — {brands.length} 個品牌誰強誰弱
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {brands.map((b, idx) => {
+          const color = BRAND_COLORS[b.brand] || "#64748b";
+          const pct = (b.net_revenue_daily / maxRevenue) * 100;
+          const name = BRAND_DISPLAY_NAMES[b.brand] || b.brand;
+          const rank = idx + 1;
+          return (
+            <div
+              key={b.brand}
+              style={{
+                padding: "12px 14px",
+                border: `1px solid ${color}33`,
+                borderRadius: 10,
+                background: `${color}0a`,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 12,
+                    background: rank === 1 ? "#fbbf24" : rank === 2 ? "#cbd5e1" : rank === 3 ? "#cd7f32" : "var(--border)",
+                    color: rank <= 3 ? "#fff" : "var(--text3)",
+                    fontSize: 11,
+                    fontWeight: 900,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {rank}
+                </div>
+                <div style={{ fontWeight: 800, color: "var(--text)", fontSize: 14 }}>{name}</div>
+                <div style={{ fontSize: 11, color: "var(--text3)" }}>{b.people} 人</div>
+                <div style={{ flex: 1 }} />
+                <div style={{ fontSize: 16, fontWeight: 900, color: color }}>
+                  NT${formatMillions(b.net_revenue_daily)}
+                </div>
+              </div>
+              {/* 業績條 */}
+              <div style={{ height: 6, background: `${color}14`, borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
+                <div
+                  style={{
+                    width: `${pct}%`,
+                    height: "100%",
+                    background: color,
+                    transition: "width 0.5s ease",
+                  }}
+                />
+              </div>
+              {/* 4 大 KPI + rates inline */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, fontSize: 11 }}>
+                <div>
+                  <div style={{ color: "var(--text3)", fontSize: 10 }}>通次</div>
+                  <div style={{ fontWeight: 700, color: "var(--text)" }}>{b.calls.toLocaleString()}</div>
+                  <div style={{ fontSize: 9, color: color }}>
+                    接通率 {b.rates.connectRate != null ? `${(b.rates.connectRate * 100).toFixed(0)}%` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "var(--text3)", fontSize: 10 }}>邀約</div>
+                  <div style={{ fontWeight: 700, color: "var(--text)" }}>{b.raw_appointments}</div>
+                  <div style={{ fontSize: 9, color: color }}>
+                    {b.rates.inviteRate != null ? `${(b.rates.inviteRate * 100).toFixed(1)}%` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "var(--text3)", fontSize: 10 }}>出席</div>
+                  <div style={{ fontWeight: 700, color: "var(--text)" }}>{b.appointments_show}</div>
+                  <div style={{ fontSize: 9, color: color }}>
+                    {b.rates.showRate != null ? `${(b.rates.showRate * 100).toFixed(0)}%` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "var(--text3)", fontSize: 10 }}>成交</div>
+                  <div style={{ fontWeight: 700, color: "var(--text)" }}>{b.closures}</div>
+                  <div style={{ fontSize: 9, color: color }}>
+                    {b.rates.closeRate != null ? `${(b.rates.closeRate * 100).toFixed(0)}%` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "var(--text3)", fontSize: 10 }}>客單價</div>
+                  <div style={{ fontWeight: 700, color: "var(--text)" }}>
+                    {b.rates.avgDealSize != null ? `$${formatMillions(b.rates.avgDealSize)}` : "—"}
+                  </div>
+                </div>
               </div>
             </div>
           );

@@ -250,6 +250,45 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // 🔴 即時進度 — 現在幾點，依照規則應該到哪，落後多少
+  //    工作時段 09:00 → 20:00 台北 (11 hr),  min_calls 均速消化
+  //    這是「時間感壓迫」— 讓業務看到自己卡在哪 hour 該追多少通
+  const paceCheck = (() => {
+    if (!matchedRule || matchedRule.min_calls == null) return null;
+    const now = new Date();
+    const tpHours = (now.getUTCHours() + 8) % 24;
+    const tpMinutes = now.getUTCMinutes();
+    const shiftStart = 9;
+    const shiftEnd = 20; // 20:00
+    const totalHours = shiftEnd - shiftStart;
+    // 決定目前進度％ (0 → 1)
+    let elapsedHours: number;
+    if (tpHours < shiftStart) elapsedHours = 0;
+    else if (tpHours >= shiftEnd) elapsedHours = totalHours;
+    else elapsedHours = tpHours - shiftStart + tpMinutes / 60;
+    const pct = Math.max(0, Math.min(1, elapsedHours / totalHours));
+    const expectedCalls = Math.round(matchedRule.min_calls * pct);
+    const actualCalls = todayMetric.calls;
+    const behind = expectedCalls - actualCalls;
+    const callsPerHourRequired =
+      elapsedHours < totalHours && behind > 0
+        ? Math.ceil(behind / (totalHours - elapsedHours))
+        : 0;
+    return {
+      now: `${String(tpHours).padStart(2, "0")}:${String(tpMinutes).padStart(2, "0")}`,
+      shiftStart: `${shiftStart}:00`,
+      shiftEnd: `${shiftEnd}:00`,
+      elapsedPct: Math.round(pct * 100),
+      expectedCalls,
+      actualCalls,
+      behind: Math.max(0, behind),
+      ahead: Math.max(0, -behind),
+      callsPerHourRequired,
+      totalTarget: matchedRule.min_calls,
+      severity: behind > 30 ? "critical" : behind > 10 ? "high" : behind > 0 ? "medium" : "ok",
+    };
+  })();
+
   // ── 漏斗率計算（個人）+ 同品牌平均（for vs 比對） ─────────────────
   const computeRates = (m: Metric) => {
     const safe = (num: number, den: number) => (den > 0 ? num / den : null);
@@ -324,6 +363,7 @@ export async function GET(req: NextRequest) {
     dailyTrend,
     rule: matchedRule || null,
     shortfalls,
+    paceCheck,
     provenance,
     // 只在「今天沒同步」且有過往資料時回傳，讓 UI 顯示 fallback
     latestAvailable:
