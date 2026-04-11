@@ -752,6 +752,169 @@ interface CeoOverviewData {
   generatedAt: string;
 }
 
+interface TeamPredictionSummary {
+  critical: number;
+  at_risk: number;
+  behind: number;
+  on_track: number;
+  surging: number;
+  crashing: number;
+}
+interface TeamPredictionPerson {
+  email: string;
+  name: string;
+  brand: string;
+  team: string;
+  monthRevenue: number;
+  projectedMonthRevenue: number;
+  avgMonthlyRev: number;
+  vsAvgPct: number | null;
+  monthCloses: number;
+  last3DaysAvg: number;
+  prev3DaysAvg: number;
+  momentum: string;
+  riskLevel: "on_track" | "behind" | "at_risk" | "critical";
+  predictedNextStep: string;
+}
+interface TeamPredictionData {
+  ok: boolean;
+  summary: TeamPredictionSummary;
+  predictions: TeamPredictionPerson[];
+  daysRemaining: number;
+}
+
+function TeamPredictionPanel() {
+  const [data, setData] = useState<TeamPredictionData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "critical" | "at_risk" | "surging">("all");
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch("/api/admin/team-prediction", { cache: "no-store" });
+        const j = (await r.json()) as TeamPredictionData;
+        if (!cancelled) setData(j);
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    const t = setInterval(load, 120000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
+
+  if (loading || !data || !data.ok) return null;
+
+  const filtered =
+    filter === "all"
+      ? data.predictions
+      : filter === "critical"
+      ? data.predictions.filter((p) => p.riskLevel === "critical")
+      : filter === "at_risk"
+      ? data.predictions.filter((p) => p.riskLevel === "at_risk" || p.riskLevel === "behind")
+      : data.predictions.filter((p) => p.momentum === "surging");
+
+  const riskColor = {
+    critical: "#dc2626",
+    at_risk: "#ea580c",
+    behind: "#d97706",
+    on_track: "#16a34a",
+  };
+  const fmt = (n: number) => (n >= 10000 ? `${(n / 10000).toFixed(1)}萬` : Math.round(n).toLocaleString());
+
+  return (
+    <div
+      style={{
+        background: "linear-gradient(135deg, #1e1b4b, #312e81)",
+        borderRadius: 14,
+        padding: 20,
+        marginBottom: 14,
+        color: "#ffffff",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 13, fontWeight: 800 }}>🔮 本月達標預測 · 還剩 {data.daysRemaining} 天</div>
+        <div style={{ fontSize: 10, opacity: 0.6 }}>Claude 預測每個人月底結果</div>
+      </div>
+      {/* Summary chips */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        <Chip label={`🔴 危險 ${data.summary.critical}`} active={filter === "critical"} onClick={() => setFilter("critical")} color="#dc2626" />
+        <Chip label={`🟠 落後 ${data.summary.at_risk + data.summary.behind}`} active={filter === "at_risk"} onClick={() => setFilter("at_risk")} color="#ea580c" />
+        <Chip label={`🔥 突破 ${data.summary.surging}`} active={filter === "surging"} onClick={() => setFilter("surging")} color="#fbbf24" />
+        <Chip label={`✅ 正常 ${data.summary.on_track}`} active={filter === "all"} onClick={() => setFilter("all")} color="#16a34a" />
+      </div>
+      {/* Person list */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 400, overflowY: "auto" }}>
+        {filtered.slice(0, 20).map((p) => (
+          <div
+            key={p.email}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "8px 12px",
+              background: "rgba(255,255,255,0.06)",
+              borderLeft: `3px solid ${riskColor[p.riskLevel]}`,
+              borderRadius: 6,
+              fontSize: 12,
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700 }}>
+                {p.name}
+                <span style={{ fontSize: 10, opacity: 0.55, marginLeft: 6 }}>
+                  {p.team} · {p.brand}
+                </span>
+              </div>
+              <div style={{ fontSize: 10, opacity: 0.75, marginTop: 2 }}>{p.predictedNextStep}</div>
+            </div>
+            <div style={{ textAlign: "right", minWidth: 110 }}>
+              <div style={{ fontSize: 13, fontWeight: 800 }}>${fmt(p.projectedMonthRevenue)}</div>
+              {p.vsAvgPct != null && (
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: p.vsAvgPct >= 0 ? "#86efac" : "#fca5a5",
+                    fontWeight: 700,
+                  }}
+                >
+                  {p.vsAvgPct >= 0 ? "▲" : "▼"} {Math.abs(p.vsAvgPct)}% vs 均
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Chip({ label, active, onClick, color }: { label: string; active: boolean; onClick: () => void; color: string }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "5px 12px",
+        borderRadius: 8,
+        border: `1.5px solid ${active ? color : "rgba(255,255,255,0.2)"}`,
+        background: active ? `${color}33` : "rgba(255,255,255,0.05)",
+        color: active ? "#fff" : "rgba(255,255,255,0.75)",
+        fontSize: 11,
+        fontWeight: 700,
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 function CeoOverviewSection() {
   const [data, setData] = useState<CeoOverviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1001,6 +1164,9 @@ function CeoOverviewSection() {
           </div>
         )}
       </div>
+
+      {/* 🔮 Team-level prediction */}
+      <TeamPredictionPanel />
     </div>
   );
 }

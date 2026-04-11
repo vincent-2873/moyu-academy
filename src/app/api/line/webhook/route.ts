@@ -224,7 +224,8 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // 沒有 awaiting 任務 → 當作「即興指令」記下來（Phase B 再處理）
+        // 沒有 awaiting 任務 → 當作即興指令寫 claude_actions + 立即觸發 dispatcher
+        // (不等 cron，webhook inline fire-and-forget 呼叫 dispatcher)
         await supabase.from("claude_actions").insert({
           action_type: "line_inbound_command",
           target: user.email,
@@ -232,10 +233,16 @@ export async function POST(request: NextRequest) {
           details: { line_user_id: lineUserId, raw: rawText },
           result: "pending",
         });
+        // 先回 reply token (LINE 限 5 秒內)
         await lineReply(
           event.replyToken,
-          "📥 收到，目前沒有在等你回答的任務。這則訊息已記錄，下一輪 Claude 會看到。"
+          "📥 收到，Claude 正在思考… (30-60 秒內會回覆你)"
         );
+        // 立即觸發 dispatcher (不 await，fire-and-forget)
+        const host = process.env.NEXT_PUBLIC_APP_URL || "https://moyusales.vercel.app";
+        fetch(`${host}/api/cron/line-inbound-dispatcher?key=manual-trigger`, {
+          headers: { "x-vercel-cron": "1" },
+        }).catch((e) => console.error("[webhook] dispatcher fire failed:", e));
         continue;
       }
 

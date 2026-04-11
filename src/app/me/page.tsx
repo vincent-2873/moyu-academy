@@ -380,6 +380,9 @@ export default function MePage() {
       {/* 我的任務 — DB 裡的 v3_commands (Claude 自動派 + 主管手動派) */}
       {data.profile?.email && <MyCommandsCard email={data.profile.email} />}
 
+      {/* 🔮 行為預測 — Claude 預測你今天/本月會不會達標 + 下一步 */}
+      {data.profile?.email && <PredictionCard email={data.profile.email} />}
+
       {/* 個人業務數據卡片 — 對應 Metabase 同步進來的即時數字 */}
       {data.profile?.email && <MySalesMetricsCard email={data.profile.email} />}
 
@@ -876,6 +879,255 @@ interface V3Command {
   ai_reasoning: string | null;
   created_at: string;
   deadline: string | null;
+}
+
+interface PredictionData {
+  ok: boolean;
+  bound: boolean;
+  profile?: { name: string; brand: string; level: string | null };
+  todayProjection?: {
+    now: string;
+    elapsedPct: number;
+    currentCalls: number;
+    currentRev: number;
+    projectedCalls: number;
+    projectedRev: number;
+    avgHistoricalCalls: number;
+    avgHistoricalRev: number;
+    vsHistoricalPct: number | null;
+  };
+  monthProjection?: {
+    daysElapsed: number;
+    daysTotal: number;
+    daysRemaining: number;
+    currentRev: number;
+    currentCloses: number;
+    projectedMonthRev: number;
+    avgDailyRev: number;
+  };
+  momentum?: { label: string; pct: number; last3AvgCalls: number; prev3AvgCalls: number };
+  bottleneck?: { metric: string; delta: number; currentRate: number } | null;
+  burnoutRisk?: { level: "low" | "medium" | "high"; zeroStreak: number };
+  bestDay?: { label: string; avgRev: number; avgCalls: number } | null;
+  worstDay?: { label: string; avgRev: number; avgCalls: number } | null;
+  nextBestAction?: { title: string; detail: string; priority: "critical" | "high" | "normal" };
+}
+
+function PredictionCard({ email }: { email: string }) {
+  const [data, setData] = useState<PredictionData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/me/prediction?email=${encodeURIComponent(email)}`, { cache: "no-store" });
+        const j = (await r.json()) as PredictionData;
+        if (!cancelled) setData(j);
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    const t = setInterval(() => {
+      fetch(`/api/me/prediction?email=${encodeURIComponent(email)}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => setData(j as PredictionData))
+        .catch(() => {});
+    }, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [email]);
+
+  if (loading || !data || !data.ok || !data.bound) return null;
+  const fmt = (n: number) => (n >= 10000 ? `${(n / 10000).toFixed(1)}萬` : Math.round(n).toLocaleString());
+
+  const nba = data.nextBestAction;
+  const momentumTone: Record<string, { bg: string; text: string; icon: string }> = {
+    surging: { bg: "rgba(34,197,94,0.15)", text: "#14532d", icon: "🔥" },
+    improving: { bg: "rgba(34,197,94,0.08)", text: "#166534", icon: "📈" },
+    flat: { bg: "rgba(148,163,184,0.12)", text: "#475569", icon: "➡️" },
+    declining: { bg: "rgba(249,115,22,0.1)", text: "#9a3412", icon: "📉" },
+    crashing: { bg: "rgba(239,68,68,0.15)", text: "#7f1d1d", icon: "🔻" },
+  };
+  const mt = momentumTone[data.momentum?.label || "flat"] || momentumTone.flat;
+
+  return (
+    <div
+      style={{
+        margin: "20px 0",
+        padding: 24,
+        background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1e3a8a 100%)",
+        border: "1px solid rgba(59,130,246,0.35)",
+        borderRadius: 18,
+        color: "#ffffff",
+        boxShadow: "0 16px 50px -20px rgba(59,130,246,0.4)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 12, color: "rgba(191,219,254,0.9)", fontWeight: 700, letterSpacing: 1 }}>
+          🔮 行為預測 · Claude 看你接下來會怎樣
+        </div>
+        <div style={{ fontSize: 10, opacity: 0.55 }}>每 60 秒更新</div>
+      </div>
+
+      {/* Next best action — 最醒目 */}
+      {nba && (
+        <div
+          style={{
+            marginBottom: 14,
+            padding: "14px 16px",
+            background:
+              nba.priority === "critical"
+                ? "linear-gradient(135deg, rgba(239,68,68,0.25), rgba(239,68,68,0.1))"
+                : nba.priority === "high"
+                ? "linear-gradient(135deg, rgba(234,88,12,0.25), rgba(234,88,12,0.1))"
+                : "rgba(255,255,255,0.08)",
+            border: `1.5px solid ${
+              nba.priority === "critical" ? "#dc2626" : nba.priority === "high" ? "#ea580c" : "rgba(255,255,255,0.15)"
+            }`,
+            borderRadius: 12,
+          }}
+        >
+          <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>
+            ⚡ 下一步你該做
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#ffffff", marginBottom: 6 }}>{nba.title}</div>
+          <div style={{ fontSize: 12, opacity: 0.85, lineHeight: 1.6 }}>{nba.detail}</div>
+        </div>
+      )}
+
+      {/* Row 1: today projection */}
+      {data.todayProjection && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700, marginBottom: 6 }}>
+            ⏰ 今天 EOD 預計 (當前 {data.todayProjection.now}, 已過 {data.todayProjection.elapsedPct}%)
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ fontSize: 10, opacity: 0.65 }}>目前通次</div>
+              <div style={{ fontSize: 22, fontWeight: 900 }}>{data.todayProjection.currentCalls}</div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ fontSize: 10, opacity: 0.65 }}>EOD 預測通次</div>
+              <div style={{ fontSize: 22, fontWeight: 900 }}>{data.todayProjection.projectedCalls}</div>
+              {data.todayProjection.vsHistoricalPct != null && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: data.todayProjection.vsHistoricalPct >= 0 ? "#86efac" : "#fca5a5",
+                    fontWeight: 700,
+                  }}
+                >
+                  {data.todayProjection.vsHistoricalPct >= 0 ? "▲" : "▼"} {Math.abs(data.todayProjection.vsHistoricalPct)}% vs 近7日均
+                </div>
+              )}
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ fontSize: 10, opacity: 0.65 }}>EOD 預測業績</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: "#fbbf24" }}>
+                ${fmt(data.todayProjection.projectedRev)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Row 2: month projection */}
+      {data.monthProjection && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700, marginBottom: 6 }}>
+            📅 本月結算預測 (還剩 {data.monthProjection.daysRemaining} 天)
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ fontSize: 10, opacity: 0.65 }}>當前累計</div>
+              <div style={{ fontSize: 20, fontWeight: 900 }}>${fmt(data.monthProjection.currentRev)}</div>
+              <div style={{ fontSize: 10, opacity: 0.65 }}>{data.monthProjection.currentCloses} 成交</div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ fontSize: 10, opacity: 0.65 }}>月底預測</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: "#fbbf24" }}>
+                ${fmt(data.monthProjection.projectedMonthRev)}
+              </div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ fontSize: 10, opacity: 0.65 }}>日均</div>
+              <div style={{ fontSize: 20, fontWeight: 900 }}>${fmt(data.monthProjection.avgDailyRev)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Row 3: momentum + bottleneck + burnout + pattern */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+        {data.momentum && (
+          <div style={{ background: mt.bg, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 10, opacity: 0.75, fontWeight: 700 }}>動能 (近 3 天 vs 前 3 天)</div>
+            <div style={{ fontSize: 16, fontWeight: 900, marginTop: 4 }}>
+              {mt.icon} {data.momentum.label}{" "}
+              <span style={{ fontSize: 12, opacity: 0.8 }}>
+                {data.momentum.pct >= 0 ? "+" : ""}
+                {data.momentum.pct}%
+              </span>
+            </div>
+            <div style={{ fontSize: 10, opacity: 0.65 }}>
+              近 3 日均 {data.momentum.last3AvgCalls} 通 vs 前 3 日 {data.momentum.prev3AvgCalls} 通
+            </div>
+          </div>
+        )}
+        {data.bottleneck && (
+          <div style={{ background: "rgba(239,68,68,0.12)", borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 10, opacity: 0.75, fontWeight: 700 }}>⚠️ 下一個會卡的點</div>
+            <div style={{ fontSize: 14, fontWeight: 800, marginTop: 4 }}>
+              {data.bottleneck.metric === "closeRate"
+                ? "成交率"
+                : data.bottleneck.metric === "inviteRate"
+                ? "邀約率"
+                : data.bottleneck.metric === "showRate"
+                ? "出席率"
+                : "接通率"}{" "}
+              ↓{(Math.abs(data.bottleneck.delta) * 100).toFixed(1)}%
+            </div>
+            <div style={{ fontSize: 10, opacity: 0.7 }}>
+              當前 {(data.bottleneck.currentRate * 100).toFixed(1)}% (vs 上週)
+            </div>
+          </div>
+        )}
+        {data.burnoutRisk && data.burnoutRisk.level !== "low" && (
+          <div
+            style={{
+              background: data.burnoutRisk.level === "high" ? "rgba(239,68,68,0.2)" : "rgba(251,191,36,0.15)",
+              borderRadius: 10,
+              padding: "10px 14px",
+            }}
+          >
+            <div style={{ fontSize: 10, opacity: 0.75, fontWeight: 700 }}>🚨 burnout 風險</div>
+            <div style={{ fontSize: 14, fontWeight: 800, marginTop: 4 }}>
+              連續 {data.burnoutRisk.zeroStreak} 天 0 通
+            </div>
+            <div style={{ fontSize: 10, opacity: 0.8 }}>
+              {data.burnoutRisk.level === "high" ? "高風險 — 今天就要介入" : "中風險 — 觀察明天"}
+            </div>
+          </div>
+        )}
+        {data.bestDay && data.worstDay && data.bestDay.label !== data.worstDay.label && (
+          <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 10, opacity: 0.75, fontWeight: 700 }}>📊 你的週節律</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>
+              🏆 {data.bestDay.label} 最強 · ${fmt(data.bestDay.avgRev)}
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.65 }}>
+              🔻 {data.worstDay.label} 最弱 · ${fmt(data.worstDay.avgRev)}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 interface DeepAnalyticsData {
