@@ -149,6 +149,10 @@ export async function GET(req: NextRequest) {
   let weekMetric = empty();
   const monthMetric = allRows.reduce((acc, r) => add(acc, fromRow(r as Record<string, unknown>)), empty());
 
+  // Track most recent date that actually has data (for "today unsynced" fallback UI)
+  let mostRecentDataDate: string | null = null;
+  let mostRecentDataMetric: Metric | null = null;
+
   for (const r of allRows as Record<string, unknown>[]) {
     const rowDate = r.date as string;
     if (rowDate === today) {
@@ -157,7 +161,20 @@ export async function GET(req: NextRequest) {
     if (rowDate >= wkStart && rowDate <= today) {
       weekMetric = add(weekMetric, fromRow(r));
     }
+    if (!mostRecentDataDate || rowDate > mostRecentDataDate) {
+      mostRecentDataDate = rowDate;
+      mostRecentDataMetric = fromRow(r);
+    } else if (rowDate === mostRecentDataDate && mostRecentDataMetric) {
+      mostRecentDataMetric = add(mostRecentDataMetric, fromRow(r));
+    }
   }
+
+  // 今天完全沒資料 → 標記為「尚未同步」，前端可以用最近一天的值代替
+  const todayEmpty =
+    todayMetric.calls === 0 &&
+    todayMetric.call_minutes === 0 &&
+    todayMetric.raw_appointments === 0 &&
+    todayMetric.closures === 0;
 
   // Daily trend (most recent first → reverse for chart display)
   const dailyTrend = (allRows as Record<string, unknown>[])
@@ -263,5 +280,11 @@ export async function GET(req: NextRequest) {
     rule: matchedRule || null,
     shortfalls,
     provenance,
+    // 只在「今天沒同步」且有過往資料時回傳，讓 UI 顯示 fallback
+    latestAvailable:
+      todayEmpty && mostRecentDataDate && mostRecentDataDate !== today
+        ? { date: mostRecentDataDate, metric: mostRecentDataMetric }
+        : null,
+    todayDate: today,
   });
 }

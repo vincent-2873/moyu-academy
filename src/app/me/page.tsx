@@ -799,6 +799,8 @@ interface MySalesResponse {
     lastSyncRows: number | null;
     lastSyncStatus: string | null;
   } | null;
+  latestAvailable?: { date: string; metric: MyMetric } | null;
+  todayDate?: string;
 }
 
 const BRAND_CN: Record<string, string> = {
@@ -933,8 +935,28 @@ function MySalesMetricsCard({ email }: { email: string }) {
         </div>
       )}
 
-      {/* Period tabs */}
-      <PeriodGrid label="今天" metric={today} tone="#4f46e5" />
+      {/* 今天還沒同步時給 fallback */}
+      {data.latestAvailable && data.latestAvailable.metric ? (
+        <>
+          <div
+            style={{
+              marginBottom: 8,
+              padding: "8px 12px",
+              background: "rgba(14,165,233,0.08)",
+              border: "1px dashed rgba(14,165,233,0.35)",
+              borderRadius: 10,
+              fontSize: 11,
+              color: "#075985",
+              fontWeight: 600,
+            }}
+          >
+            ⏳ 今天 ({data.todayDate}) 的 Metabase 還沒同步，以下顯示最後一天 <strong>{data.latestAvailable.date}</strong> 的資料
+          </div>
+          <PeriodGrid label={`最後一天 (${data.latestAvailable.date})`} metric={data.latestAvailable.metric} tone="#4f46e5" />
+        </>
+      ) : (
+        <PeriodGrid label="今天" metric={today} tone="#4f46e5" />
+      )}
       <PeriodGrid label="本週" metric={week} tone="#0891b2" />
       <PeriodGrid label="本月" metric={month} tone="#db2777" />
 
