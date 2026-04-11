@@ -75,7 +75,7 @@ export async function notifyAdminBlocked(
       .single();
     if (!error && data) {
       task = data as { id: string };
-    } else if (error && /column.*(awaiting_reply_at|channel)/i.test(error.message || "")) {
+    } else if (error && /awaiting_reply_at|'channel'|"channel"/i.test(error.message || "")) {
       const retry = await supabase
         .from("claude_tasks")
         .insert({ ...baseRow, status: "pending" })
@@ -195,7 +195,7 @@ export async function askAdminViaLine(
       .single();
     if (!error && data) {
       task = data as { id: string };
-    } else if (error && /column.*(awaiting_reply_at|channel)/i.test(error.message || "")) {
+    } else if (error && /awaiting_reply_at|'channel'|"channel"/i.test(error.message || "")) {
       // schema 還沒 migrate → 降級再 insert
       schemaDegraded = true;
       const retry = await supabase
