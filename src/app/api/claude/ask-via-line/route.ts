@@ -47,5 +47,5 @@ export async function POST(req: NextRequest) {
     severity: (body.severity as "critical" | "high" | "normal") || "normal",
   });
 
-  return Response.json({ ok: true, ...result });
+  return Response.json({ ok: true, version: "probe-v1", ...result });
 }
