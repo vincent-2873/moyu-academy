@@ -195,18 +195,28 @@ export async function askAdminViaLine(
       .single();
     if (!error && data) {
       task = data as { id: string };
-    } else if (error && /awaiting_reply_at|'channel'|"channel"/i.test(error.message || "")) {
-      // schema 還沒 migrate → 降級再 insert
-      schemaDegraded = true;
-      const retry = await supabase
-        .from("claude_tasks")
-        .insert({ ...baseRow, status: "pending" })
-        .select("id")
-        .single();
-      task = (retry.data as { id: string } | null) || null;
-      taskErr = retry.error;
-    } else {
-      taskErr = error;
+    } else if (error) {
+      // schema 還沒 migrate → 降級再 insert (看 message 或 code)
+      const msg = error.message || "";
+      const isSchemaMiss =
+        msg.includes("awaiting_reply_at") ||
+        msg.includes("channel") ||
+        msg.includes("schema cache") ||
+        error.code === "PGRST204";
+      console.log("[askAdminViaLine] first insert failed:", msg, "code:", error.code, "isSchemaMiss:", isSchemaMiss);
+      if (isSchemaMiss) {
+        schemaDegraded = true;
+        const retry = await supabase
+          .from("claude_tasks")
+          .insert({ ...baseRow, status: "pending" })
+          .select("id")
+          .single();
+        task = (retry.data as { id: string } | null) || null;
+        taskErr = retry.error;
+        console.log("[askAdminViaLine] fallback insert:", retry.error?.message, "task:", task?.id);
+      } else {
+        taskErr = error;
+      }
     }
   }
 
