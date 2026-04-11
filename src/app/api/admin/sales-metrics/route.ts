@@ -98,6 +98,56 @@ function addMetric(a: Metric, b: Metric): Metric {
   };
 }
 
+/**
+ * 計算轉換漏斗各階段比率 (miao-miao-style funnel)
+ *
+ *  撥打 → 接通 → 邀約 → 出席 → 成交
+ *
+ * 各率定義：
+ *   connect_rate      = 接通 / 通次
+ *   invite_rate       = 邀約 / 接通 (接通 → 邀約, 越大越好)
+ *   show_rate         = 出席 / 邀約 (邀約 → 出席)
+ *   close_rate        = 成交 / 出席 (出席 → 成交)
+ *   demo_close_rate   = 成交 / DEMO
+ *   avg_call_minutes  = 通時 / 通次 (單通平均分鐘)
+ *   avg_deal_size     = 淨業績 / 成交 (客單價)
+ *   order_revenue_est = 淨業績 × 1.1 (訂單業績估算, miao-miao 這樣定義)
+ *
+ * 分母為 0 時回 null (不要除 0 顯示 NaN)
+ */
+interface FunnelRates {
+  connectRate: number | null;
+  inviteRate: number | null;
+  showRate: number | null;
+  closeRate: number | null;
+  demoCloseRate: number | null;
+  avgCallMinutes: number | null;
+  avgDealSize: number | null;
+  orderRevenueEstimate: number;
+}
+
+function computeRates(m: Metric): FunnelRates {
+  const safe = (num: number, den: number) => (den > 0 ? num / den : null);
+  const calls = Number(m.calls) || 0;
+  const connected = Number(m.connected) || 0;
+  const appointments = Number(m.raw_appointments) || 0;
+  const shows = Number(m.appointments_show) || 0;
+  const demos = Number(m.raw_demos) || 0;
+  const closures = Number(m.closures) || 0;
+  const callMinutes = Number(m.call_minutes) || 0;
+  const revenue = Number(m.net_revenue_daily) || 0;
+  return {
+    connectRate: safe(connected, calls),
+    inviteRate: safe(appointments, connected),
+    showRate: safe(shows, appointments),
+    closeRate: safe(closures, shows),
+    demoCloseRate: safe(closures, demos),
+    avgCallMinutes: safe(callMinutes, calls),
+    avgDealSize: safe(revenue, closures),
+    orderRevenueEstimate: Math.round(revenue * 1.1),
+  };
+}
+
 export async function GET(req: NextRequest) {
   const brand = req.nextUrl.searchParams.get("brand");
   const period = (req.nextUrl.searchParams.get("period") || "day") as "day" | "week" | "month" | "custom";
@@ -194,14 +244,70 @@ export async function GET(req: NextRequest) {
     teamMap.set(teamKey, entry);
   }
 
-  const teamAggregate = Array.from(teamMap.values()).sort(
-    (a, b) => b.metric.net_revenue_daily - a.metric.net_revenue_daily || b.metric.calls - a.metric.calls
-  );
+  const teamAggregate = Array.from(teamMap.values())
+    .map((t) => ({ ...t, rates: computeRates(t.metric) }))
+    .sort(
+      (a, b) => b.metric.net_revenue_daily - a.metric.net_revenue_daily || b.metric.calls - a.metric.calls
+    );
+
+  // 幫 rows 附加個人漏斗率
+  const rowsWithRates = rows.map((r) => ({
+    ...r,
+    rates: computeRates({
+      calls: r.calls,
+      call_minutes: Number(r.call_minutes) || 0,
+      connected: r.connected,
+      raw_appointments: r.raw_appointments,
+      appointments_show: r.appointments_show,
+      raw_demos: r.raw_demos,
+      closures: r.closures,
+      net_revenue_daily: Number(r.net_revenue_daily) || 0,
+      net_revenue_contract: Number(r.net_revenue_contract) || 0,
+    }),
+  }));
+
+  // 品牌層級漏斗率（= 整張表合計後算）+ 用來給前端 vs 團隊平均 比對用
+  const brandRates = computeRates(brandSummary);
+
+  // 據點（org）聚合
+  const orgMap = new Map<string, { org: string; count: number; metric: Metric }>();
+  for (const r of rows) {
+    const orgKey = r.org || "(未分配)";
+    const entry = orgMap.get(orgKey) || { org: orgKey, count: 0, metric: emptyMetric() };
+    entry.count += 1;
+    entry.metric = addMetric(entry.metric, {
+      calls: r.calls,
+      call_minutes: Number(r.call_minutes) || 0,
+      connected: r.connected,
+      raw_appointments: r.raw_appointments,
+      appointments_show: r.appointments_show,
+      raw_demos: r.raw_demos,
+      closures: r.closures,
+      net_revenue_daily: Number(r.net_revenue_daily) || 0,
+      net_revenue_contract: Number(r.net_revenue_contract) || 0,
+    });
+    orgMap.set(orgKey, entry);
+  }
+  const orgAggregate = Array.from(orgMap.values())
+    .map((o) => ({ ...o, rates: computeRates(o.metric) }))
+    .sort((a, b) => b.metric.net_revenue_daily - a.metric.net_revenue_daily);
 
   // metabase_sources 的最新同步狀態
   const { data: sources } = await supabase
     .from("metabase_sources")
     .select("brand, question_id, question_name, last_sync_at, last_sync_rows, last_sync_status, last_sync_error, enabled");
+
+  // 資料缺漏日期檢查 — 在起訖區間內，sales_metrics_daily 中缺哪幾天？
+  const daysInRange: string[] = [];
+  {
+    const s = new Date(start + "T00:00:00Z");
+    const e = new Date(end + "T00:00:00Z");
+    for (let d = new Date(s); d <= e; d.setUTCDate(d.getUTCDate() + 1)) {
+      daysInRange.push(d.toISOString().slice(0, 10));
+    }
+  }
+  const datesWithData = new Set(typedRows.map((r) => r.date));
+  const missingDates = daysInRange.filter((d) => !datesWithData.has(d));
 
   return Response.json({
     ok: true,
@@ -210,9 +316,14 @@ export async function GET(req: NextRequest) {
     range: { start, end },
     brand: brand || "(all)",
     count,
-    rows,
+    rows: rowsWithRates,
     teamAggregate,
+    orgAggregate,
     brandSummary,
+    brandRates,
     sources: sources || [],
+    missingDates,
+    daysInRange: daysInRange.length,
+    daysWithData: daysInRange.length - missingDates.length,
   });
 }

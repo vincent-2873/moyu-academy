@@ -6259,6 +6259,17 @@ interface SalesSource {
   last_sync_error: string | null;
   enabled: boolean;
 }
+interface FunnelRatesDTO {
+  connectRate: number | null;
+  inviteRate: number | null;
+  showRate: number | null;
+  closeRate: number | null;
+  demoCloseRate: number | null;
+  avgCallMinutes: number | null;
+  avgDealSize: number | null;
+  orderRevenueEstimate: number;
+}
+
 interface SalesMetricsResponse {
   ok: boolean;
   date: string;
@@ -6269,7 +6280,11 @@ interface SalesMetricsResponse {
   rows: SalesMetricsRow[];
   teamAggregate: TeamAggregate[];
   brandSummary: TeamAggregate["metric"] & { call_minutes: number };
+  brandRates?: FunnelRatesDTO;
   sources: SalesSource[];
+  missingDates?: string[];
+  daysInRange?: number;
+  daysWithData?: number;
 }
 
 // Brand display names — app_id 是英文技術代碼，UI 顯示中文全名
@@ -6707,8 +6722,28 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
 
       {!loading && summary && rows.length > 0 && (
         <>
+          {/* Missing dates warning — 告訴管理員哪幾天 Metabase 沒同步 */}
+          {data?.missingDates && data.missingDates.length > 0 && (
+            <div
+              style={{
+                marginBottom: 14,
+                padding: "10px 14px",
+                background: "rgba(251,191,36,0.08)",
+                border: "1px dashed rgba(251,191,36,0.5)",
+                borderRadius: 10,
+                fontSize: 12,
+                color: "#92400e",
+              }}
+            >
+              ⚠️ 缺少這幾天的資料 ({data.daysWithData}/{data.daysInRange} 天有資料):{" "}
+              <strong>{data.missingDates.join(" · ")}</strong>
+              {" — "}
+              <span style={{ color: "#b45309" }}>去 Metabase 開對應日期，按書籤灌回來</span>
+            </div>
+          )}
+
           {/* Summary cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 12 }}>
             <MetricCard label="通次" value={summary.calls.toLocaleString()} color="#4f46e5" />
             <MetricCard label="接通" value={summary.connected.toLocaleString()} color="#0891b2" />
             <MetricCard label="通時(分)" value={Math.round(summary.call_minutes).toLocaleString()} color="#0d9488" />
@@ -6718,6 +6753,36 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
             <MetricCard label="成交" value={summary.closures} color="#16a34a" highlight />
             <MetricCard label="淨業績" value={`$${Math.round(summary.net_revenue_daily).toLocaleString()}`} color="#db2777" highlight />
           </div>
+
+          {/* Funnel rates bar — miao-miao 風格的轉換漏斗率 */}
+          {data?.brandRates && (
+            <div
+              style={{
+                marginBottom: 24,
+                padding: "14px 16px",
+                background: "linear-gradient(90deg, rgba(79,70,229,0.04), rgba(219,39,119,0.04))",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text3)", marginBottom: 8 }}>
+                🎯 轉換漏斗 (品牌 · {data.range?.start} → {data.range?.end})
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <RateChip label="接通率" rate={data.brandRates.connectRate} tone="#0891b2" note={`${summary.connected} / ${summary.calls}`} />
+                <span style={{ color: "var(--text3)" }}>→</span>
+                <RateChip label="邀約率" rate={data.brandRates.inviteRate} tone="#d97706" note={`${summary.raw_appointments} / ${summary.connected}`} />
+                <span style={{ color: "var(--text3)" }}>→</span>
+                <RateChip label="出席率" rate={data.brandRates.showRate} tone="#ea580c" note={`${summary.appointments_show} / ${summary.raw_appointments}`} />
+                <span style={{ color: "var(--text3)" }}>→</span>
+                <RateChip label="成交率" rate={data.brandRates.closeRate} tone="#16a34a" note={`${summary.closures} / ${summary.appointments_show}`} />
+                <div style={{ flex: 1 }} />
+                <RateChip label="客單價" rate={data.brandRates.avgDealSize} tone="#db2777" format="money" />
+                <RateChip label="訂單業績(預估)" rate={data.brandRates.orderRevenueEstimate} tone="#c026d3" format="money" suffix="" />
+                <RateChip label="單通平均" rate={data.brandRates.avgCallMinutes} tone="#0d9488" suffix="分" />
+              </div>
+            </div>
+          )}
 
           {/* Hierarchical drill-down: Org → Team → Individual */}
           <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
@@ -6943,6 +7008,52 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
             </button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function RateChip({
+  label,
+  rate,
+  tone,
+  note,
+  format,
+  suffix,
+}: {
+  label: string;
+  rate: number | null;
+  tone: string;
+  note?: string;
+  format?: "percent" | "money";
+  suffix?: string;
+}) {
+  const fmt = format || "percent";
+  const display = (() => {
+    if (rate == null) return "—";
+    if (fmt === "money") return `$${Math.round(rate).toLocaleString()}`;
+    // percent expects rate in 0..1
+    return `${(rate * 100).toFixed(1)}%`;
+  })();
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        flexDirection: "column",
+        padding: "6px 12px",
+        borderRadius: 10,
+        border: `1px solid ${tone}33`,
+        background: `${tone}0a`,
+        minWidth: 80,
+      }}
+    >
+      <div style={{ fontSize: 10, fontWeight: 700, color: tone }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 900, color: "var(--text)" }}>
+        {display}
+        {suffix && rate != null ? <span style={{ fontSize: 10, marginLeft: 2 }}>{suffix}</span> : null}
+      </div>
+      {note && (
+        <div style={{ fontSize: 9, color: "var(--text3)", marginTop: 1 }}>{note}</div>
       )}
     </div>
   );

@@ -815,6 +815,27 @@ interface MySalesResponse {
   } | null;
   latestAvailable?: { date: string; metric: MyMetric } | null;
   todayDate?: string;
+  rates?: {
+    today: FunnelRatesDTO;
+    week: FunnelRatesDTO;
+    month: FunnelRatesDTO;
+  };
+  brandComparison?: {
+    peopleCount: number;
+    totalRevenue: number;
+    rates: FunnelRatesDTO;
+  };
+}
+
+interface FunnelRatesDTO {
+  connectRate: number | null;
+  inviteRate: number | null;
+  showRate: number | null;
+  closeRate: number | null;
+  demoCloseRate: number | null;
+  avgCallMinutes: number | null;
+  avgDealSize: number | null;
+  orderRevenueEstimate: number;
 }
 
 const BRAND_CN: Record<string, string> = {
@@ -974,6 +995,72 @@ function MySalesMetricsCard({ email }: { email: string }) {
       <PeriodGrid label="本週" metric={week} tone="#0891b2" />
       <PeriodGrid label="本月" metric={month} tone="#db2777" />
 
+      {/* 🎯 轉換漏斗率 + 同品牌平均比對 (miao-miao 風格) */}
+      {data.rates && data.brandComparison && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: "12px 14px",
+            background: "linear-gradient(90deg, rgba(79,70,229,0.04), rgba(219,39,119,0.04))",
+            border: "1px solid #e2e8f0",
+            borderRadius: 12,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color: "#475569",
+              marginBottom: 8,
+              display: "flex",
+              justifyContent: "space-between",
+            }}
+          >
+            <span>🎯 本月轉換漏斗（你 vs 同品牌 {data.brandComparison.peopleCount} 人平均）</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
+            <PersonalRateCell
+              label="接通率"
+              mine={data.rates.month.connectRate}
+              avg={data.brandComparison.rates.connectRate}
+              tone="#0891b2"
+            />
+            <PersonalRateCell
+              label="邀約率"
+              mine={data.rates.month.inviteRate}
+              avg={data.brandComparison.rates.inviteRate}
+              tone="#d97706"
+            />
+            <PersonalRateCell
+              label="出席率"
+              mine={data.rates.month.showRate}
+              avg={data.brandComparison.rates.showRate}
+              tone="#ea580c"
+            />
+            <PersonalRateCell
+              label="成交率"
+              mine={data.rates.month.closeRate}
+              avg={data.brandComparison.rates.closeRate}
+              tone="#16a34a"
+            />
+            <PersonalRateCell
+              label="客單價"
+              mine={data.rates.month.avgDealSize}
+              avg={data.brandComparison.rates.avgDealSize}
+              tone="#db2777"
+              format="money"
+            />
+            <PersonalRateCell
+              label="單通平均"
+              mine={data.rates.month.avgCallMinutes}
+              avg={data.brandComparison.rates.avgCallMinutes}
+              tone="#0d9488"
+              suffix="分"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Provenance footer */}
       {data.provenance && (
         <div
@@ -1017,6 +1104,68 @@ function formatSyncAge(iso: string): string {
   if (hours < 24) return `${hours} 小時前`;
   const days = Math.round(hours / 24);
   return `${days} 天前`;
+}
+
+function PersonalRateCell({
+  label,
+  mine,
+  avg,
+  tone,
+  format,
+  suffix,
+}: {
+  label: string;
+  mine: number | null;
+  avg: number | null;
+  tone: string;
+  format?: "percent" | "money";
+  suffix?: string;
+}) {
+  const fmt = format || "percent";
+  const render = (v: number | null) => {
+    if (v == null) return "—";
+    if (fmt === "money") return `$${Math.round(v).toLocaleString()}`;
+    return `${(v * 100).toFixed(1)}%`;
+  };
+  // 比平均是否高
+  const delta =
+    mine != null && avg != null ? (fmt === "percent" ? mine - avg : mine - avg) : null;
+  const diffPct =
+    mine != null && avg != null && avg > 0 ? ((mine - avg) / avg) * 100 : null;
+  const isAbove = delta != null && delta > 0;
+  const isBelow = delta != null && delta < 0;
+  return (
+    <div
+      style={{
+        background: "#ffffff",
+        border: `1px solid ${tone}33`,
+        borderRadius: 10,
+        padding: "8px 10px",
+      }}
+    >
+      <div style={{ fontSize: 10, color: tone, fontWeight: 800, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 900, color: "#0f172a", lineHeight: 1.1 }}>
+        {render(mine)}
+        {suffix && mine != null ? <span style={{ fontSize: 10, marginLeft: 2 }}>{suffix}</span> : null}
+      </div>
+      <div style={{ fontSize: 9, color: "#64748b", marginTop: 2 }}>
+        平均 {render(avg)}
+        {suffix && avg != null ? suffix : null}
+        {diffPct != null && isFinite(diffPct) && (
+          <span
+            style={{
+              marginLeft: 6,
+              fontWeight: 700,
+              color: isAbove ? "#16a34a" : isBelow ? "#dc2626" : "#94a3b8",
+            }}
+          >
+            {isAbove ? "↑" : isBelow ? "↓" : "·"}
+            {Math.abs(diffPct).toFixed(0)}%
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PeriodGrid({

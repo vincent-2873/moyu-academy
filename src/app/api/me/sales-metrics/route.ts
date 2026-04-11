@@ -250,6 +250,40 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ── 漏斗率計算（個人）+ 同品牌平均（for vs 比對） ─────────────────
+  const computeRates = (m: Metric) => {
+    const safe = (num: number, den: number) => (den > 0 ? num / den : null);
+    return {
+      connectRate: safe(m.connected, m.calls),
+      inviteRate: safe(m.raw_appointments, m.connected),
+      showRate: safe(m.appointments_show, m.raw_appointments),
+      closeRate: safe(m.closures, m.appointments_show),
+      demoCloseRate: safe(m.closures, m.raw_demos),
+      avgCallMinutes: safe(m.call_minutes, m.calls),
+      avgDealSize: safe(m.net_revenue_daily, m.closures),
+      orderRevenueEstimate: Math.round(m.net_revenue_daily * 1.1),
+    };
+  };
+
+  const monthRates = computeRates(monthMetric);
+  const weekRates = computeRates(weekMetric);
+  const todayRates = computeRates(todayMetric);
+
+  // 同品牌本月所有人的彙總 → 算出團隊平均率
+  const { data: brandRows } = await supabase
+    .from("sales_metrics_daily")
+    .select("calls, call_minutes, connected, raw_appointments, appointments_show, raw_demos, closures, net_revenue_daily, email")
+    .eq("brand", profile.brand)
+    .gte("date", mnStart)
+    .lte("date", today);
+
+  const brandAggregate = (brandRows || []).reduce<Metric>(
+    (acc, r) => add(acc, fromRow(r as Record<string, unknown>)),
+    empty()
+  );
+  const brandPeopleCount = new Set((brandRows || []).map((r) => r.email)).size;
+  const brandRates = computeRates(brandAggregate);
+
   // Provenance — 拉該品牌的 metabase_source 狀態讓前端顯示「資料來源 / 最後同步」
   const { data: sources } = await supabase
     .from("metabase_sources")
@@ -276,6 +310,17 @@ export async function GET(req: NextRequest) {
     today: todayMetric,
     week: weekMetric,
     month: monthMetric,
+    rates: {
+      today: todayRates,
+      week: weekRates,
+      month: monthRates,
+    },
+    // 同品牌本月平均 — 讓前端顯示 "你的 X% vs 平均 Y%"
+    brandComparison: {
+      peopleCount: brandPeopleCount,
+      totalRevenue: brandAggregate.net_revenue_daily,
+      rates: brandRates,
+    },
     dailyTrend,
     rule: matchedRule || null,
     shortfalls,
