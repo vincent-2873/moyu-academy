@@ -41,7 +41,8 @@ export async function notifyAdminBlocked(
 ): Promise<AdminBlockResult> {
   const severity = ctx.severity || "critical";
 
-  // 1) 寫 claude_tasks
+  // 1) 寫 claude_tasks — 預設開 LINE channel + awaiting_line_reply 狀態
+  //    這樣 Vincent 下次在 LINE 對墨宇小精靈打字，就會自動寫進這張任務的 user_response
   const supabase = getSupabaseAdmin();
   const { data: task, error: taskErr } = await supabase
     .from("claude_tasks")
@@ -59,6 +60,9 @@ export async function notifyAdminBlocked(
       priority: severity,
       why: ctx.why,
       expected_input: ctx.needFromUser,
+      channel: "line",
+      status: "awaiting_line_reply",
+      awaiting_reply_at: new Date().toISOString(),
     })
     .select("id")
     .single();
@@ -91,4 +95,125 @@ export async function notifyAdminBlocked(
     taskId: task?.id,
     taskError: taskErr?.message,
   };
+}
+
+// ─── askAdminViaLine — Claude 主動向 Vincent 發問，走 LINE 拿答案 ─────────
+//
+// 跟 notifyAdminBlocked 差別：
+//   notifyAdminBlocked → 「我卡住了，來救我」（被動卡點）
+//   askAdminViaLine   → 「我有個決定要你做」（主動提問，例如選 A 還是 B）
+//
+// 支援兩種模式：
+//   1. fire-and-forget (pollMaxSeconds=0, default): 建任務、送 LINE、立即回 taskId
+//      呼叫端之後自己 GET /api/claude/task-status?id=... 輪詢
+//   2. 同步等待 (pollMaxSeconds>0): 最長等 N 秒，期間每 3 秒 query 一次，
+//      拿到回覆就 return，逾時回 timedOut=true
+
+export interface AskOverLineOptions {
+  /** 要問 Vincent 什麼（1-2 句，直接當 LINE 訊息主體）*/
+  question: string;
+  /** 為什麼問、背景脈絡（可選，會附在 LINE 下方）*/
+  context?: string;
+  /** 快速選項（例 ["好,繼續", "先跳過", "停掉"]）— 純列出給人看，不是真正的 quick reply */
+  options?: string[];
+  /** 同步等待上限秒數，0 = 不等直接回 taskId。max 建議 180 (Vercel 函式 timeout) */
+  pollMaxSeconds?: number;
+  /** 優先度 — 影響 LINE 推播開頭 emoji */
+  severity?: "critical" | "high" | "normal";
+}
+
+export interface AskOverLineResult {
+  taskId: string | null;
+  answered: boolean;
+  answer?: string;
+  timedOut?: boolean;
+  error?: string;
+}
+
+export async function askAdminViaLine(
+  opts: AskOverLineOptions
+): Promise<AskOverLineResult> {
+  const severity = opts.severity || "normal";
+  const supabase = getSupabaseAdmin();
+
+  // 1) 建 task
+  const { data: task, error: taskErr } = await supabase
+    .from("claude_tasks")
+    .insert({
+      title: `❓ ${opts.question.slice(0, 60)}`,
+      description: [
+        `[Claude 的問題]`,
+        opts.question,
+        opts.context ? `\n[背景]\n${opts.context}` : "",
+        opts.options && opts.options.length > 0
+          ? `\n[建議回答]\n${opts.options.map((o, i) => `${i + 1}. ${o}`).join("\n")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      category: "decision",
+      priority: severity,
+      expected_input: opts.question,
+      channel: "line",
+      status: "awaiting_line_reply",
+      awaiting_reply_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (taskErr || !task) {
+    return { taskId: null, answered: false, error: taskErr?.message || "task insert failed" };
+  }
+
+  // 2) 推 LINE
+  const emoji = severity === "critical" ? "🔴" : severity === "high" ? "🟠" : "❓";
+  const bodyLines = [
+    `${emoji} Claude 有個問題要你決定`,
+    "",
+    opts.question,
+  ];
+  if (opts.context) {
+    bodyLines.push("", `[背景] ${opts.context}`);
+  }
+  if (opts.options && opts.options.length > 0) {
+    bodyLines.push("");
+    bodyLines.push("可選回覆：");
+    opts.options.forEach((o, i) => bodyLines.push(`${i + 1}. ${o}`));
+    bodyLines.push("");
+    bodyLines.push("直接回字就好（不用打數字）");
+  } else {
+    bodyLines.push("", "直接回字，我會繼續");
+  }
+
+  await linePush({
+    title: `❓ Claude 問題`,
+    body: bodyLines.join("\n"),
+    priority: severity,
+    reason: "blocked",
+    taskId: task.id,
+  });
+
+  // 3) 同步等待（可選）
+  const maxSec = Math.max(0, Math.min(opts.pollMaxSeconds || 0, 180));
+  if (maxSec === 0) {
+    return { taskId: task.id, answered: false };
+  }
+
+  const started = Date.now();
+  while ((Date.now() - started) / 1000 < maxSec) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const { data: row } = await supabase
+      .from("claude_tasks")
+      .select("status, user_response")
+      .eq("id", task.id)
+      .maybeSingle();
+    if (row && row.user_response) {
+      return {
+        taskId: task.id,
+        answered: true,
+        answer: row.user_response as string,
+      };
+    }
+  }
+  return { taskId: task.id, answered: false, timedOut: true };
 }

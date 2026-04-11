@@ -75,7 +75,8 @@ export async function POST(request: NextRequest) {
 
     // ── message 事件：用戶傳訊息
     if (event.type === "message" && event.message?.type === "text" && event.replyToken) {
-      const text = (event.message.text || "").trim().toUpperCase();
+      const rawText = (event.message.text || "").trim();
+      const text = rawText.toUpperCase();
 
       // 嘗試解析綁定碼
       if (BIND_CODE_REGEX.test(text)) {
@@ -123,7 +124,70 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // 預設回覆
+      // ── 自由文字：檢查是不是管理員在回覆 Claude 的問題 ─────────────
+      // 如果這個 line_user_id 綁定的是 super_admin / admin，就把文字當作
+      // 「Vincent 回覆 Claude 在等的問題」來處理（LINE 作為唯一互動介面）
+      const { data: user } = await supabase
+        .from("users")
+        .select("email, role")
+        .eq("line_user_id", lineUserId)
+        .maybeSingle();
+
+      if (user && (user.role === "super_admin" || user.role === "admin")) {
+        // 找這個 admin 最新一張 awaiting_line_reply 任務
+        const { data: pending } = await supabase
+          .from("claude_tasks")
+          .select("id, title, expected_input")
+          .eq("channel", "line")
+          .eq("status", "awaiting_line_reply")
+          .order("awaiting_reply_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (pending) {
+          // 有在等的任務 → 寫進 user_response，標記 done
+          await supabase
+            .from("claude_tasks")
+            .update({
+              user_response: rawText,
+              status: "done",
+              done_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", pending.id);
+
+          await supabase.from("claude_actions").insert({
+            action_type: "line_task_answered",
+            target: user.email,
+            summary: `Vincent 從 LINE 回答任務：${pending.title}`,
+            details: { task_id: pending.id, answer: rawText.slice(0, 500) },
+            result: "success",
+          });
+
+          const shortAnswer = rawText.length > 50 ? rawText.slice(0, 50) + "…" : rawText;
+          await lineReply(
+            event.replyToken,
+            `✅ 收到「${shortAnswer}」\n\nClaude 會繼續處理：\n${pending.title}`
+          );
+          continue;
+        }
+
+        // 沒有 awaiting 任務 → 當作「即興指令」記下來（Phase B 再處理）
+        await supabase.from("claude_actions").insert({
+          action_type: "line_inbound_command",
+          target: user.email,
+          summary: rawText.slice(0, 200),
+          details: { line_user_id: lineUserId, raw: rawText },
+          result: "pending",
+        });
+        await lineReply(
+          event.replyToken,
+          "📥 收到，目前沒有在等你回答的任務。這則訊息已記錄，下一輪 Claude 會看到。"
+        );
+        continue;
+      }
+
+      // 預設回覆（非管理員、未綁定、或其他）
       await lineReply(
         event.replyToken,
         "我只接收 6 位「綁定碼」（範例：ABC123）。\n還沒註冊先去 https://moyusales.vercel.app 註冊，完成綁定之前你進不了系統。"
