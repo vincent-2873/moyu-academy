@@ -142,6 +142,20 @@ export default function Home() {
 
   const companyType: CompanyType = (user.companyType as CompanyType) || "sales";
 
+  // 業務員 (sales_rep) 統一走 /me 新體驗（晨報 / 即時 KPI / 成就 / 戰情官 / 通話診斷）
+  // root / 的舊 DashboardPage 吃 localStorage KPI 完全不會顯示 Metabase 真實資料，
+  // 會讓業務以為系統沒東西。管理員留在原本的 /admin 或 root dashboard
+  if (typeof window !== "undefined" && user.role === "sales_rep") {
+    // 同步寫 sessionStorage 讓 /me 可以讀到登入狀態
+    sessionStorage.setItem("moyu_current_user", user.email);
+    window.location.replace("/me");
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-lg text-[var(--text2)] animate-pulse">載入我的戰情中…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen">
       <Sidebar

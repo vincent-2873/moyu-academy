@@ -119,9 +119,19 @@ export default function MePage() {
   const [regError, setRegError] = useState<string | null>(null);
   const [regBusy, setRegBusy] = useState(false);
 
-  // 從 localStorage 還原 email
+  // 從 localStorage 還原 email — 也 fallback 讀 root 登入的 sessionStorage.moyu_current_user，
+  // 讓從 / 登入的業務進到 /me 不用再重新輸入一次 email
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("moyu_employee_email") : null;
+    if (typeof window === "undefined") return;
+    let stored = localStorage.getItem("moyu_employee_email");
+    if (!stored) {
+      // root / login 會寫進 sessionStorage.moyu_current_user (見 src/lib/store.ts)
+      stored = sessionStorage.getItem("moyu_current_user");
+      if (stored) {
+        // 順手同步回 localStorage，下次直接快取
+        localStorage.setItem("moyu_employee_email", stored);
+      }
+    }
     if (stored) {
       setEmail(stored);
       setSubmitted(true);
@@ -156,6 +166,8 @@ export default function MePage() {
     e.preventDefault();
     if (!email.includes("@")) return;
     localStorage.setItem("moyu_employee_email", email);
+    // 同步到 root / 的 session key，讓兩邊共用登入狀態
+    sessionStorage.setItem("moyu_current_user", email);
     setSubmitted(true);
   };
 
@@ -192,6 +204,7 @@ export default function MePage() {
         return;
       }
       localStorage.setItem("moyu_employee_email", email);
+      sessionStorage.setItem("moyu_current_user", email);
       setSubmitted(true);
     } catch {
       setRegError("網路錯誤，請稍後重試");
@@ -202,6 +215,7 @@ export default function MePage() {
 
   const handleLogout = () => {
     localStorage.removeItem("moyu_employee_email");
+    sessionStorage.removeItem("moyu_current_user");
     setEmail("");
     setSubmitted(false);
     setData(null);
