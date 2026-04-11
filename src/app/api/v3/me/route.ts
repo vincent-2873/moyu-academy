@@ -62,9 +62,8 @@ export async function GET(request: NextRequest) {
             email,
             name,
             brand,
-            role: "sales",
+            role: "sales_rep",
             status: "active",
-            password: "", // 空密碼，強制走 LINE OAuth 或管理員事後補
             created_at: now,
             updated_at: now,
           })
