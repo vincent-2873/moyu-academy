@@ -970,30 +970,43 @@ function MySalesMetricsCard({ email }: { email: string }) {
         </div>
       )}
 
-      {/* 今天還沒同步時給 fallback */}
-      {data.latestAvailable && data.latestAvailable.metric ? (
-        <>
-          <div
-            style={{
-              marginBottom: 8,
-              padding: "8px 12px",
-              background: "rgba(14,165,233,0.08)",
-              border: "1px dashed rgba(14,165,233,0.35)",
-              borderRadius: 10,
-              fontSize: 11,
-              color: "#075985",
-              fontWeight: 600,
-            }}
-          >
-            ⏳ 今天 ({data.todayDate}) 的 Metabase 還沒同步，以下顯示最後一天 <strong>{data.latestAvailable.date}</strong> 的資料
-          </div>
-          <PeriodGrid label={`最後一天 (${data.latestAvailable.date})`} metric={data.latestAvailable.metric} tone="#4f46e5" />
-        </>
-      ) : (
-        <PeriodGrid label="今天" metric={today} tone="#4f46e5" />
+      {/* 今天沒同步時的 notice */}
+      {data.latestAvailable && data.latestAvailable.metric && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "8px 12px",
+            background: "rgba(14,165,233,0.08)",
+            border: "1px dashed rgba(14,165,233,0.35)",
+            borderRadius: 10,
+            fontSize: 11,
+            color: "#075985",
+            fontWeight: 600,
+          }}
+        >
+          ⏳ 今天 ({data.todayDate}) 的 Metabase 還沒同步，以下顯示最後一天 <strong>{data.latestAvailable.date}</strong> 的資料
+        </div>
       )}
-      <PeriodGrid label="本週" metric={week} tone="#0891b2" />
-      <PeriodGrid label="本月" metric={month} tone="#db2777" />
+
+      {/* 🎯 miao-miao 風格：月度 4 大 Funnel + 淨業績 */}
+      {(() => {
+        const m = month;
+        const r = data.rates?.month;
+        return (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 14 }}>
+            <MiniFunnelCard label="通次" big={m.calls} rate={r?.connectRate ?? null} rateLabel="接通率" tone="#4f46e5" />
+            <MiniFunnelCard label="邀約" big={m.raw_appointments} rate={r?.inviteRate ?? null} rateLabel="接通→邀約" tone="#d97706" />
+            <MiniFunnelCard label="出席" big={m.appointments_show} rate={r?.showRate ?? null} rateLabel="邀約→出席" tone="#ea580c" />
+            <MiniFunnelCard label="成交" big={m.closures} rate={r?.closeRate ?? null} rateLabel="出席→成交" tone="#16a34a" />
+            <MiniFunnelCard label="淨業績" bigText={`NT$${formatMillionsMe(m.net_revenue_daily)}`} tone="#db2777" highlight />
+          </div>
+        );
+      })()}
+
+      {/* 個人業績趨勢 sparkline */}
+      {data.dailyTrend && data.dailyTrend.length > 1 && (
+        <PersonalTrend trend={data.dailyTrend} />
+      )}
 
       {/* 🎯 轉換漏斗率 + 同品牌平均比對 (miao-miao 風格) */}
       {data.rates && data.brandComparison && (
@@ -1088,6 +1101,120 @@ function MySalesMetricsCard({ email }: { email: string }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function formatMillionsMe(n: number): string {
+  if (!isFinite(n)) return "0";
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}萬`;
+  return Math.round(n).toLocaleString();
+}
+
+function MiniFunnelCard({
+  label,
+  big,
+  bigText,
+  rate,
+  rateLabel,
+  tone,
+  highlight,
+}: {
+  label: string;
+  big?: number;
+  bigText?: string;
+  rate?: number | null;
+  rateLabel?: string;
+  tone: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: "#ffffff",
+        border: `1px solid ${highlight ? tone : "#e2e8f0"}`,
+        borderRadius: 14,
+        padding: "12px 14px",
+        position: "relative",
+        overflow: "hidden",
+        boxShadow: highlight ? `0 10px 24px -12px ${tone}33` : "none",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: tone,
+        }}
+      />
+      <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 900, color: highlight ? tone : "#0f172a", lineHeight: 1.1 }}>
+        {bigText != null ? bigText : big?.toLocaleString() || 0}
+      </div>
+      {rate != null && rateLabel && (
+        <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>
+          {rateLabel} <strong style={{ color: tone }}>{(rate * 100).toFixed(1)}%</strong>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PersonalTrend({
+  trend,
+}: {
+  trend: Array<{ date: string; calls: number; closures: number; net_revenue_daily: number; appointments_show: number }>;
+}) {
+  const max = Math.max(...trend.map((d) => d.net_revenue_daily), 1);
+  const total = trend.reduce((s, d) => s + d.net_revenue_daily, 0);
+  return (
+    <div
+      style={{
+        marginBottom: 14,
+        padding: "12px 14px",
+        background: "#f8fafc",
+        border: "1px solid #e2e8f0",
+        borderRadius: 12,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: "#475569" }}>📈 本月業績趨勢</span>
+        <span style={{ fontSize: 10, color: "#94a3b8" }}>
+          合計 NT${formatMillionsMe(total)} · {trend.length} 天
+        </span>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${trend.length}, 1fr)`,
+          gap: 3,
+          alignItems: "end",
+          height: 70,
+        }}
+      >
+        {trend.map((d) => {
+          const pct = Math.max(3, (d.net_revenue_daily / max) * 100);
+          return (
+            <div
+              key={d.date}
+              title={`${d.date}: NT$${formatMillionsMe(d.net_revenue_daily)} · ${d.calls} 通 · ${d.closures} 成交`}
+              style={{
+                height: `${pct}%`,
+                minHeight: 3,
+                background: d.net_revenue_daily > 0 ? "linear-gradient(180deg,#db2777,#be185d)" : "#e2e8f0",
+                borderRadius: 3,
+              }}
+            />
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#94a3b8", marginTop: 4 }}>
+        <span>{trend[0]?.date.slice(5)}</span>
+        <span>{trend[trend.length - 1]?.date.slice(5)}</span>
+      </div>
     </div>
   );
 }
