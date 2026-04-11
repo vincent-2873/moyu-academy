@@ -204,6 +204,14 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** 整數欄位 (Postgres integer type) 專用 — 四捨五入小數
+ *  Metabase 的分潤成交數可能是 0.3 / 0.7 (partial credit)，但 DB column
+ *  是 integer 無法吃小數 → 先 round 再存
+ */
+function numInt(v: unknown): number {
+  return Math.round(num(v));
+}
+
 function str(v: unknown): string | null {
   if (v == null) return null;
   const s = String(v).trim();
@@ -255,17 +263,17 @@ export function normaliseRow(
     name: str(get("name")),
     email: str(get("email")),
     level: str(get("等級")),
-    calls: num(get("通次")),
-    call_minutes: num(get("通時")),
-    connected: num(get("接通數")),
-    raw_appointments: num(get("原始邀約數")),
-    appointments_show: num(get("邀約出席數")),
-    raw_no_show: num(get("原始未出席數")),
-    raw_demos: num(get("原始DEMO數")),
-    demo_failed: num(get("DEMO失敗數")),
-    closures: num(get("分潤成交數")),
-    net_closures_daily: num(get("按日期分潤淨成交數")),
-    net_closures_contract: num(get("按合約分潤淨成交數")),
+    calls: numInt(get("通次")),
+    call_minutes: num(get("通時")), // 通時是 numeric 可以有小數
+    connected: numInt(get("接通數")),
+    raw_appointments: numInt(get("原始邀約數")),
+    appointments_show: numInt(get("邀約出席數")),
+    raw_no_show: numInt(get("原始未出席數")),
+    raw_demos: numInt(get("原始DEMO數")),
+    demo_failed: numInt(get("DEMO失敗數")),
+    closures: numInt(get("分潤成交數")),
+    net_closures_daily: numInt(get("按日期分潤淨成交數")),
+    net_closures_contract: numInt(get("按合約分潤淨成交數")),
     gross_revenue: num(get("分潤承攬業績")),
     net_revenue_daily: num(get("按日期分潤淨承攬業績")),
     net_revenue_contract: num(get("按合約分潤淨承攬業績")),
