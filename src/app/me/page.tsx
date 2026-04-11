@@ -1618,10 +1618,35 @@ const PRIORITY_STYLE: Record<BriefingAction["priority"], { bg: string; bar: stri
   low: { bg: "rgba(14,165,233,0.08)", bar: "#0891b2", label: "低", icon: "🔵" },
 };
 
+type BriefingActionState = "pending" | "done" | "skipped" | "blocked";
+
+function todayStrTw() {
+  const d = new Date(Date.now() + 8 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+function loadActionStates(email: string): Record<string, BriefingActionState> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(`moyu_briefing_state_${email}_${todayStrTw()}`);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveActionState(email: string, key: string, state: BriefingActionState) {
+  if (typeof window === "undefined") return;
+  const curr = loadActionStates(email);
+  curr[key] = state;
+  localStorage.setItem(`moyu_briefing_state_${email}_${todayStrTw()}`, JSON.stringify(curr));
+}
+
 function DailyBriefingCard({ email }: { email: string }) {
   const [data, setData] = useState<BriefingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionStates, setActionStates] = useState<Record<string, BriefingActionState>>({});
 
   const load = useCallback(
     async (refresh = false) => {
@@ -1643,7 +1668,16 @@ function DailyBriefingCard({ email }: { email: string }) {
 
   useEffect(() => {
     load(false);
-  }, [load]);
+    setActionStates(loadActionStates(email));
+  }, [load, email]);
+
+  const updateState = (key: string, state: BriefingActionState) => {
+    setActionStates((s) => {
+      const next = { ...s, [key]: state };
+      saveActionState(email, key, state);
+      return next;
+    });
+  };
 
   if (loading) return null;
   if (!data?.ok) return null;
@@ -1695,42 +1729,135 @@ function DailyBriefingCard({ email }: { email: string }) {
         </button>
       </div>
 
-      {/* Action list */}
+      {/* Action list with checkboxes */}
       {actions.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {actions.map((a, i) => {
-            const style = PRIORITY_STYLE[a.priority] || PRIORITY_STYLE.medium;
+        <>
+          {/* 完成進度條 */}
+          {(() => {
+            const done = Object.values(actionStates).filter((s) => s === "done").length;
+            const total = actions.length;
+            const pct = total > 0 ? (done / total) * 100 : 0;
             return (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  padding: "12px 14px",
-                  background: style.bg,
-                  borderLeft: `4px solid ${style.bar}`,
-                  borderRadius: 10,
-                }}
-              >
-                <div style={{ fontSize: 18, flexShrink: 0 }}>{style.icon}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>
-                      {i + 1}. {a.title}
-                    </span>
-                    {a.estimate && (
-                      <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>⏱ {a.estimate}</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#334155", marginTop: 4, lineHeight: 1.6 }}>{a.detail}</div>
-                  <div style={{ fontSize: 10, color: "#64748b", marginTop: 6, fontStyle: "italic" }}>
-                    📎 依據：{a.source}
-                  </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#92400e", fontWeight: 700, marginBottom: 4 }}>
+                  <span>✅ 完成進度</span>
+                  <span>{done} / {total} ({pct.toFixed(0)}%)</span>
+                </div>
+                <div style={{ height: 8, background: "rgba(234,88,12,0.1)", borderRadius: 4, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      width: `${pct}%`,
+                      height: "100%",
+                      background: "linear-gradient(90deg, #ea580c, #16a34a)",
+                      transition: "width 0.4s ease",
+                    }}
+                  />
                 </div>
               </div>
             );
-          })}
-        </div>
+          })()}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {actions.map((a, i) => {
+              const style = PRIORITY_STYLE[a.priority] || PRIORITY_STYLE.medium;
+              const key = `${i}-${a.title.slice(0, 20)}`;
+              const state = actionStates[key] || "pending";
+              const isDone = state === "done";
+              const isSkipped = state === "skipped";
+              const isBlocked = state === "blocked";
+              return (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    gap: 12,
+                    padding: "12px 14px",
+                    background: isDone
+                      ? "rgba(34,197,94,0.08)"
+                      : isSkipped
+                      ? "rgba(148,163,184,0.08)"
+                      : isBlocked
+                      ? "rgba(239,68,68,0.08)"
+                      : style.bg,
+                    borderLeft: `4px solid ${isDone ? "#16a34a" : isSkipped ? "#94a3b8" : isBlocked ? "#dc2626" : style.bar}`,
+                    borderRadius: 10,
+                    opacity: isSkipped ? 0.6 : 1,
+                  }}
+                >
+                  <div style={{ fontSize: 18, flexShrink: 0 }}>{isDone ? "✅" : isSkipped ? "⏭️" : isBlocked ? "🚧" : style.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 800,
+                          color: "#0f172a",
+                          textDecoration: isDone || isSkipped ? "line-through" : "none",
+                        }}
+                      >
+                        {i + 1}. {a.title}
+                      </span>
+                      {a.estimate && (
+                        <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>⏱ {a.estimate}</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#334155", marginTop: 4, lineHeight: 1.6 }}>{a.detail}</div>
+                    <div style={{ fontSize: 10, color: "#64748b", marginTop: 6, fontStyle: "italic" }}>
+                      📎 依據：{a.source}
+                    </div>
+                    {/* 按鈕列 */}
+                    <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => updateState(key, isDone ? "pending" : "done")}
+                        style={{
+                          padding: "6px 14px",
+                          borderRadius: 8,
+                          border: `1.5px solid ${isDone ? "#16a34a" : "#e2e8f0"}`,
+                          background: isDone ? "#16a34a" : "#ffffff",
+                          color: isDone ? "#ffffff" : "#16a34a",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {isDone ? "✅ 已完成" : "打勾完成"}
+                      </button>
+                      <button
+                        onClick={() => updateState(key, isSkipped ? "pending" : "skipped")}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 8,
+                          border: `1.5px solid ${isSkipped ? "#94a3b8" : "#e2e8f0"}`,
+                          background: isSkipped ? "#94a3b8" : "#ffffff",
+                          color: isSkipped ? "#ffffff" : "#64748b",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ⏭️ 跳過
+                      </button>
+                      <button
+                        onClick={() => updateState(key, isBlocked ? "pending" : "blocked")}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 8,
+                          border: `1.5px solid ${isBlocked ? "#dc2626" : "#e2e8f0"}`,
+                          background: isBlocked ? "#dc2626" : "#ffffff",
+                          color: isBlocked ? "#ffffff" : "#b91c1c",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        🚧 卡住
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* Team context footer */}

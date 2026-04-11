@@ -6848,6 +6848,9 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
             />
           )}
 
+          {/* 🏆 排行榜 — 最主要的「看一眼就懂」視角 */}
+          <RankingTable rows={rows} brandRates={data?.brandRates || null} />
+
           {/* Hierarchical drill-down: Org → Team → Individual */}
           <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14, color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -7229,6 +7232,245 @@ function DailyTrendChart({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function RankingTable({
+  rows,
+  brandRates,
+}: {
+  rows: SalesMetricsRow[];
+  brandRates: FunnelRatesDTO | null;
+}) {
+  const [sortBy, setSortBy] = useState<"revenue" | "calls" | "closures" | "close_rate" | "silent">("revenue");
+
+  const sorted = [...rows].sort((a, b) => {
+    const rev = (r: SalesMetricsRow) => Number(r.net_revenue_daily) || 0;
+    const closes = (r: SalesMetricsRow) => Number(r.closures) || 0;
+    const calls = (r: SalesMetricsRow) => Number(r.calls) || 0;
+    const closeRate = (r: SalesMetricsRow) => {
+      const sh = Number(r.appointments_show) || 0;
+      return sh > 0 ? closes(r) / sh : 0;
+    };
+    switch (sortBy) {
+      case "calls":
+        return calls(b) - calls(a);
+      case "closures":
+        return closes(b) - closes(a);
+      case "close_rate":
+        return closeRate(b) - closeRate(a);
+      case "silent":
+        return calls(a) - calls(b);
+      default:
+        return rev(b) - rev(a) || calls(b) - calls(a);
+    }
+  });
+
+  const silentCount = rows.filter((r) => (Number(r.calls) || 0) === 0).length;
+  const closedCount = rows.filter((r) => (Number(r.closures) || 0) > 0).length;
+
+  return (
+    <div
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: 20,
+        marginBottom: 20,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 14,
+        }}
+      >
+        <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text)" }}>🏆 排行榜 · 單人視角</span>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {(
+            [
+              { id: "revenue", label: "💰 業績" },
+              { id: "closures", label: "🎯 成交數" },
+              { id: "calls", label: "📞 通次" },
+              { id: "close_rate", label: "✨ 成交率" },
+              { id: "silent", label: "🚨 沒打電話" },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => setSortBy(opt.id)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 8,
+                border: `1.5px solid ${sortBy === opt.id ? "var(--accent)" : "var(--border)"}`,
+                background: sortBy === opt.id ? "rgba(79,70,229,0.1)" : "var(--card)",
+                color: sortBy === opt.id ? "var(--accent)" : "var(--text2)",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 簡單統計列 */}
+      <div
+        style={{
+          display: "flex",
+          gap: 16,
+          marginBottom: 12,
+          padding: "8px 12px",
+          background: "rgba(15,23,42,0.02)",
+          borderRadius: 8,
+          fontSize: 12,
+          color: "var(--text2)",
+          flexWrap: "wrap",
+        }}
+      >
+        <span>
+          共 <strong style={{ color: "var(--text)" }}>{rows.length}</strong> 人
+        </span>
+        <span>
+          ✅ 有成交 <strong style={{ color: "var(--green)" }}>{closedCount}</strong> 人
+        </span>
+        <span>
+          🚨 全天沒打電話 <strong style={{ color: "var(--red)" }}>{silentCount}</strong> 人
+        </span>
+        {brandRates?.connectRate != null && (
+          <span>
+            · 平均接通率 {(brandRates.connectRate * 100).toFixed(1)}%
+          </span>
+        )}
+      </div>
+
+      {/* Table header */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "40px 1.8fr 1fr 70px 70px 70px 70px 70px 70px 100px",
+          gap: 8,
+          padding: "8px 12px",
+          fontSize: 11,
+          fontWeight: 700,
+          color: "var(--text3)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <div>#</div>
+        <div>姓名</div>
+        <div>組別</div>
+        <div style={{ textAlign: "right" }}>通次</div>
+        <div style={{ textAlign: "right" }}>接通率</div>
+        <div style={{ textAlign: "right" }}>邀約</div>
+        <div style={{ textAlign: "right" }}>出席</div>
+        <div style={{ textAlign: "right" }}>DEMO</div>
+        <div style={{ textAlign: "right" }}>成交</div>
+        <div style={{ textAlign: "right" }}>業績</div>
+      </div>
+
+      {sorted.map((r, i) => {
+        const calls = Number(r.calls) || 0;
+        const connected = Number(r.connected) || 0;
+        const connectRate = calls > 0 ? (connected / calls) * 100 : null;
+        const revenue = Number(r.net_revenue_daily) || 0;
+        const closed = (Number(r.closures) || 0) > 0;
+        const silent = calls === 0;
+        const topRank = i < 3 && revenue > 0;
+        return (
+          <div
+            key={r.salesperson_id || r.email || String(i)}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "40px 1.8fr 1fr 70px 70px 70px 70px 70px 70px 100px",
+              gap: 8,
+              padding: "10px 12px",
+              fontSize: 12,
+              alignItems: "center",
+              background: silent
+                ? "rgba(239,68,68,0.04)"
+                : topRank
+                ? "rgba(234,179,8,0.05)"
+                : closed
+                ? "rgba(34,197,94,0.03)"
+                : "transparent",
+              borderBottom: "1px solid rgba(15,23,42,0.04)",
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 800, color: topRank ? "#ca8a04" : "var(--text3)" }}>
+              {topRank ? ["🥇", "🥈", "🥉"][i] : i + 1}
+            </div>
+            <div style={{ color: "var(--text)", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+              {r.name || "(未命名)"}
+              {r.level === "新人" && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    background: "rgba(14,165,233,0.15)",
+                    color: "#0ea5e9",
+                    padding: "1px 5px",
+                    borderRadius: 4,
+                    fontWeight: 700,
+                  }}
+                >
+                  新人
+                </span>
+              )}
+              {silent && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    background: "rgba(239,68,68,0.15)",
+                    color: "#dc2626",
+                    padding: "1px 5px",
+                    borderRadius: 4,
+                    fontWeight: 700,
+                  }}
+                >
+                  0 通
+                </span>
+              )}
+            </div>
+            <div style={{ color: "var(--text3)", fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {r.team || "-"}
+            </div>
+            <div style={{ textAlign: "right", color: calls > 0 ? "var(--text)" : "var(--text3)" }}>
+              {calls}
+            </div>
+            <div style={{ textAlign: "right", fontSize: 11, color: "var(--text2)" }}>
+              {connectRate != null ? `${connectRate.toFixed(0)}%` : "—"}
+            </div>
+            <div style={{ textAlign: "right", color: "var(--text2)" }}>{r.raw_appointments}</div>
+            <div style={{ textAlign: "right", color: "var(--text2)" }}>{r.appointments_show}</div>
+            <div style={{ textAlign: "right", color: "var(--text2)" }}>{r.raw_demos}</div>
+            <div
+              style={{
+                textAlign: "right",
+                fontWeight: closed ? 800 : 400,
+                color: closed ? "var(--green)" : "var(--text3)",
+              }}
+            >
+              {r.closures}
+            </div>
+            <div
+              style={{
+                textAlign: "right",
+                fontWeight: 800,
+                color: revenue > 0 ? "var(--pink)" : "var(--text3)",
+              }}
+            >
+              {revenue > 0 ? `NT$${formatMillions(revenue)}` : "—"}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
