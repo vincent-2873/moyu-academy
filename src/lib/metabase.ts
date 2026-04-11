@@ -191,6 +191,15 @@ interface NormalisedRow {
 
 function num(v: unknown): number {
   if (v == null) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  // Metabase /api/card/query/json 回傳數字帶千位逗號 (e.g. "162,000")
+  // 需要先去掉逗號再 parse
+  if (typeof v === "string") {
+    const cleaned = v.replace(/,/g, "").trim();
+    if (cleaned === "") return 0;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : 0;
+  }
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
