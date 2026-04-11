@@ -43,29 +43,50 @@ export async function notifyAdminBlocked(
 
   // 1) 寫 claude_tasks — 預設開 LINE channel + awaiting_line_reply 狀態
   //    這樣 Vincent 下次在 LINE 對墨宇小精靈打字，就會自動寫進這張任務的 user_response
+  //    如果 migration 還沒跑 (awaiting_reply_at / channel 欄位缺)，降級用舊 schema
   const supabase = getSupabaseAdmin();
-  const { data: task, error: taskErr } = await supabase
-    .from("claude_tasks")
-    .insert({
-      title: `🚧 卡住：${ctx.what}`,
-      description: [
-        `[卡在] ${ctx.what}`,
-        `[原因] ${ctx.why}`,
-        `[需要你做] ${ctx.needFromUser}`,
-        ctx.details ? `\n[細節] ${ctx.details}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n"),
-      category: "decision",
-      priority: severity,
-      why: ctx.why,
-      expected_input: ctx.needFromUser,
-      channel: "line",
-      status: "awaiting_line_reply",
-      awaiting_reply_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
+  const baseRow = {
+    title: `🚧 卡住：${ctx.what}`,
+    description: [
+      `[卡在] ${ctx.what}`,
+      `[原因] ${ctx.why}`,
+      `[需要你做] ${ctx.needFromUser}`,
+      ctx.details ? `\n[細節] ${ctx.details}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    category: "decision" as const,
+    priority: severity,
+    why: ctx.why,
+    expected_input: ctx.needFromUser,
+  };
+  let task: { id: string } | null = null;
+  let taskErr: { message?: string } | null = null;
+  {
+    const { data, error } = await supabase
+      .from("claude_tasks")
+      .insert({
+        ...baseRow,
+        channel: "line",
+        status: "awaiting_line_reply",
+        awaiting_reply_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    if (!error && data) {
+      task = data as { id: string };
+    } else if (error && /column.*(awaiting_reply_at|channel)/i.test(error.message || "")) {
+      const retry = await supabase
+        .from("claude_tasks")
+        .insert({ ...baseRow, status: "pending" })
+        .select("id")
+        .single();
+      task = (retry.data as { id: string } | null) || null;
+      taskErr = retry.error;
+    } else {
+      taskErr = error;
+    }
+  }
 
   // 2) LINE push
   const emoji = severity === "critical" ? "🔴🔴🔴" : severity === "high" ? "🟠" : "🟡";
@@ -136,33 +157,81 @@ export async function askAdminViaLine(
   const severity = opts.severity || "normal";
   const supabase = getSupabaseAdmin();
 
-  // 1) 建 task
-  const { data: task, error: taskErr } = await supabase
-    .from("claude_tasks")
-    .insert({
-      title: `❓ ${opts.question.slice(0, 60)}`,
-      description: [
-        `[Claude 的問題]`,
-        opts.question,
-        opts.context ? `\n[背景]\n${opts.context}` : "",
-        opts.options && opts.options.length > 0
-          ? `\n[建議回答]\n${opts.options.map((o, i) => `${i + 1}. ${o}`).join("\n")}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n"),
-      category: "decision",
-      priority: severity,
-      expected_input: opts.question,
-      channel: "line",
-      status: "awaiting_line_reply",
-      awaiting_reply_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
+  const description = [
+    `[Claude 的問題]`,
+    opts.question,
+    opts.context ? `\n[背景]\n${opts.context}` : "",
+    opts.options && opts.options.length > 0
+      ? `\n[建議回答]\n${opts.options.map((o, i) => `${i + 1}. ${o}`).join("\n")}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
-  if (taskErr || !task) {
-    return { taskId: null, answered: false, error: taskErr?.message || "task insert failed" };
+  const baseRow = {
+    title: `❓ ${opts.question.slice(0, 60)}`,
+    description,
+    category: "decision",
+    priority: severity,
+    expected_input: opts.question,
+  };
+
+  // 1) 建 task — 優先用新 schema (channel + awaiting_line_reply)，
+  //    如果 migration 還沒跑，fallback 用舊 schema 以確保至少 LINE push 出得去
+  let task: { id: string } | null = null;
+  let taskErr: { message?: string } | null = null;
+  let schemaDegraded = false;
+
+  {
+    const { data, error } = await supabase
+      .from("claude_tasks")
+      .insert({
+        ...baseRow,
+        channel: "line",
+        status: "awaiting_line_reply",
+        awaiting_reply_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    if (!error && data) {
+      task = data as { id: string };
+    } else if (error && /column.*(awaiting_reply_at|channel)/i.test(error.message || "")) {
+      // schema 還沒 migrate → 降級再 insert
+      schemaDegraded = true;
+      const retry = await supabase
+        .from("claude_tasks")
+        .insert({ ...baseRow, status: "pending" })
+        .select("id")
+        .single();
+      task = (retry.data as { id: string } | null) || null;
+      taskErr = retry.error;
+    } else {
+      taskErr = error;
+    }
+  }
+
+  if (!task) {
+    // 即使 task 建失敗，還是推 LINE — 至少通知 Vincent「有問題」+ 帶 migration hint
+    const fallbackBody = [
+      `⚠️ Claude 想問問題但 claude_tasks 寫入失敗`,
+      "",
+      opts.question,
+      "",
+      `錯誤: ${taskErr?.message || "unknown"}`,
+      "",
+      `請到 Supabase 跑: supabase-migration-line-ask.sql`,
+    ].join("\n");
+    await linePush({
+      title: "⚠️ Claude ask-via-line schema error",
+      body: fallbackBody,
+      priority: "high",
+      reason: "blocked",
+    });
+    return {
+      taskId: null,
+      answered: false,
+      error: taskErr?.message || "task insert failed",
+    };
   }
 
   // 2) 推 LINE
@@ -183,6 +252,13 @@ export async function askAdminViaLine(
     bodyLines.push("直接回字就好（不用打數字）");
   } else {
     bodyLines.push("", "直接回字，我會繼續");
+  }
+  if (schemaDegraded) {
+    bodyLines.push(
+      "",
+      "⚠️ 注意：claude_tasks 新欄位還沒 migrate，LINE → 任務的自動綁定會不工作。",
+      "請到 Supabase SQL Editor 跑 supabase-migration-line-ask.sql"
+    );
   }
 
   await linePush({
