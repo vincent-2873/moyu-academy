@@ -383,6 +383,9 @@ export default function MePage() {
       {/* 個人業務數據卡片 — 對應 Metabase 同步進來的即時數字 */}
       {data.profile?.email && <MySalesMetricsCard email={data.profile.email} />}
 
+      {/* 📈 我的深度分析 — 15 個月 activity 報告 + ranking + patterns */}
+      {data.profile?.email && <DeepAnalyticsCard email={data.profile.email} />}
+
       {/* 成就里程碑 — 新人看得見的進度、老人拿得到的長期目標 */}
       {data.profile?.email && <AchievementsCard email={data.profile.email} />}
 
@@ -873,6 +876,200 @@ interface V3Command {
   ai_reasoning: string | null;
   created_at: string;
   deadline: string | null;
+}
+
+interface DeepAnalyticsData {
+  ok: boolean;
+  bound: boolean;
+  profile?: { name: string; brand: string; team: string; level: string | null };
+  lifetime?: { calls: number; closes: number; revenue: number };
+  timeSeries?: Array<{ month: string; calls: number; closes: number; revenue: number; connectRate: number | null; closeRate: number | null }>;
+  trend?: Array<{ month: string; ma3: number }>;
+  bestMonth?: { month: string; revenue: number } | null;
+  worstMonth?: { month: string; revenue: number } | null;
+  consistencyScore?: number;
+  rankings?: {
+    brand: { rank: number | null; total: number; brandName: string };
+    company: { rank: number | null; total: number };
+  };
+  patterns?: string[];
+  monthCount?: number;
+}
+
+function DeepAnalyticsCard({ email }: { email: string }) {
+  const [data, setData] = useState<DeepAnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/me/deep-analytics?email=${encodeURIComponent(email)}`, { cache: "no-store" });
+        const j = (await r.json()) as DeepAnalyticsData;
+        if (!cancelled) setData(j);
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [email]);
+
+  if (loading || !data || !data.ok || !data.bound) return null;
+  const ts = data.timeSeries || [];
+  const maxRev = Math.max(...ts.map((t) => t.revenue), 1);
+  const fmt = (n: number) => (n >= 10000 ? `${(n / 10000).toFixed(1)}萬` : Math.round(n).toLocaleString());
+
+  return (
+    <div
+      style={{
+        margin: "20px 0",
+        padding: 24,
+        background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #4c1d95 100%)",
+        border: "1px solid rgba(147,51,234,0.35)",
+        borderRadius: 18,
+        color: "#ffffff",
+        boxShadow: "0 16px 50px -20px rgba(147,51,234,0.4)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 12, color: "rgba(196,181,253,0.9)", fontWeight: 700, letterSpacing: 1 }}>
+          📈 我的深度分析
+        </div>
+        <div style={{ fontSize: 11, opacity: 0.6 }}>
+          {data.monthCount} 個月 · lifetime {data.lifetime?.calls.toLocaleString()} 通 · {data.lifetime?.closes} 成交
+        </div>
+      </div>
+
+      {/* Rankings row */}
+      {data.rankings && (
+        <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+          {data.rankings.brand.rank && (
+            <div
+              style={{
+                flex: 1,
+                minWidth: 140,
+                background: "rgba(255,255,255,0.08)",
+                borderRadius: 12,
+                padding: "12px 14px",
+              }}
+            >
+              <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700 }}>本月品牌內排名</div>
+              <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4 }}>
+                #{data.rankings.brand.rank}
+                <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 4 }}>
+                  / {data.rankings.brand.total}
+                </span>
+              </div>
+              <div style={{ fontSize: 10, opacity: 0.65 }}>{data.rankings.brand.brandName}</div>
+            </div>
+          )}
+          {data.rankings.company.rank && (
+            <div
+              style={{
+                flex: 1,
+                minWidth: 140,
+                background: "rgba(255,255,255,0.08)",
+                borderRadius: 12,
+                padding: "12px 14px",
+              }}
+            >
+              <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700 }}>本月全集團排名</div>
+              <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4 }}>
+                #{data.rankings.company.rank}
+                <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 4 }}>
+                  / {data.rankings.company.total}
+                </span>
+              </div>
+            </div>
+          )}
+          <div
+            style={{
+              flex: 1,
+              minWidth: 140,
+              background: "rgba(255,255,255,0.08)",
+              borderRadius: 12,
+              padding: "12px 14px",
+            }}
+          >
+            <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700 }}>穩定度</div>
+            <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4 }}>
+              {(data.consistencyScore || 0).toFixed(0)}
+              <span style={{ fontSize: 12, opacity: 0.6 }}>/100</span>
+            </div>
+            <div style={{ fontSize: 10, opacity: 0.65 }}>越高越穩</div>
+          </div>
+        </div>
+      )}
+
+      {/* 15-month revenue bar chart */}
+      {ts.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700, marginBottom: 8 }}>
+            📊 {ts.length} 個月業績趨勢
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${ts.length}, 1fr)`, gap: 3, alignItems: "end", height: 100 }}>
+            {ts.map((t) => {
+              const pct = Math.max(3, (t.revenue / maxRev) * 100);
+              return (
+                <div
+                  key={t.month}
+                  title={`${t.month}: NT$${fmt(t.revenue)} · ${t.calls} 通 · ${t.closes} 成交`}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}
+                >
+                  <div
+                    style={{
+                      width: "100%",
+                      height: `${pct}%`,
+                      background: "linear-gradient(180deg, #ec4899, #8b5cf6)",
+                      borderRadius: 2,
+                      minHeight: 3,
+                    }}
+                  />
+                  <div style={{ fontSize: 8, opacity: 0.55, whiteSpace: "nowrap" }}>{t.month.slice(5)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Best / worst */}
+      {data.bestMonth && data.worstMonth && data.bestMonth.month !== data.worstMonth.month && (
+        <div style={{ display: "flex", gap: 10, fontSize: 11, marginBottom: 14 }}>
+          <div style={{ flex: 1, background: "rgba(34,197,94,0.15)", borderRadius: 8, padding: "8px 12px" }}>
+            🏆 最強月 <strong>{data.bestMonth.month}</strong> NT${fmt(data.bestMonth.revenue)}
+          </div>
+          <div style={{ flex: 1, background: "rgba(239,68,68,0.15)", borderRadius: 8, padding: "8px 12px" }}>
+            🔻 最弱月 <strong>{data.worstMonth.month}</strong> NT${fmt(data.worstMonth.revenue)}
+          </div>
+        </div>
+      )}
+
+      {/* Patterns */}
+      {data.patterns && data.patterns.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {data.patterns.map((p, i) => (
+            <div
+              key={i}
+              style={{
+                fontSize: 12,
+                padding: "8px 12px",
+                background: "rgba(255,255,255,0.06)",
+                borderRadius: 8,
+                borderLeft: "3px solid #c084fc",
+              }}
+            >
+              {p}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function MyCommandsCard({ email }: { email: string }) {

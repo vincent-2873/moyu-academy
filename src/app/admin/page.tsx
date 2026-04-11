@@ -306,7 +306,12 @@ export default function AdminPage() {
         )}
 
         <div style={{ padding: "28px 36px" }}>
-          {tab === "pillars" && <V3PillarsBoard />}
+          {tab === "pillars" && (
+            <>
+              <CeoOverviewSection />
+              <V3PillarsBoard />
+            </>
+          )}
           {tab === "sales" && <SalesMetricsTab token={session.token} />}
           {tab === "commands" && <V3CommandsHub />}
           {tab === "org" && <V3OrgChartTab />}
@@ -708,6 +713,329 @@ function MetricCell({ label, value, sub, accent }: { label: string; value: numbe
 }
 
 // ─── v3 指揮中心：3 大支柱專案戰況板 ───────────────────────────────────────
+
+interface CeoFlat {
+  calls: number;
+  closures: number;
+  revenue: number;
+  people: number;
+}
+interface CeoBrand {
+  brand: string;
+  rank: number;
+  people: number;
+  calls: number;
+  closures: number;
+  revenue: number;
+  deltaWeek: number | null;
+}
+interface CeoInsight {
+  severity: string;
+  title: string;
+  detail: string;
+}
+interface CeoOverviewData {
+  ok: boolean;
+  today: CeoFlat;
+  yesterday: CeoFlat;
+  thisWeek: CeoFlat;
+  lastWeek: CeoFlat;
+  thisMonth: CeoFlat;
+  lastMonth: CeoFlat;
+  brands: CeoBrand[];
+  top5People: Array<{ name: string; brand: string; team: string; revenue: number; calls: number; closes: number }>;
+  silent3Days: Array<{ email: string; name: string; brand: string }>;
+  struggling: Array<{ name: string; brand: string; calls: number; closes: number }>;
+  pendingCommandsCount: number;
+  dataIssuesCount: number;
+  claudeInsights: CeoInsight[];
+  generatedAt: string;
+}
+
+function CeoOverviewSection() {
+  const [data, setData] = useState<CeoOverviewData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch("/api/admin/ceo-overview", { cache: "no-store" });
+        const j = (await r.json()) as CeoOverviewData;
+        if (!cancelled) setData(j);
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    const t = setInterval(load, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
+
+  if (loading || !data) return null;
+
+  const deltaPct = (curr: number, prev: number) => (prev > 0 ? ((curr - prev) / prev) * 100 : null);
+  const dWeek = deltaPct(data.thisWeek.revenue, data.lastWeek.revenue);
+  const dMonth = deltaPct(data.thisMonth.revenue, data.lastMonth.revenue);
+  const sevColor = {
+    critical: "#dc2626",
+    high: "#ea580c",
+    normal: "#d97706",
+    info: "#0891b2",
+  } as Record<string, string>;
+
+  const fmtRev = (n: number) => {
+    if (n >= 1_000_000) return `NT$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 10_000) return `NT$${(n / 10_000).toFixed(1)}萬`;
+    return `NT$${Math.round(n).toLocaleString()}`;
+  };
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div
+        style={{
+          background: "linear-gradient(135deg, #1e1b4b 0%, #4c1d95 50%, #701a75 100%)",
+          borderRadius: 18,
+          padding: "24px 28px",
+          color: "#ffffff",
+          boxShadow: "0 20px 60px -20px rgba(76,29,149,0.4)",
+          marginBottom: 14,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 700, letterSpacing: 2 }}>
+            📊 CEO 戰情總覽
+          </div>
+          <div style={{ fontSize: 10, opacity: 0.55 }}>
+            每 60 秒自動更新 · {new Date(data.generatedAt).toLocaleTimeString("zh-TW")}
+          </div>
+        </div>
+        {/* 4 Big numbers */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 18 }}>
+          <CeoStat
+            label="今日"
+            value={fmtRev(data.today.revenue)}
+            sub={`${data.today.calls} 通 · ${data.today.closures} 成交 · ${data.today.people} 人`}
+          />
+          <CeoStat
+            label="本週"
+            value={fmtRev(data.thisWeek.revenue)}
+            sub={`${data.thisWeek.calls.toLocaleString()} 通 · ${data.thisWeek.closures} 成交`}
+            delta={dWeek}
+          />
+          <CeoStat
+            label="本月"
+            value={fmtRev(data.thisMonth.revenue)}
+            sub={`${data.thisMonth.calls.toLocaleString()} 通 · ${data.thisMonth.closures} 成交`}
+            delta={dMonth}
+          />
+          <CeoStat
+            label="⚠️ 待辦 / 問題"
+            value={`${data.pendingCommandsCount} / ${data.dataIssuesCount}`}
+            sub={`命令 · 資料整潔`}
+          />
+        </div>
+        {/* Claude Insights */}
+        {data.claudeInsights.length > 0 && (
+          <div
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              borderRadius: 12,
+              padding: "14px 16px",
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}
+          >
+            <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>
+              🧠 CLAUDE 重點提醒
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {data.claudeInsights.map((i, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    padding: "8px 12px",
+                    background: "rgba(255,255,255,0.05)",
+                    borderLeft: `3px solid ${sevColor[i.severity] || "#94a3b8"}`,
+                    borderRadius: 6,
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>{i.title}</div>
+                    <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{i.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Brand horizontal compare */}
+      {data.brands.length > 0 && (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 18, marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 12 }}>
+            🌐 本週各品牌戰況 (vs 上週)
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+            {data.brands.map((b) => {
+              const color = BRAND_COLORS[b.brand] || "#64748b";
+              return (
+                <div
+                  key={b.brand}
+                  style={{
+                    padding: "10px 14px",
+                    border: `1px solid ${color}33`,
+                    borderRadius: 10,
+                    background: `${color}0a`,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: color }}>#{b.rank}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                      {BRAND_DISPLAY_NAMES[b.brand] || b.brand}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: color }}>
+                    {fmtRev(b.revenue)}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--text3)", display: "flex", gap: 6, marginTop: 2 }}>
+                    <span>{b.calls.toLocaleString()} 通</span>
+                    <span>·</span>
+                    <span>{b.closures} 成交</span>
+                    <span>·</span>
+                    <span>{b.people} 人</span>
+                  </div>
+                  {b.deltaWeek != null && (
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: b.deltaWeek >= 0 ? "#16a34a" : "#dc2626",
+                        marginTop: 3,
+                      }}
+                    >
+                      {b.deltaWeek >= 0 ? "▲" : "▼"} {Math.abs(b.deltaWeek).toFixed(0)}% vs 上週
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Top 5 + silent3 + struggling */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
+        {data.top5People.length > 0 && (
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>
+              🏆 本週 Top 5
+            </div>
+            {data.top5People.map((p, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 0",
+                  borderBottom: i < data.top5People.length - 1 ? "1px dashed var(--border)" : "none",
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? "#d97706" : "var(--text3)", width: 20 }}>
+                  {["🥇", "🥈", "🥉"][i] || `${i + 1}.`}
+                </div>
+                <div style={{ flex: 1, color: "var(--text)" }}>{p.name}</div>
+                <div style={{ fontSize: 10, color: "var(--text3)" }}>{p.calls}通·{p.closes}成</div>
+                <div style={{ fontWeight: 800, color: "var(--pink)" }}>{fmtRev(p.revenue)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {data.silent3Days.length > 0 && (
+          <div style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 12, padding: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#991b1b", marginBottom: 10 }}>
+              🔴 連續 3 天 0 通 ({data.silent3Days.length} 人)
+            </div>
+            {data.silent3Days.slice(0, 8).map((p, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: "4px 0",
+                  fontSize: 12,
+                  color: "var(--text)",
+                  borderBottom: i < 7 ? "1px dashed rgba(239,68,68,0.2)" : "none",
+                }}
+              >
+                {p.name} <span style={{ fontSize: 10, color: "var(--text3)" }}>· {BRAND_DISPLAY_NAMES[p.brand] || p.brand}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {data.struggling.length > 0 && (
+          <div style={{ background: "rgba(234,88,12,0.04)", border: "1px solid rgba(234,88,12,0.3)", borderRadius: 12, padding: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#9a3412", marginBottom: 10 }}>
+              🟠 今日量多無成交 ({data.struggling.length} 人)
+            </div>
+            {data.struggling.map((p, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: "4px 0",
+                  fontSize: 12,
+                  color: "var(--text)",
+                  borderBottom: i < data.struggling.length - 1 ? "1px dashed rgba(234,88,12,0.2)" : "none",
+                }}
+              >
+                {p.name} · <span style={{ color: "#9a3412", fontWeight: 700 }}>{p.calls} 通</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CeoStat({
+  label,
+  value,
+  sub,
+  delta,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  delta?: number | null;
+}) {
+  return (
+    <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px", border: "1px solid rgba(255,255,255,0.12)" }}>
+      <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700, letterSpacing: 1 }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 900, marginTop: 4 }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, opacity: 0.65, marginTop: 3 }}>{sub}</div>}
+      {delta != null && (
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            marginTop: 4,
+            color: delta >= 0 ? "#86efac" : "#fca5a5",
+          }}
+        >
+          {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
+        </div>
+      )}
+    </div>
+  );
+}
 
 function V3PillarsBoard() {
   const [data, setData] = useState<V3DashboardData | null>(null);
