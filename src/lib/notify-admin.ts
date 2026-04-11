@@ -62,7 +62,9 @@ export async function notifyAdminBlocked(
   };
   let task: { id: string } | null = null;
   let taskErr: { message?: string } | null = null;
-  {
+  const probe = await supabase.from("claude_tasks").select("channel").limit(1);
+  const hasNewSchema = !probe.error;
+  if (hasNewSchema) {
     const { data, error } = await supabase
       .from("claude_tasks")
       .insert({
@@ -73,19 +75,16 @@ export async function notifyAdminBlocked(
       })
       .select("id")
       .single();
-    if (!error && data) {
-      task = data as { id: string };
-    } else if (error && /awaiting_reply_at|'channel'|"channel"/i.test(error.message || "")) {
-      const retry = await supabase
-        .from("claude_tasks")
-        .insert({ ...baseRow, status: "pending" })
-        .select("id")
-        .single();
-      task = (retry.data as { id: string } | null) || null;
-      taskErr = retry.error;
-    } else {
-      taskErr = error;
-    }
+    task = (data as { id: string } | null) || null;
+    taskErr = error;
+  } else {
+    const { data, error } = await supabase
+      .from("claude_tasks")
+      .insert({ ...baseRow, status: "pending" })
+      .select("id")
+      .single();
+    task = (data as { id: string } | null) || null;
+    taskErr = error;
   }
 
   // 2) LINE push
@@ -176,13 +175,16 @@ export async function askAdminViaLine(
     expected_input: opts.question,
   };
 
-  // 1) 建 task — 優先用新 schema (channel + awaiting_line_reply)，
-  //    如果 migration 還沒跑，fallback 用舊 schema 以確保至少 LINE push 出得去
+  // 1) 建 task — 先檢查 migration 是否已跑，未跑則自動降級到舊 schema
   let task: { id: string } | null = null;
   let taskErr: { message?: string } | null = null;
   let schemaDegraded = false;
 
-  {
+  // 用一筆輕量 SELECT 檢測 channel 欄位是否存在 (schema probe)
+  const probe = await supabase.from("claude_tasks").select("channel").limit(1);
+  const hasNewSchema = !probe.error;
+
+  if (hasNewSchema) {
     const { data, error } = await supabase
       .from("claude_tasks")
       .insert({
@@ -193,31 +195,17 @@ export async function askAdminViaLine(
       })
       .select("id")
       .single();
-    if (!error && data) {
-      task = data as { id: string };
-    } else if (error) {
-      // schema 還沒 migrate → 降級再 insert (看 message 或 code)
-      const msg = error.message || "";
-      const isSchemaMiss =
-        msg.includes("awaiting_reply_at") ||
-        msg.includes("channel") ||
-        msg.includes("schema cache") ||
-        error.code === "PGRST204";
-      console.log("[askAdminViaLine] first insert failed:", msg, "code:", error.code, "isSchemaMiss:", isSchemaMiss);
-      if (isSchemaMiss) {
-        schemaDegraded = true;
-        const retry = await supabase
-          .from("claude_tasks")
-          .insert({ ...baseRow, status: "pending" })
-          .select("id")
-          .single();
-        task = (retry.data as { id: string } | null) || null;
-        taskErr = retry.error;
-        console.log("[askAdminViaLine] fallback insert:", retry.error?.message, "task:", task?.id);
-      } else {
-        taskErr = error;
-      }
-    }
+    task = (data as { id: string } | null) || null;
+    taskErr = error;
+  } else {
+    schemaDegraded = true;
+    const { data, error } = await supabase
+      .from("claude_tasks")
+      .insert({ ...baseRow, status: "pending" })
+      .select("id")
+      .single();
+    task = (data as { id: string } | null) || null;
+    taskErr = error;
   }
 
   if (!task) {
