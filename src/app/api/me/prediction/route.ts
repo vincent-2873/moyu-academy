@@ -205,7 +205,7 @@ export async function GET(req: NextRequest) {
       const client = new Anthropic({ apiKey });
       const msg = await client.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 1500,
+        max_tokens: 3000,
         system: ANALYSIS_PROMPT,
         messages: [{ role: "user", content: context }],
       });
@@ -214,10 +214,39 @@ export async function GET(req: NextRequest) {
       text = text.replace(/```(?:json)?\s*/gi, "").replace(/```\s*/g, "").trim();
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
+        let jsonStr = jsonMatch[0];
+        // Recovery: if JSON is truncated (common when max_tokens hit), try to close it
+        const openBraces = (jsonStr.match(/\{/g) || []).length;
+        const closeBraces = (jsonStr.match(/\}/g) || []).length;
+        if (openBraces > closeBraces) {
+          // Truncate at last complete field, close all braces
+          const lastComma = jsonStr.lastIndexOf(",");
+          const lastColon = jsonStr.lastIndexOf(":");
+          if (lastComma > lastColon) {
+            jsonStr = jsonStr.slice(0, lastComma);
+          }
+          for (let i = 0; i < openBraces - closeBraces; i++) {
+            jsonStr += "}";
+          }
+        }
         try {
-          analysis = JSON.parse(jsonMatch[0]);
+          analysis = JSON.parse(jsonStr);
         } catch {
-          analysis = { raw: text };
+          // Second attempt: try to extract individual fields
+          try {
+            const fields: Record<string, string> = {};
+            for (const field of ["behaviorDiagnosis", "keyInsight", "rootCause", "peerComparison", "riskFlag"]) {
+              const m = text.match(new RegExp(`"${field}"\\s*:\\s*"([^"]*(?:\\\\"[^"]*)*)"`));
+              if (m) fields[field] = m[1].replace(/\\"/g, '"').replace(/\\n/g, "\n");
+            }
+            if (Object.keys(fields).length > 0) {
+              analysis = fields;
+            } else {
+              analysis = { raw: text };
+            }
+          } catch {
+            analysis = { raw: text };
+          }
         }
       } else {
         analysis = { raw: text };
