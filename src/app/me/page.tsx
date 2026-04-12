@@ -945,6 +945,14 @@ function PredictionCard({ email }: { email: string }) {
   if (loading || !data || !data.ok || !data.bound) return null;
   const fmt = (n: number) => (n >= 10000 ? `${(n / 10000).toFixed(1)}萬` : Math.round(n).toLocaleString());
 
+  // Claude analysis fields (from new deep analysis — these are dynamic fields from Claude JSON)
+  const anyData = data as unknown as Record<string, unknown>;
+  const diagnosis = anyData.behaviorDiagnosis as string | undefined;
+  const keyInsight = anyData.keyInsight as string | undefined;
+  const rootCause = anyData.rootCause as string | undefined;
+  const coaching = anyData.coachingDirection as { focus?: string; specificAction?: string; expectedOutcome?: string } | undefined;
+  const riskFlag = anyData.riskFlag as string | undefined;
+  const peerComparison = anyData.peerComparison as string | undefined;
   const nba = data.nextBestAction;
   const momentumTone: Record<string, { bg: string; text: string; icon: string }> = {
     surging: { bg: "rgba(34,197,94,0.15)", text: "#14532d", icon: "🔥" },
@@ -973,6 +981,68 @@ function PredictionCard({ email }: { email: string }) {
         </div>
         <div style={{ fontSize: 10, opacity: 0.55 }}>每 60 秒更新</div>
       </div>
+
+      {/* Claude 深度分析 — 真正有價值的部分 */}
+      {keyInsight && (
+        <div
+          style={{
+            marginBottom: 14,
+            padding: "16px 18px",
+            background: "rgba(234,179,8,0.12)",
+            border: "1.5px solid rgba(234,179,8,0.4)",
+            borderRadius: 12,
+          }}
+        >
+          <div style={{ fontSize: 10, color: "#fbbf24", fontWeight: 800, letterSpacing: 1, marginBottom: 6 }}>
+            💡 最關鍵的一件事
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 900, color: "#ffffff", lineHeight: 1.5 }}>
+            {keyInsight}
+          </div>
+        </div>
+      )}
+      {diagnosis && (
+        <div style={{ marginBottom: 14, padding: "12px 16px", background: "rgba(255,255,255,0.06)", borderRadius: 10, borderLeft: "3px solid #a78bfa" }}>
+          <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700, marginBottom: 4 }}>📊 行為診斷</div>
+          <div style={{ fontSize: 13, lineHeight: 1.7, opacity: 0.9 }}>{diagnosis}</div>
+        </div>
+      )}
+      {rootCause && (
+        <div style={{ marginBottom: 14, padding: "12px 16px", background: "rgba(239,68,68,0.08)", borderRadius: 10, borderLeft: "3px solid #ef4444" }}>
+          <div style={{ fontSize: 10, opacity: 0.65, fontWeight: 700, marginBottom: 4 }}>🔍 根因推測</div>
+          <div style={{ fontSize: 13, lineHeight: 1.7, opacity: 0.9 }}>{rootCause}</div>
+        </div>
+      )}
+      {coaching && (
+        <div style={{ marginBottom: 14, padding: "14px 18px", background: "rgba(34,197,94,0.1)", borderRadius: 12, border: "1px solid rgba(34,197,94,0.3)" }}>
+          <div style={{ fontSize: 10, color: "#86efac", fontWeight: 800, letterSpacing: 1, marginBottom: 6 }}>
+            🎯 教練方向
+          </div>
+          {coaching.focus && (
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#ffffff", marginBottom: 4 }}>{coaching.focus}</div>
+          )}
+          {coaching.specificAction && (
+            <div style={{ fontSize: 12, opacity: 0.85, lineHeight: 1.6, marginBottom: 4 }}>
+              📋 具體動作: {coaching.specificAction}
+            </div>
+          )}
+          {coaching.expectedOutcome && (
+            <div style={{ fontSize: 11, opacity: 0.7, lineHeight: 1.5 }}>
+              ✅ 預期效果: {coaching.expectedOutcome}
+            </div>
+          )}
+        </div>
+      )}
+      {peerComparison && (
+        <div style={{ marginBottom: 14, padding: "10px 14px", background: "rgba(255,255,255,0.05)", borderRadius: 8, fontSize: 12, opacity: 0.8, lineHeight: 1.6 }}>
+          👥 {peerComparison}
+        </div>
+      )}
+      {riskFlag && riskFlag.length > 5 && (
+        <div style={{ marginBottom: 14, padding: "10px 14px", background: "rgba(239,68,68,0.12)", borderRadius: 8, fontSize: 12, color: "#fca5a5", fontWeight: 700, lineHeight: 1.5 }}>
+          {riskFlag}
+        </div>
+      )}
 
       {/* Next best action — 最醒目 */}
       {nba && (

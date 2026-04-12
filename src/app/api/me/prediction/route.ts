@@ -1,25 +1,52 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
 
 /**
- * 🔮 個人行為預測 — 預測業務下一步會做什麼 + 他今天/本月會不會達標
+ * 🔮 個人行為深度分析 — Claude 真正理解這個人
  *
  * GET /api/me/prediction?email=<email>
  *
- * 這是「人類行為建模」層 — Claude 更透徹地分析業務，並預測他下一步：
+ * 不是「通次少 多打幾通」這種廢話。
+ * 是透徹了解這位業務的:
+ *   - 行為模式變化 (接通率在漲但邀約率在掉 = 話術問題不是名單問題)
+ *   - 心理狀態推測 (賺了一筆就放鬆 vs 連續被拒開始躲)
+ *   - 跟「同等級同期」比較 (不是跟 Top 比，是跟同樣新人 / 同組 / 同品牌比)
+ *   - 具體 coaching 方向 (不是 "多打電話"，是 "你的開場白在第 15 秒失去客戶")
  *
- * 預測維度:
- *  1. todayProjection: 基於當下 pace 推算 EOD 會到達哪裡
- *  2. monthProjection: 基於當月 trend 推算月底結果
- *  3. momentumSignal: 3 天動能 (improving / declining / flat)
- *  4. riskSignal: 下一個會卡的點 (calls OK but appointments lagging / volume OK but close rate crashing)
- *  5. burnoutRisk: 連續多天 0 通 → 可能要離職
- *  6. dayOfWeekPattern: 這個人週幾最強 / 最弱
- *  7. bestHourPattern: 一天哪個時段成交率最高 (目前沒 hourly data, 用 day-of-week 代替)
- *  8. nextBestAction: Claude 推薦的「接下來 60 分鐘做這件事」
- *
- * Rule-based 算完，不調 Claude 以省 token (CEO dashboard 才用 Claude)
+ * 數據先用 rule-based 算投射，分析文字由 Claude 生成。
+ * Cache 在 claude_actions (每人每天 1 次深度分析)
  */
+
+const ANALYSIS_PROMPT = `你是墨宇戰情中樞的「行為分析師」，不是勵志導師。
+你要透徹分析這位業務的行為數據，像職業教練看球員比賽影片一樣精準。
+
+鐵則:
+1. 禁止說「加油」「你可以的」「努力」「多打電話」「通次不夠要多打」— 這些是沒用的廢話
+2. 你看的是 RATE OF CHANGE（變化率），不是絕對值。今天 100 通不重要，從昨天 150 掉到今天 100 才重要
+3. 你看的是 CONVERSION FUNNEL 的哪一層在漏。接通 → 邀約 → 出席 → 成交，是哪層卡的？
+4. 你要推測 WHY — 是名單品質？撥打時段？開場白？客戶 objection 處理？心態？post-close relaxation？
+5. 給的建議必須是「這個人才需要做的事」，不是任何人都能用的泛用建議
+6. 跟 peers 比較要精確（同組/同品牌/同期入職），不是跟全集團 top 比
+
+輸出格式 (strict JSON):
+{
+  "behaviorDiagnosis": "2-3 句話精準描述這個人目前的狀態（看數據變化趨勢 + 跟 peer 的差距 + 可能的根因）",
+  "keyInsight": "1 句最重要的發現 — 這個人最需要知道的 1 件事",
+  "rootCause": "根因推測 — 為什麼他卡在這裡（從數據裡推理，不是猜）",
+  "coachingDirection": {
+    "focus": "接下來 24 小時的訓練方向 (一句話)",
+    "specificAction": "具體動作 (要夠具體到可以現在就做，不是「多打電話」)",
+    "expectedOutcome": "做完後預期會看到什麼改善"
+  },
+  "peerComparison": "跟同組/同品牌的比較 — 他在哪裡比別人強、哪裡比別人弱",
+  "riskFlag": "⚠️ 如果有的話：burnout / 離職前兆 / post-close 放鬆 / 被拒絕太多次開始躲",
+  "monthProjection": {
+    "projected": "預測月底結果 (NT$ + 成交數)",
+    "confidence": "high/medium/low",
+    "condition": "在什麼條件下才能達到 (如果有的話)"
+  }
+}`;
 
 interface DailyRow {
   date: string;
@@ -29,6 +56,7 @@ interface DailyRow {
   shows: number;
   closes: number;
   revenue: number;
+  callMinutes: number;
 }
 
 function todayTaipei(): string {
@@ -37,56 +65,48 @@ function todayTaipei(): string {
   return tp.toISOString().slice(0, 10);
 }
 
-function dayOfWeek(dateStr: string): number {
-  // 0=Sun, 1=Mon, ... 6=Sat
-  return new Date(dateStr + "T00:00:00Z").getUTCDay();
-}
-
-function dayLabel(dow: number): string {
-  return ["週日", "週一", "週二", "週三", "週四", "週五", "週六"][dow];
-}
-
 export async function GET(req: NextRequest) {
   const email = req.nextUrl.searchParams.get("email");
-  if (!email) {
-    return Response.json({ ok: false, error: "email required" }, { status: 400 });
-  }
+  if (!email) return Response.json({ ok: false, error: "email required" }, { status: 400 });
 
   const supabase = getSupabaseAdmin();
   const today = todayTaipei();
 
-  // Last 30 days
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const startDate = thirtyDaysAgo.toISOString().slice(0, 10);
-
-  const { data: rows, error } = await supabase
-    .from("sales_metrics_daily")
-    .select("date, calls, connected, raw_appointments, appointments_show, closures, net_revenue_daily, brand, level, name")
-    .eq("email", email)
-    .gte("date", startDate)
-    .order("date", { ascending: true });
-
-  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-  const allRows = rows || [];
-
-  if (allRows.length === 0) {
-    return Response.json({
-      ok: true,
-      email,
-      bound: false,
-      message: "還沒有業務資料可以預測",
-    });
+  // Check cache (same person same day only 1 deep analysis)
+  const cacheKey = `prediction_${email}_${today}`;
+  const { data: cached } = await supabase
+    .from("claude_actions")
+    .select("details")
+    .eq("action_type", "deep_prediction")
+    .eq("target", cacheKey)
+    .maybeSingle();
+  if (cached && cached.details) {
+    return Response.json({ ok: true, email, bound: true, ...(cached.details as Record<string, unknown>), cached: true });
   }
 
-  const latest = allRows[allRows.length - 1] as Record<string, unknown>;
+  // Pull 30 days of data
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const { data: myRows } = await supabase
+    .from("sales_metrics_daily")
+    .select("date, calls, connected, raw_appointments, appointments_show, closures, net_revenue_daily, call_minutes, brand, team, name, level")
+    .eq("email", email)
+    .gte("date", thirtyDaysAgo.toISOString().slice(0, 10))
+    .order("date", { ascending: true });
+
+  if (!myRows || myRows.length === 0) {
+    return Response.json({ ok: true, email, bound: false });
+  }
+
+  const latest = myRows[myRows.length - 1] as Record<string, unknown>;
   const profile = {
     name: (latest.name as string) || email,
     brand: (latest.brand as string) || "-",
+    team: (latest.team as string) || "-",
     level: (latest.level as string) || null,
   };
 
-  const daily: DailyRow[] = allRows.map((r) => ({
+  const daily: DailyRow[] = myRows.map((r) => ({
     date: r.date as string,
     calls: Number(r.calls) || 0,
     connected: Number(r.connected) || 0,
@@ -94,233 +114,149 @@ export async function GET(req: NextRequest) {
     shows: Number(r.appointments_show) || 0,
     closes: Number(r.closures) || 0,
     revenue: Number(r.net_revenue_daily) || 0,
+    callMinutes: Number(r.call_minutes) || 0,
   }));
 
-  const todayData = daily.find((d) => d.date === today);
-  const recent7 = daily.filter((d) => {
-    const diff = (new Date(today).getTime() - new Date(d.date).getTime()) / (1000 * 3600 * 24);
-    return diff >= 0 && diff <= 6;
-  });
-  const prev7 = daily.filter((d) => {
-    const diff = (new Date(today).getTime() - new Date(d.date).getTime()) / (1000 * 3600 * 24);
-    return diff >= 7 && diff <= 13;
-  });
-
-  // 1. Today projection (linear extrapolation from current hour)
+  // Rule-based numbers (still useful for UI)
   const nowTp = new Date(Date.now() + 8 * 3600 * 1000);
   const hourTw = nowTp.getUTCHours() + nowTp.getUTCMinutes() / 60;
-  const shiftStart = 9;
-  const shiftEnd = 20;
-  const elapsedFrac = Math.max(0, Math.min(1, (hourTw - shiftStart) / (shiftEnd - shiftStart)));
+  const elapsedFrac = Math.max(0, Math.min(1, (hourTw - 9) / 11));
+  const todayData = daily.find((d) => d.date === today);
+  const activeDays = daily.filter((d) => d.date !== today && d.calls > 0);
+  const avgCalls = activeDays.length > 0 ? activeDays.reduce((s, d) => s + d.calls, 0) / activeDays.length : 0;
+  const projectedCalls = elapsedFrac > 0.1 ? Math.round((todayData?.calls || 0) / elapsedFrac) : Math.round(avgCalls);
 
-  // Historical average daily calls (last 7 days excluding today and 0-call days)
-  const activeDays = recent7.filter((d) => d.date !== today && d.calls > 0);
-  const avgHistoricalCalls = activeDays.length > 0
-    ? activeDays.reduce((s, d) => s + d.calls, 0) / activeDays.length
-    : 0;
-  const avgHistoricalRev = activeDays.length > 0
-    ? activeDays.reduce((s, d) => s + d.revenue, 0) / activeDays.length
-    : 0;
-
-  const currentCalls = todayData?.calls || 0;
-  const currentRev = todayData?.revenue || 0;
-  const projectedCalls = elapsedFrac > 0.1
-    ? Math.round(currentCalls / elapsedFrac)
-    : Math.round(avgHistoricalCalls);
-  const projectedRev = elapsedFrac > 0.1
-    ? Math.round(currentRev / elapsedFrac)
-    : Math.round(avgHistoricalRev);
-
-  const todayProjection = {
-    now: `${Math.floor(hourTw)}:${String(Math.floor((hourTw % 1) * 60)).padStart(2, "0")}`,
-    elapsedPct: Math.round(elapsedFrac * 100),
-    currentCalls,
-    currentRev,
-    projectedCalls,
-    projectedRev,
-    avgHistoricalCalls: Math.round(avgHistoricalCalls),
-    avgHistoricalRev: Math.round(avgHistoricalRev),
-    vsHistoricalPct: avgHistoricalCalls > 0 ? Math.round(((projectedCalls - avgHistoricalCalls) / avgHistoricalCalls) * 100) : null,
-  };
-
-  // 2. Month projection
+  // Month stats
   const monthStart = today.slice(0, 8) + "01";
-  const monthRows = daily.filter((d) => d.date >= monthStart && d.date <= today);
-  const daysElapsedInMonth = Math.max(1, monthRows.length);
-  const monthCalls = monthRows.reduce((s, d) => s + d.calls, 0);
+  const monthRows = daily.filter((d) => d.date >= monthStart);
   const monthRev = monthRows.reduce((s, d) => s + d.revenue, 0);
   const monthCloses = monthRows.reduce((s, d) => s + d.closes, 0);
   const daysInMonth = new Date(new Date(today).getFullYear(), new Date(today).getMonth() + 1, 0).getDate();
   const daysRemaining = daysInMonth - parseInt(today.slice(-2), 10);
-  const avgDailyRev = monthRev / daysElapsedInMonth;
-  const monthProjection = {
-    daysElapsed: daysElapsedInMonth,
-    daysTotal: daysInMonth,
-    daysRemaining,
-    currentCalls: monthCalls,
-    currentRev: monthRev,
-    currentCloses: monthCloses,
-    projectedMonthRev: Math.round(monthRev + avgDailyRev * daysRemaining),
-    avgDailyRev: Math.round(avgDailyRev),
-  };
+  const avgDailyRev = monthRows.length > 0 ? monthRev / monthRows.length : 0;
+  const projectedMonthRev = Math.round(monthRev + avgDailyRev * daysRemaining);
 
-  // 3. Momentum signal (last 3 days vs prev 3 days calls)
-  const last3 = daily.slice(-3);
-  const prev3 = daily.slice(-6, -3);
-  const last3Avg = last3.length > 0 ? last3.reduce((s, d) => s + d.calls, 0) / last3.length : 0;
-  const prev3Avg = prev3.length > 0 ? prev3.reduce((s, d) => s + d.calls, 0) / prev3.length : 0;
-  let momentum: "surging" | "improving" | "flat" | "declining" | "crashing" = "flat";
-  let momentumPct = 0;
-  if (prev3Avg > 0) {
-    momentumPct = ((last3Avg - prev3Avg) / prev3Avg) * 100;
-    if (momentumPct > 30) momentum = "surging";
-    else if (momentumPct > 10) momentum = "improving";
-    else if (momentumPct < -30) momentum = "crashing";
-    else if (momentumPct < -10) momentum = "declining";
-    else momentum = "flat";
+  // Peer data (same brand this month)
+  const { data: peerRows } = await supabase
+    .from("sales_metrics_daily")
+    .select("email, name, team, calls, connected, raw_appointments, appointments_show, closures, net_revenue_daily")
+    .eq("brand", profile.brand)
+    .gte("date", monthStart);
+  const peerByEmail = new Map<string, { name: string; team: string; calls: number; connected: number; appts: number; shows: number; closes: number; rev: number }>();
+  for (const r of peerRows || []) {
+    const e = (r.email as string) || "";
+    if (!e) continue;
+    const p = peerByEmail.get(e) || { name: (r.name as string) || e, team: (r.team as string) || "-", calls: 0, connected: 0, appts: 0, shows: 0, closes: 0, rev: 0 };
+    p.calls += Number(r.calls) || 0;
+    p.connected += Number(r.connected) || 0;
+    p.appts += Number(r.raw_appointments) || 0;
+    p.shows += Number(r.appointments_show) || 0;
+    p.closes += Number(r.closures) || 0;
+    p.rev += Number(r.net_revenue_daily) || 0;
+    peerByEmail.set(e, p);
+  }
+  const peers = Array.from(peerByEmail.values()).sort((a, b) => b.rev - a.rev);
+  const myPeerIdx = peers.findIndex((p) => p.name === profile.name);
+  const sameTeam = peers.filter((p) => p.team === profile.team);
+
+  // Build Claude context
+  const context = [
+    `【業務】${profile.name} · ${profile.brand} · ${profile.team} · 等級 ${profile.level || "未分"}`,
+    "",
+    "【最近 7 天 (日粒度)】",
+    ...daily.slice(-7).map((d) => {
+      const cr = d.calls > 0 ? (d.connected / d.calls * 100).toFixed(1) : "0";
+      const ir = d.connected > 0 ? (d.appts / d.connected * 100).toFixed(1) : "0";
+      const avgMin = d.calls > 0 ? (d.callMinutes / d.calls).toFixed(1) : "0";
+      return `  ${d.date}: ${d.calls}通 · 接通${d.connected}(${cr}%) · 邀約${d.appts}(${ir}%) · 出席${d.shows} · 成交${d.closes} · $${d.revenue.toLocaleString()} · 均通${avgMin}分`;
+    }),
+    "",
+    `【本月累計】${monthRev.toLocaleString()} / ${monthCloses} 成交 / ${monthRows.length} 天有資料`,
+    `【月底預估】NT$${projectedMonthRev.toLocaleString()} (剩 ${daysRemaining} 天)`,
+    "",
+    `【同品牌 ${profile.brand} 本月排名 (共 ${peers.length} 人)】`,
+    `  他排名 #${myPeerIdx + 1}`,
+    `  Top 3: ${peers.slice(0, 3).map((p, i) => `${i + 1}.${p.name} $${p.rev.toLocaleString()} (${p.calls}通/${p.closes}成)`).join(" · ")}`,
+    "",
+    `【同組 ${profile.team} 對比 (${sameTeam.length} 人)】`,
+    ...sameTeam.map((p) => {
+      const cr = p.calls > 0 ? ((p.connected / p.calls) * 100).toFixed(0) : "0";
+      const ir = p.connected > 0 ? ((p.appts / p.connected) * 100).toFixed(1) : "0";
+      return `  ${p.name}: ${p.calls}通 接通率${cr}% 邀約率${ir}% ${p.closes}成交 $${p.rev.toLocaleString()}`;
+    }),
+    "",
+    `【30 天趨勢 — 接通率/邀約率/成交率】`,
+    ...daily.slice(-10).map((d) => {
+      const cr = d.calls > 0 ? (d.connected / d.calls * 100).toFixed(0) : "-";
+      const ir = d.connected > 0 ? (d.appts / d.connected * 100).toFixed(1) : "-";
+      const sr = d.appts > 0 ? (d.shows / d.appts * 100).toFixed(0) : "-";
+      return `  ${d.date}: 接通${cr}% → 邀約${ir}% → 出席${sr}%`;
+    }),
+  ].join("\n");
+
+  // Call Claude for deep analysis
+  let analysis: Record<string, unknown> = {};
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (apiKey) {
+    try {
+      const client = new Anthropic({ apiKey });
+      const msg = await client.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        system: ANALYSIS_PROMPT,
+        messages: [{ role: "user", content: context }],
+      });
+      const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          analysis = JSON.parse(jsonMatch[0]);
+        } catch {
+          analysis = { raw: text };
+        }
+      } else {
+        analysis = { raw: text };
+      }
+    } catch (e) {
+      analysis = { error: e instanceof Error ? e.message : "Claude call failed" };
+    }
   }
 
-  // 4. Risk signal — find the bottleneck
-  // Compare recent 7 vs prev 7 funnel rates
-  const agg = (rows: DailyRow[]) => rows.reduce(
-    (a, r) => ({ calls: a.calls + r.calls, connected: a.connected + r.connected, appts: a.appts + r.appts, shows: a.shows + r.shows, closes: a.closes + r.closes, revenue: a.revenue + r.revenue }),
-    { calls: 0, connected: 0, appts: 0, shows: 0, closes: 0, revenue: 0 }
-  );
-  const recent7Agg = agg(recent7);
-  const prev7Agg = agg(prev7);
-  const rate = (n: number, d: number) => (d > 0 ? n / d : 0);
-  const recentRates = {
-    connectRate: rate(recent7Agg.connected, recent7Agg.calls),
-    inviteRate: rate(recent7Agg.appts, recent7Agg.connected),
-    showRate: rate(recent7Agg.shows, recent7Agg.appts),
-    closeRate: rate(recent7Agg.closes, recent7Agg.shows),
-  };
-  const prevRates = {
-    connectRate: rate(prev7Agg.connected, prev7Agg.calls),
-    inviteRate: rate(prev7Agg.appts, prev7Agg.connected),
-    showRate: rate(prev7Agg.shows, prev7Agg.appts),
-    closeRate: rate(prev7Agg.closes, prev7Agg.shows),
-  };
-  const rateDeltas = {
-    connectRate: recentRates.connectRate - prevRates.connectRate,
-    inviteRate: recentRates.inviteRate - prevRates.inviteRate,
-    showRate: recentRates.showRate - prevRates.showRate,
-    closeRate: recentRates.closeRate - prevRates.closeRate,
-  };
-  // The worst delta = the bottleneck about to break
-  const worstRate = Object.entries(rateDeltas).sort((a, b) => a[1] - b[1])[0];
-  const bottleneck = worstRate && worstRate[1] < -0.02
-    ? { metric: worstRate[0], delta: worstRate[1], currentRate: recentRates[worstRate[0] as keyof typeof recentRates] }
-    : null;
-
-  // 5. Burnout risk — consecutive 0-call days in last 5
-  const last5 = daily.slice(-5);
-  let zeroStreak = 0;
-  for (let i = last5.length - 1; i >= 0; i--) {
-    if (last5[i].calls === 0) zeroStreak++;
-    else break;
-  }
-  const burnoutRisk = zeroStreak >= 3 ? "high" : zeroStreak >= 2 ? "medium" : "low";
-
-  // 6. Day-of-week pattern — find which day this person is strongest
-  const byDow: Record<number, { count: number; revSum: number; callsSum: number }> = {};
-  for (const d of daily) {
-    const dow = dayOfWeek(d.date);
-    const e = byDow[dow] || { count: 0, revSum: 0, callsSum: 0 };
-    e.count += 1;
-    e.revSum += d.revenue;
-    e.callsSum += d.calls;
-    byDow[dow] = e;
-  }
-  const dowStats = Object.entries(byDow).map(([dow, v]) => ({
-    dow: parseInt(dow),
-    label: dayLabel(parseInt(dow)),
-    avgRev: v.count > 0 ? v.revSum / v.count : 0,
-    avgCalls: v.count > 0 ? v.callsSum / v.count : 0,
-    samples: v.count,
-  }));
-  dowStats.sort((a, b) => b.avgRev - a.avgRev);
-  const bestDay = dowStats[0];
-  const worstDay = dowStats[dowStats.length - 1];
-
-  // 7. Next best action — Claude-like heuristic
-  let nextBestAction = { title: "", detail: "", priority: "normal" as "critical" | "high" | "normal" };
-  if (burnoutRisk === "high") {
-    nextBestAction = {
-      title: "🚨 立刻撥第 1 通電話",
-      detail: `你連續 ${zeroStreak} 天沒打電話，這是 burnout 前兆。現在就打 1 通，任何對象都好，把節奏找回來。跟主管說狀況。`,
-      priority: "critical",
-    };
-  } else if (momentum === "crashing") {
-    nextBestAction = {
-      title: "🔴 今晚 review 最近 3 通錄音",
-      detail: `你近 3 天通次比前 3 天掉了 ${Math.abs(momentumPct).toFixed(0)}%，狀態在下滑。下班前挑 3 通最近的通話自我診斷。`,
-      priority: "critical",
-    };
-  } else if (bottleneck && bottleneck.metric === "closeRate") {
-    nextBestAction = {
-      title: "⚠️ 今天重點: 結案話術演練",
-      detail: `你的成交率比上週下滑 ${Math.abs(bottleneck.delta * 100).toFixed(1)}%。接下來的 1 小時找主管或同事演練 3 次「要錢」話術。`,
-      priority: "high",
-    };
-  } else if (bottleneck && bottleneck.metric === "inviteRate") {
-    nextBestAction = {
-      title: "⚠️ 今天重點: 邀約轉換",
-      detail: `你的邀約率比上週下滑 ${Math.abs(bottleneck.delta * 100).toFixed(1)}%。接通後 30 秒內就要切入邀約，不要聊天太久。`,
-      priority: "high",
-    };
-  } else if (bottleneck && bottleneck.metric === "connectRate") {
-    nextBestAction = {
-      title: "⚠️ 今天重點: 接通率優化",
-      detail: `你的接通率掉了 ${Math.abs(bottleneck.delta * 100).toFixed(1)}%。可能是名單品質或撥打時段問題。試試改到中午或傍晚，或換一批新名單。`,
-      priority: "high",
-    };
-  } else if (todayProjection.vsHistoricalPct != null && todayProjection.vsHistoricalPct < -30) {
-    nextBestAction = {
-      title: "📈 追進度",
-      detail: `照你目前速度 EOD 只到 ${todayProjection.projectedCalls} 通，比平均 ${todayProjection.avgHistoricalCalls} 通少 ${Math.abs(todayProjection.vsHistoricalPct)}%。下小時衝 20 通就能追回來。`,
-      priority: "high",
-    };
-  } else if (momentum === "surging") {
-    nextBestAction = {
-      title: "🔥 趁勝追擊",
-      detail: `你近 3 天通次比前 3 天成長 ${momentumPct.toFixed(0)}%，狀態在上升。維持節奏，今天再加 20 通有機會創新高。`,
-      priority: "normal",
-    };
-  } else {
-    nextBestAction = {
-      title: "✅ 穩定執行",
-      detail: `你目前狀態穩定。維持節奏，下 1 小時目標再 20 通 + 確保有 1 個邀約進來。`,
-      priority: "normal",
-    };
-  }
-
-  return Response.json({
+  // Combine numerical data + Claude analysis
+  const result = {
     ok: true,
     email,
     bound: true,
     profile,
-    todayProjection,
-    monthProjection,
-    momentum: {
-      label: momentum,
-      pct: Math.round(momentumPct),
-      last3AvgCalls: Math.round(last3Avg),
-      prev3AvgCalls: Math.round(prev3Avg),
+    // === 數值層 (rule-based, 給 UI 用) ===
+    todayProjection: {
+      now: `${Math.floor(hourTw)}:${String(Math.floor((hourTw % 1) * 60)).padStart(2, "0")}`,
+      elapsedPct: Math.round(elapsedFrac * 100),
+      currentCalls: todayData?.calls || 0,
+      projectedCalls,
+      avgHistoricalCalls: Math.round(avgCalls),
     },
-    bottleneck,
-    rates: {
-      recent7: recentRates,
-      prev7: prevRates,
-      deltas: rateDeltas,
+    monthProjection: {
+      currentRev: monthRev,
+      currentCloses: monthCloses,
+      projectedMonthRev,
+      daysRemaining,
     },
-    burnoutRisk: {
-      level: burnoutRisk,
-      zeroStreak,
-    },
-    bestDay: bestDay.samples >= 2 ? bestDay : null,
-    worstDay: worstDay.samples >= 2 ? worstDay : null,
-    nextBestAction,
+    brandRank: myPeerIdx >= 0 ? myPeerIdx + 1 : null,
+    brandTotal: peers.length,
+    // === Claude 分析層 (真正有價值的部分) ===
+    ...analysis,
     generatedAt: new Date().toISOString(),
+  };
+
+  // Cache
+  await supabase.from("claude_actions").insert({
+    action_type: "deep_prediction",
+    target: cacheKey,
+    summary: (analysis as { keyInsight?: string }).keyInsight || `${profile.name} 深度分析`,
+    details: result,
+    result: "success",
   });
+
+  return Response.json(result);
 }
