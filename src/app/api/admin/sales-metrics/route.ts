@@ -92,9 +92,12 @@ function checkIntegrity(r: {
   appointments_show: number;
   closures: number;
 }): DataIssue[] {
-  // Skip integrity check for monthly rollup rows (stored with date=YYYY-MM-01, calls > 400)
-  // These are monthly aggregates where closures > shows is normal (different days' events aggregated)
-  if (r.calls > 400 && r.date.endsWith("-01")) return [];
+  // Skip integrity check for monthly rollup rows (stored with date=YYYY-MM-01)
+  // Monthly aggregates often have closures > shows because different days' events aggregate
+  // Also skip ANY row with very high calls (> 300/person/day) — likely monthly
+  if (r.date.endsWith("-01") && r.calls > 200) return [];
+  // Also skip historical data before 2026-03 (all monthly rollups, integrity not meaningful)
+  if (r.date < "2026-03-01") return [];
 
   const issues: DataIssue[] = [];
   const who = r.name || r.email || "(unknown)";

@@ -206,7 +206,9 @@ export async function GET(req: NextRequest) {
         system: ANALYSIS_PROMPT,
         messages: [{ role: "user", content: context }],
       });
-      const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+      let text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+      // Strip code fences (```json ... ```) — Claude often wraps JSON in code blocks
+      text = text.replace(/```(?:json)?\s*/gi, "").replace(/```\s*/g, "").trim();
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
