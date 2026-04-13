@@ -73,7 +73,8 @@ export default function RecruitPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = localStorage.getItem("moyu_employee_email") || sessionStorage.getItem("moyu_current_user");
+    // 招聘頁面用自己的 key，不跟 /me 衝突
+    const stored = localStorage.getItem("moyu_recruit_email");
     if (stored) { setEmail(stored); setSubmitted(true); }
   }, []);
 
@@ -97,8 +98,7 @@ export default function RecruitPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.includes("@")) return;
-    localStorage.setItem("moyu_employee_email", email);
-    sessionStorage.setItem("moyu_current_user", email);
+    localStorage.setItem("moyu_recruit_email", email);
     setSubmitted(true);
   };
 
@@ -179,7 +179,7 @@ export default function RecruitPage() {
             <div style={{ fontSize: 22, fontWeight: 900 }}>招聘工作台</div>
             <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>{email}</div>
           </div>
-          <button onClick={() => { localStorage.removeItem("moyu_employee_email"); sessionStorage.removeItem("moyu_current_user"); setSubmitted(false); }}
+          <button onClick={() => { localStorage.removeItem("moyu_recruit_email"); setSubmitted(false); setEmail(""); }}
             style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.35)", background: "transparent", color: "#fff", fontSize: 12, cursor: "pointer" }}>
             登出
           </button>
