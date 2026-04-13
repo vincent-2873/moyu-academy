@@ -2,20 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-/**
- * 招聘員前台 — /recruit
- *
- * moyuhunt brand 的人進來看這個，不是業務的 /me
- *
- * 功能：
- *   1. Pipeline 總覽 (今日/本週/本月 活動量 + 積分)
- *   2. 求職者清單 + 狀態追蹤
- *   3. 新增求職者
- *   4. 每日回報 (發信/邀約/面試/錄取)
- *   5. Claude 分析求職者 (丟筆記或錄音)
- *   6. 面試建議 (問 Claude 該問什麼)
- */
-
 interface Candidate {
   id: string;
   name: string;
@@ -47,15 +33,23 @@ interface ClaudeAnalysis {
 
 const STAGES = [
   { id: "new", label: "待處理", color: "#94a3b8" },
-  { id: "contacted", label: "已發信/致電", color: "#3b82f6" },
-  { id: "invited", label: "已邀約面試", color: "#8b5cf6" },
-  { id: "interview_1", label: "一面完成", color: "#f59e0b" },
-  { id: "interview_2", label: "二面完成", color: "#ea580c" },
-  { id: "offer", label: "已發 Offer", color: "#16a34a" },
-  { id: "onboarded", label: "已報到", color: "#059669" },
+  { id: "contacted", label: "已發信", color: "#3b82f6" },
+  { id: "invited", label: "已邀約", color: "#8b5cf6" },
+  { id: "interview_1", label: "一面", color: "#f59e0b" },
+  { id: "interview_2", label: "二面", color: "#ea580c" },
+  { id: "offer", label: "Offer", color: "#16a34a" },
+  { id: "onboarded", label: "報到", color: "#059669" },
   { id: "no_response", label: "未回覆", color: "#9ca3af" },
   { id: "rejected", label: "不合適", color: "#dc2626" },
-  { id: "dropped", label: "求職者放棄", color: "#6b7280" },
+  { id: "dropped", label: "放棄", color: "#6b7280" },
+];
+
+const PIPELINE_STEPS = [
+  { num: "\u2460", label: "\u641c\u4eba", desc: "\u5230 104 / IG \u627e\u5230\u5c0d\u7684\u4eba", color: "#3b82f6", bg: "#eff6ff" },
+  { num: "\u2461", label: "\u767c\u4fe1", desc: "\u767c\u4fe1\u4ef6\u6216\u81f4\u96fb\u9080\u7d04", color: "#8b5cf6", bg: "#f5f3ff" },
+  { num: "\u2462", label: "\u8ffd\u8e64", desc: "\u78ba\u8a8d\u5c0d\u65b9\u662f\u5426\u56de\u8986", color: "#f59e0b", bg: "#fffbeb" },
+  { num: "\u2463", label: "\u9762\u8a66", desc: "\u5b89\u6392\u9762\u8a66\u4e26\u8a55\u4f30", color: "#ea580c", bg: "#fff7ed" },
+  { num: "\u2464", label: "\u9304\u53d6", desc: "\u767c Offer \u4e26\u5b8c\u6210\u5831\u5230", color: "#16a34a", bg: "#f0fdf4" },
 ];
 
 export default function RecruitPage() {
@@ -63,38 +57,24 @@ export default function RecruitPage() {
   const [submitted, setSubmitted] = useState(false);
   const [pipeline, setPipeline] = useState<{ summary: PipelineSummary; candidates: Candidate[] } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"pipeline" | "add" | "report" | "analyze">("pipeline");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; type: "ok" | "err" | "info" } | null>(null);
 
-  // Add candidate form
-  const [newName, setNewName] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newPhone, setNewPhone] = useState("");
-  const [newSource, setNewSource] = useState("104");
-  const [newBrand, setNewBrand] = useState("nschool");
-  const [newPosition, setNewPosition] = useState("電銷業務");
+  // Quick-add form
+  const [qName, setQName] = useState("");
+  const [qPhone, setQPhone] = useState("");
+  const [qCity, setQCity] = useState("");
+  const [qMethod, setQMethod] = useState("\u4fe1\u4ef6\u9080\u7d04");
 
-  // Daily report form
-  const [rptSent, setRptSent] = useState(0);
-  const [rptCalls, setRptCalls] = useState(0);
-  const [rptInvites, setRptInvites] = useState(0);
-  const [rptInterviews, setRptInterviews] = useState(0);
-  const [rptOffers, setRptOffers] = useState(0);
-  const [rptHires, setRptHires] = useState(0);
-
-  // Claude analysis
-  const [analyzeTarget, setAnalyzeTarget] = useState("");
-  const [analyzeNotes, setAnalyzeNotes] = useState("");
-  const [analysisResult, setAnalysisResult] = useState<ClaudeAnalysis | null>(null);
+  // AI analysis
+  const [aiName, setAiName] = useState("");
+  const [aiNotes, setAiNotes] = useState("");
+  const [aiResult, setAiResult] = useState<ClaudeAnalysis | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem("moyu_employee_email") || sessionStorage.getItem("moyu_current_user");
-    if (stored) {
-      setEmail(stored);
-      setSubmitted(true);
-    }
+    if (stored) { setEmail(stored); setSubmitted(true); }
   }, []);
 
   const loadPipeline = useCallback(async () => {
@@ -104,14 +84,15 @@ export default function RecruitPage() {
       const r = await fetch("/api/admin/recruit-pipeline", { cache: "no-store" });
       const d = await r.json();
       if (d.ok) setPipeline({ summary: d.summary, candidates: d.candidates || [] });
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [email]);
 
-  useEffect(() => {
-    if (submitted) loadPipeline();
-  }, [submitted, loadPipeline]);
+  useEffect(() => { if (submitted) loadPipeline(); }, [submitted, loadPipeline]);
+
+  const flash = (text: string, type: "ok" | "err" | "info" = "info") => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg(null), 4000);
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,264 +106,151 @@ export default function RecruitPage() {
   if (!submitted) {
     return (
       <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #0f172a, #1e1b4b)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-        <div style={{ background: "#ffffff", borderRadius: 20, padding: 32, maxWidth: 400, width: "100%", boxShadow: "0 20px 60px -20px rgba(0,0,0,0.4)" }}>
+        <div style={{ background: "#fff", borderRadius: 20, padding: 32, maxWidth: 400, width: "100%", boxShadow: "0 20px 60px -20px rgba(0,0,0,0.4)" }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>🎯</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: "#0f172a" }}>墨宇戰情中樞 · 招聘</div>
-            <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>輸入你的工作 email，開始招聘</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: "#0f172a" }}>墨宇招聘中心</div>
+            <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>輸入工作 Email 開始使用</div>
           </div>
-          <form onSubmit={handleLogin}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                style={{ padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e2e8f0", fontSize: 14, background: "#f8fafc" }}
-              />
-              <button
-                type="submit"
-                style={{ padding: "12px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #4f46e5, #7c3aed)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
-              >
-                進入招聘中心 →
-              </button>
-            </div>
+          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com"
+              style={{ padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e2e8f0", fontSize: 14, background: "#f8fafc" }} />
+            <button type="submit" style={{ ...btnStyle, width: "100%" }}>進入招聘中心</button>
           </form>
         </div>
       </div>
     );
   }
 
-  // ── Main recruit dashboard ──
+  // ── Data ──
   const summary = pipeline?.summary;
   const candidates = pipeline?.candidates || [];
+  const recent = [...candidates].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 10);
 
-  const addCandidate = async () => {
-    if (!newName) { setMsg("請填求職者姓名"); return; }
+  const todaySent = summary?.thisWeekOutreach ?? 0;
+  const todayInvite = summary?.byStage?.["invited"] ?? 0;
+  const weekInterview = summary?.thisWeekInterviews ?? 0;
+  const weekHire = summary?.thisWeekHires ?? 0;
+
+  // ── Actions ──
+  const quickAdd = async () => {
+    if (!qName) { flash("請填姓名", "err"); return; }
     setBusy(true);
-    setMsg(null);
     try {
-      const r = await fetch("/api/admin/recruit-pipeline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "add_candidate",
-          name: newName,
-          email: newEmail || null,
-          phone: newPhone || null,
-          source: newSource,
-          brand: newBrand,
-          position: newPosition,
-          owner_email: email,
-        }),
+      const r = await fetch("/api/recruit/auto-pipeline", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateName: qName, phone: qPhone || null, city: qCity || null, inviteMethod: qMethod, recruiterName: email, jobType: "電銷業務", source: "104" }),
       });
       const d = await r.json();
-      if (d.ok) {
-        setMsg("✅ 求職者已新增");
-        setNewName(""); setNewEmail(""); setNewPhone("");
-        loadPipeline();
-      } else {
-        setMsg(`❌ ${d.error}`);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitReport = async () => {
-    setBusy(true);
-    setMsg(null);
-    try {
-      const r = await fetch("/api/recruit/report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "daily_report",
-          recruiterEmail: email,
-          sentCount: rptSent,
-          callCount: rptCalls,
-          inviteCount: rptInvites,
-          interviewCount: rptInterviews,
-          offerCount: rptOffers,
-          hireCount: rptHires,
-        }),
-      });
-      const d = await r.json();
-      setMsg(d.message || (d.ok ? "✅ 回報成功" : `❌ ${d.error}`));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const analyzeCandidate = async () => {
-    if (!analyzeTarget || !analyzeNotes) { setMsg("請填求職者名字 + 面試筆記"); return; }
-    setBusy(true);
-    setMsg(null);
-    setAnalysisResult(null);
-    try {
-      const r = await fetch("/api/recruit/report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "analyze_candidate",
-          candidateName: analyzeTarget,
-          interviewNotes: analyzeNotes,
-          recruiterEmail: email,
-        }),
-      });
-      const d = await r.json();
-      if (d.ok) {
-        setAnalysisResult(d.analysis as ClaudeAnalysis);
-        setMsg("✅ 分析完成");
-      } else {
-        setMsg(`❌ ${d.error}`);
-      }
-    } finally {
-      setBusy(false);
-    }
+      if (d.ok || d.success) { flash("已新增紀錄", "ok"); setQName(""); setQPhone(""); setQCity(""); loadPipeline(); }
+      else flash(d.error || "新增失敗", "err");
+    } catch { flash("網路錯誤", "err"); }
+    finally { setBusy(false); }
   };
 
   const updateStage = async (id: string, stage: string) => {
     await fetch("/api/recruit/report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "candidate_update", recruitId: id, newStage: stage, recruiterEmail: email }),
     });
     loadPipeline();
   };
 
+  const runAnalysis = async () => {
+    if (!aiName || !aiNotes) { flash("請填姓名和面試筆記", "err"); return; }
+    setBusy(true); setAiResult(null);
+    try {
+      const r = await fetch("/api/recruit/report", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "analyze_candidate", candidateName: aiName, interviewNotes: aiNotes, recruiterEmail: email }),
+      });
+      const d = await r.json();
+      if (d.ok) { setAiResult(d.analysis as ClaudeAnalysis); flash("分析完成", "ok"); }
+      else flash(d.error || "分析失敗", "err");
+    } catch { flash("網路錯誤", "err"); }
+    finally { setBusy(false); }
+  };
+
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9" }}>
-      {/* Header */}
-      <div style={{ background: "linear-gradient(135deg, #1e1b4b, #4c1d95)", padding: "20px 28px", color: "#fff", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 24, fontWeight: 900 }}>🎯 墨宇招聘中心</div>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>{email}</div>
-        <div style={{ flex: 1 }} />
-        <button
-          onClick={() => { localStorage.removeItem("moyu_employee_email"); sessionStorage.removeItem("moyu_current_user"); setSubmitted(false); }}
-          style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", background: "transparent", color: "#fff", fontSize: 12, cursor: "pointer" }}
-        >
-          登出
-        </button>
-      </div>
-
-      {/* Tab bar */}
-      <div style={{ display: "flex", gap: 0, background: "#fff", borderBottom: "1px solid #e2e8f0" }}>
-        {([
-          { id: "pipeline", label: "📋 邀約紀錄", icon: "" },
-          { id: "add", label: "➕ 新增求職者", icon: "" },
-          { id: "report", label: "📝 今日回報", icon: "" },
-          { id: "analyze", label: "🧠 AI 面試分析", icon: "" },
-        ] as const).map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              flex: 1,
-              padding: "14px 16px",
-              border: "none",
-              borderBottom: activeTab === tab.id ? "3px solid #4f46e5" : "3px solid transparent",
-              background: activeTab === tab.id ? "rgba(79,70,229,0.05)" : "transparent",
-              color: activeTab === tab.id ? "#4f46e5" : "#64748b",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            {tab.label}
+    <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
+      {/* ═══ Header ═══ */}
+      <div style={{ background: "linear-gradient(135deg, #4338ca, #7c3aed)", padding: "20px 24px", color: "#fff" }}>
+        <div style={{ maxWidth: 800, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 900 }}>招聘工作台</div>
+            <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>{email}</div>
+          </div>
+          <button onClick={() => { localStorage.removeItem("moyu_employee_email"); sessionStorage.removeItem("moyu_current_user"); setSubmitted(false); }}
+            style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.35)", background: "transparent", color: "#fff", fontSize: 12, cursor: "pointer" }}>
+            登出
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* Message bar */}
+      {/* ═══ Toast ═══ */}
       {msg && (
-        <div style={{ margin: "16px 20px 0", padding: "10px 14px", background: msg.startsWith("✅") ? "rgba(34,197,94,0.1)" : msg.startsWith("🔴") || msg.startsWith("❌") ? "rgba(239,68,68,0.1)" : "rgba(59,130,246,0.1)", borderRadius: 10, fontSize: 13, color: msg.startsWith("✅") ? "#16a34a" : msg.startsWith("❌") || msg.startsWith("🔴") ? "#dc2626" : "#1d4ed8" }}>
-          {msg}
+        <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 999, padding: "10px 20px", borderRadius: 10,
+          background: msg.type === "ok" ? "#16a34a" : msg.type === "err" ? "#dc2626" : "#2563eb", color: "#fff", fontSize: 14, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
+          {msg.text}
         </div>
       )}
 
-      <div style={{ padding: "20px", maxWidth: 1000, margin: "0 auto" }}>
-        {/* ═══ Pipeline Tab ═══ */}
-        {activeTab === "pipeline" && (
+      <div style={{ maxWidth: 800, margin: "0 auto", padding: "20px 16px" }}>
+
+        {/* ═══ SECTION: Pipeline Steps ═══ */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 24, overflowX: "auto" }}>
+          {PIPELINE_STEPS.map((s) => (
+            <div key={s.num} style={{ flex: 1, minWidth: 110, background: s.bg, border: `1.5px solid ${s.color}30`, borderRadius: 12, padding: "12px 10px", textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: s.color }}>{s.num}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: s.color, marginTop: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, lineHeight: 1.4 }}>{s.desc}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ═══ SECTION: KPI Dashboard ═══ */}
+        <SectionHeader title="今日戰績" subtitle="你今天的關鍵數字，一眼看清楚進度" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
+          <KpiCard label="今日發信" value={todaySent} color="#3b82f6" />
+          <KpiCard label="今日邀約" value={todayInvite} color="#8b5cf6" />
+          <KpiCard label="本週面試" value={weekInterview} color="#f59e0b" />
+          <KpiCard label="本週錄取" value={weekHire} color="#16a34a" />
+        </div>
+
+        {/* ═══ SECTION: Quick Add ═══ */}
+        <SectionHeader title="快速新增邀約" subtitle="找到人了？花 10 秒記錄下來，不要漏掉任何一個" />
+        <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 28, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Field label="姓名 *" value={qName} onChange={setQName} placeholder="王小明" />
+            <Field label="電話" value={qPhone} onChange={setQPhone} placeholder="0912-345-678" />
+            <Field label="所在城市" value={qCity} onChange={setQCity} placeholder="台北" />
+            <div>
+              <div style={labelStyle}>邀約方式</div>
+              <select value={qMethod} onChange={(e) => setQMethod(e.target.value)} style={inputStyle}>
+                <option value="信件邀約">信件邀約</option>
+                <option value="電話邀約">電話邀約</option>
+                <option value="主動應徵">主動應徵</option>
+                <option value="內推">內推</option>
+                <option value="IG">IG</option>
+                <option value="FB">FB</option>
+              </select>
+            </div>
+          </div>
+          <button onClick={quickAdd} disabled={busy} style={{ ...btnStyle, width: "100%", marginTop: 14 }}>
+            {busy ? "新增中..." : "新增這筆邀約紀錄"}
+          </button>
+        </div>
+
+        {/* ═══ SECTION: Stage Funnel ═══ */}
+        {summary && Object.keys(summary.byStage).length > 0 && (
           <>
-            {/* Summary cards */}
-            {summary && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 20 }}>
-                <SummaryCard label="邀約總數" value={summary.totalCandidates} color="#4f46e5" />
-                <SummaryCard label="本週發信/致電" value={summary.thisWeekOutreach} color="#3b82f6" />
-                <SummaryCard label="本週面試" value={summary.thisWeekInterviews} color="#f59e0b" />
-                <SummaryCard label="本週報到" value={summary.thisWeekHires} color="#16a34a" />
-              </div>
-            )}
-
-            {/* Stage funnel */}
-            {summary && Object.keys(summary.byStage).length > 0 && (
-              <div style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 16, border: "1px solid #e2e8f0" }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>📊 各階段人數</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {STAGES.map((s) => {
-                    const count = summary.byStage[s.id] || 0;
-                    if (count === 0) return null;
-                    return (
-                      <div key={s.id} style={{ padding: "6px 12px", borderRadius: 8, background: `${s.color}15`, border: `1px solid ${s.color}33`, fontSize: 12, fontWeight: 700, color: s.color }}>
-                        {s.label} {count}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Candidate list */}
-            <div style={{ background: "#fff", borderRadius: 14, padding: 16, border: "1px solid #e2e8f0" }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>
-                👥 邀約紀錄 ({candidates.length} 筆)
-              </div>
-              {loading && <div style={{ color: "#94a3b8", fontSize: 13 }}>載入中...</div>}
-              {!loading && candidates.length === 0 && (
-                <div style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", padding: 20 }}>
-                  還沒有邀約紀錄<br />
-                  去 104 找到人 → 點上面「➕ 新增求職者」記錄邀約
-                </div>
-              )}
-              {candidates.map((c) => {
-                const stage = STAGES.find((s) => s.id === c.stage) || STAGES[0];
+            <SectionHeader title="各階段人數" subtitle="目前所有求職者分布在哪個階段" />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 28 }}>
+              {STAGES.map((s) => {
+                const count = summary.byStage[s.id] || 0;
+                if (count === 0) return null;
                 return (
-                  <div
-                    key={c.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "10px 0",
-                      borderBottom: "1px solid #f1f5f9",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 150 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{c.name}</div>
-                      <div style={{ fontSize: 11, color: "#64748b" }}>
-                        {c.source || "—"} · {c.brand || "—"} · {new Date(c.created_at).toLocaleDateString("zh-TW")}
-                      </div>
-                    </div>
-                    <select
-                      value={c.stage}
-                      onChange={(e) => updateStage(c.id, e.target.value)}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 8,
-                        border: `1.5px solid ${stage.color}`,
-                        background: `${stage.color}10`,
-                        color: stage.color,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {STAGES.map((s) => (
-                        <option key={s.id} value={s.id}>{s.label}</option>
-                      ))}
-                    </select>
+                  <div key={s.id} style={{ padding: "8px 14px", borderRadius: 10, background: `${s.color}12`, border: `1.5px solid ${s.color}30`, fontSize: 13, fontWeight: 700, color: s.color }}>
+                    {s.label} <span style={{ fontSize: 18, fontWeight: 900 }}>{count}</span>
                   </div>
                 );
               })}
@@ -390,195 +258,144 @@ export default function RecruitPage() {
           </>
         )}
 
-        {/* ═══ Add Candidate Tab ═══ */}
-        {activeTab === "add" && (
-          <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: "#0f172a", marginBottom: 4 }}>➕ 新增邀約紀錄</div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
-              從 104 找到人之後，在這裡記錄邀約。對應 Google Sheet「招募紀錄表」的格式。
+        {/* ═══ SECTION: Recent Activity ═══ */}
+        <SectionHeader title="最近 10 筆紀錄" subtitle="你最近新增的求職者，直接在這裡更新狀態" />
+        <div style={{ background: "#fff", borderRadius: 16, padding: 16, marginBottom: 28, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+          {loading && <div style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", padding: 20 }}>載入中...</div>}
+          {!loading && recent.length === 0 && (
+            <div style={{ color: "#94a3b8", fontSize: 14, textAlign: "center", padding: 32, lineHeight: 1.8 }}>
+              還沒有紀錄<br />
+              用上面的表單新增第一筆邀約吧
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <InputField label="姓名 *" value={newName} onChange={setNewName} placeholder="王小明" />
-              <InputField label="電話" value={newPhone} onChange={setNewPhone} placeholder="0912-345-678" />
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>經銷據點/組別</div>
-                <select value={newBrand} onChange={(e) => setNewBrand(e.target.value)} style={selectStyle}>
-                  <option value="nschool">nSchool 財經學院</option>
-                  <option value="xuemi">XUEMI 學米</option>
-                  <option value="ooschool">無限學院</option>
-                  <option value="aischool">AI 未來學院</option>
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>邀約方式</div>
-                <select value={newSource} onChange={(e) => setNewSource(e.target.value)} style={selectStyle}>
-                  <option value="信件邀約">信件邀約</option>
-                  <option value="電話邀約">電話邀約</option>
-                  <option value="主動應徵">主動應徵</option>
-                  <option value="內推">內推</option>
-                  <option value="IG">IG</option>
-                  <option value="FB">FB</option>
-                </select>
-              </div>
-              <InputField label="Email" value={newEmail} onChange={setNewEmail} placeholder="email@example.com" />
-              <InputField label="應徵職位" value={newPosition} onChange={setNewPosition} placeholder="電銷業務" />
-            </div>
-            <button onClick={addCandidate} disabled={busy} style={{ ...btnPrimary, marginTop: 16, width: "100%" }}>
-              {busy ? "新增中..." : "新增邀約紀錄"}
-            </button>
-          </div>
-        )}
-
-        {/* ═══ Daily Report Tab ═══ */}
-        {activeTab === "report" && (
-          <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: "#0f172a", marginBottom: 4 }}>📝 今日活動量回報</div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
-              每日最低積分 6 分 · 邀約 0.5 · 面試 1.0 · 錄取 0.5 · 報到 2.0
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-              <NumField label="📨 發信數" value={rptSent} onChange={setRptSent} />
-              <NumField label="📞 致電數" value={rptCalls} onChange={setRptCalls} />
-              <NumField label="📅 邀約成功" value={rptInvites} onChange={setRptInvites} />
-              <NumField label="🪑 面試出席" value={rptInterviews} onChange={setRptInterviews} />
-              <NumField label="✅ 錄取" value={rptOffers} onChange={setRptOffers} />
-              <NumField label="🎓 報到" value={rptHires} onChange={setRptHires} />
-            </div>
-            <div style={{ marginTop: 12, padding: "10px 14px", background: "#f8fafc", borderRadius: 10, fontSize: 13, color: "#475569" }}>
-              預估積分: <strong>{(rptInvites * 0.5 + rptInterviews * 1.0 + rptOffers * 0.5 + rptHires * 2.0).toFixed(1)}</strong> / 6.0
-              {(rptInvites * 0.5 + rptInterviews * 1.0 + rptOffers * 0.5 + rptHires * 2.0) >= 6 ? " ✅ 達標" : " 🔴 未達標"}
-            </div>
-            <button onClick={submitReport} disabled={busy} style={{ ...btnPrimary, marginTop: 16, width: "100%" }}>
-              {busy ? "回報中..." : "送出今日回報"}
-            </button>
-          </div>
-        )}
-
-        {/* ═══ Claude Analysis Tab ═══ */}
-        {activeTab === "analyze" && (
-          <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: "#0f172a", marginBottom: 4 }}>🧠 AI 面試分析</div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
-              面試完把筆記貼進來 → AI 幫你判斷這個人適不適合 + 要注意什麼 + 建議錄取/不錄取
-            </div>
-            <InputField label="求職者姓名" value={analyzeTarget} onChange={setAnalyzeTarget} placeholder="王小明" />
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>面試筆記 / 通話內容</div>
-              <textarea
-                value={analyzeNotes}
-                onChange={(e) => setAnalyzeNotes(e.target.value)}
-                placeholder="口條不錯，3年保險經驗。情境模擬：賣梳子給和尚 → 想了10秒說不出來..."
-                rows={8}
-                style={{ width: "100%", padding: 12, borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, resize: "vertical", background: "#f8fafc", boxSizing: "border-box" }}
-              />
-            </div>
-            <button onClick={analyzeCandidate} disabled={busy || !analyzeTarget || !analyzeNotes} style={{ ...btnPrimary, marginTop: 16, width: "100%" }}>
-              {busy ? "AI 分析中 (約 15 秒)..." : "🧠 分析這個人適不適合"}
-            </button>
-
-            {/* Analysis result */}
-            {analysisResult && (
-              <div style={{ marginTop: 20, padding: 16, background: "linear-gradient(135deg, #f0f9ff, #e0f2fe)", border: "1px solid #7dd3fc", borderRadius: 14 }}>
-                <div style={{ fontSize: 14, fontWeight: 900, color: "#0c4a6e", marginBottom: 8 }}>
-                  分析結果 — {analysisResult.recommendation || ""}
-                  {analysisResult.score && ` · ${analysisResult.score.estimated}/100 (${analysisResult.score.confidence})`}
+          )}
+          {recent.map((c, i) => {
+            const stage = STAGES.find((s) => s.id === c.stage) || STAGES[0];
+            return (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 4px",
+                borderBottom: i < recent.length - 1 ? "1px solid #f1f5f9" : "none", flexWrap: "wrap" }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: `${stage.color}15`, display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 14, fontWeight: 900, color: stage.color, flexShrink: 0 }}>
+                  {c.name.charAt(0)}
                 </div>
-                {analysisResult.analysis && (
-                  <div style={{ fontSize: 13, color: "#0f172a", lineHeight: 1.7, marginBottom: 10, whiteSpace: "pre-wrap" }}>
-                    {analysisResult.analysis}
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{c.name}</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>
+                    {c.source || ""}{c.source && c.brand ? " / " : ""}{c.brand || ""} {c.phone ? ` / ${c.phone}` : ""}
                   </div>
-                )}
-                {analysisResult.greenFlags && analysisResult.greenFlags.length > 0 && (
-                  <div style={{ marginBottom: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a" }}>🟢 優勢</div>
-                    {analysisResult.greenFlags.map((f, i) => (
-                      <div key={i} style={{ fontSize: 12, color: "#166534", paddingLeft: 12 }}>· {f}</div>
-                    ))}
-                  </div>
-                )}
-                {analysisResult.redFlags && analysisResult.redFlags.length > 0 && (
-                  <div style={{ marginBottom: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626" }}>🔴 風險</div>
-                    {analysisResult.redFlags.map((f, i) => (
-                      <div key={i} style={{ fontSize: 12, color: "#991b1b", paddingLeft: 12 }}>· {f}</div>
-                    ))}
-                  </div>
-                )}
-                {analysisResult.nextSteps && analysisResult.nextSteps.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>📋 下一步</div>
-                    {analysisResult.nextSteps.map((s, i) => (
-                      <div key={i} style={{ fontSize: 12, color: "#1e40af", paddingLeft: 12 }}>· {s}</div>
-                    ))}
-                  </div>
-                )}
+                </div>
+                <div style={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }}>
+                  {new Date(c.created_at).toLocaleDateString("zh-TW")}
+                </div>
+                <select value={c.stage} onChange={(e) => updateStage(c.id, e.target.value)}
+                  style={{ padding: "6px 10px", borderRadius: 8, border: `1.5px solid ${stage.color}`, background: `${stage.color}10`,
+                    color: stage.color, fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                  {STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </select>
               </div>
-            )}
+            );
+          })}
+        </div>
+
+        {/* ═══ SECTION: AI Analysis ═══ */}
+        <SectionHeader title="AI 面試分析" subtitle="面試完成後，把筆記貼進來，AI 幫你判斷這個人適不適合、該注意什麼" />
+        <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 28, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+          <Field label="求職者姓名" value={aiName} onChange={setAiName} placeholder="王小明" />
+          <div style={{ marginTop: 12 }}>
+            <div style={labelStyle}>面試筆記 / 觀察重點</div>
+            <textarea value={aiNotes} onChange={(e) => setAiNotes(e.target.value)} rows={6}
+              placeholder={"例：口條不錯，3 年保險經驗。\n情境模擬：問他怎麼處理客戶拒絕 → 回答有條理。\n但薪資期望偏高，穩定度待確認。"}
+              style={{ ...inputStyle, resize: "vertical", lineHeight: 1.7 }} />
           </div>
-        )}
+          <button onClick={runAnalysis} disabled={busy || !aiName || !aiNotes} style={{ ...btnStyle, width: "100%", marginTop: 14, background: busy ? "#94a3b8" : "linear-gradient(135deg, #0ea5e9, #6366f1)" }}>
+            {busy ? "AI 分析中，約需 15 秒..." : "開始 AI 分析"}
+          </button>
+
+          {aiResult && (
+            <div style={{ marginTop: 20, padding: 16, background: "linear-gradient(135deg, #f0f9ff, #ede9fe)", border: "1px solid #a5b4fc", borderRadius: 14 }}>
+              <div style={{ fontSize: 15, fontWeight: 900, color: "#312e81", marginBottom: 10 }}>
+                分析結果 {aiResult.recommendation ? `\u2014 ${aiResult.recommendation}` : ""}
+                {aiResult.score ? ` (${aiResult.score.estimated}/100)` : ""}
+              </div>
+              {aiResult.analysis && (
+                <div style={{ fontSize: 13, color: "#1e293b", lineHeight: 1.8, marginBottom: 12, whiteSpace: "pre-wrap" }}>{aiResult.analysis}</div>
+              )}
+              {aiResult.greenFlags && aiResult.greenFlags.length > 0 && (
+                <FlagList title="優勢" items={aiResult.greenFlags} color="#16a34a" />
+              )}
+              {aiResult.redFlags && aiResult.redFlags.length > 0 && (
+                <FlagList title="風險警示" items={aiResult.redFlags} color="#dc2626" />
+              )}
+              {aiResult.nextSteps && aiResult.nextSteps.length > 0 && (
+                <FlagList title="建議下一步" items={aiResult.nextSteps} color="#2563eb" />
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ textAlign: "center", padding: "20px 0 40px", fontSize: 12, color: "#cbd5e1" }}>
+          墨宇招聘中心 v2
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Small components ──
+/* ── Sub-components ── */
 
-function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
+function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div style={{ background: "#fff", border: `1px solid ${color}33`, borderRadius: 14, padding: "14px 16px", borderTop: `3px solid ${color}` }}>
-      <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 900, color }}>{value}</div>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, color: "#0f172a" }}>{title}</div>
+      <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{subtitle}</div>
     </div>
   );
 }
 
-function InputField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+function KpiCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>{label}</div>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, background: "#f8fafc", boxSizing: "border-box" }}
-      />
+    <div style={{ background: "#fff", borderRadius: 14, padding: "16px 12px", textAlign: "center",
+      borderTop: `3px solid ${color}`, border: `1px solid #e2e8f0`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+      <div style={{ fontSize: 32, fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600, marginTop: 6 }}>{label}</div>
     </div>
   );
 }
 
-function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>{label}</div>
-      <input
-        type="number"
-        min={0}
-        value={value}
-        onChange={(e) => onChange(parseInt(e.target.value) || 0)}
-        style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 16, fontWeight: 700, background: "#f8fafc", textAlign: "center", boxSizing: "border-box" }}
-      />
+      <div style={labelStyle}>{label}</div>
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={inputStyle} />
     </div>
   );
 }
 
-const btnPrimary: React.CSSProperties = {
-  padding: "14px",
-  borderRadius: 12,
-  border: "none",
-  background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
-  color: "#fff",
-  fontSize: 14,
-  fontWeight: 700,
-  cursor: "pointer",
-  boxShadow: "0 8px 20px -8px rgba(79,70,229,0.4)",
+function FlagList({ title, items, color }: { title: string; items: string[]; color: string }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color, marginBottom: 4 }}>{title}</div>
+      {items.map((item, i) => (
+        <div key={i} style={{ fontSize: 13, color: "#334155", paddingLeft: 14, lineHeight: 1.8 }}>- {item}</div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Shared styles ── */
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 4,
 };
 
-const selectStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1.5px solid #e2e8f0",
-  fontSize: 13,
-  background: "#f8fafc",
-  boxSizing: "border-box",
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0",
+  fontSize: 14, background: "#f8fafc", boxSizing: "border-box",
+};
+
+const btnStyle: React.CSSProperties = {
+  padding: "14px", borderRadius: 12, border: "none",
+  background: "linear-gradient(135deg, #4f46e5, #7c3aed)", color: "#fff",
+  fontSize: 14, fontWeight: 700, cursor: "pointer",
+  boxShadow: "0 6px 16px -6px rgba(79,70,229,0.4)",
 };
