@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
 
 /**
- * 候選人錄音/逐字稿分析 — 招聘員丟檔案或文字 Claude 幫你判斷
+ * 求職者錄音/逐字稿分析 — 招聘員丟檔案或文字 Claude 幫你判斷
  *
  * POST /api/recruit/analyze-candidate (multipart or JSON)
  *
@@ -24,12 +24,12 @@ import { NextRequest } from "next/server";
  *   - 錄取分數 (0-100) + 信心度
  *   - 不足在哪 + 為什麼 + 根據是什麼
  *   - 建議下一步 (錄取/二面/拒絕)
- *   - 跟其他候選人比較 (如果 DB 有歷史)
+ *   - 跟其他求職者比較 (如果 DB 有歷史)
  */
 
 export const maxDuration = 60;
 
-const CANDIDATE_ANALYSIS_PROMPT = `你是墨宇戰情中樞的「候選人分析師」。你要像資深獵頭一樣精準判斷這個人值不值得錄。
+const CANDIDATE_ANALYSIS_PROMPT = `你是墨宇戰情中樞的「求職者分析師」。你要像資深獵頭一樣精準判斷這個人值不值得錄。
 
 墨宇的面試標準 5 大面向:
 1. 事前準備與工作心態 (0-20): 有沒有研究公司(+1)、推銷自我(+2)、有備而來(+13)、解決問題意願(+2) / 沒做功課(-5)、被動(-3)
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return Response.json({ ok: false, error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
 
   const userContent = [
-    `候選人: ${candidateName}`,
+    `求職者: ${candidateName}`,
     `應徵職位: ${position}`,
     transcript ? `\n=== 通話/面試錄音逐字稿 ===\n${transcript}` : "",
     interviewNotes ? `\n=== 面試官筆記 ===\n${interviewNotes}` : "",
@@ -197,7 +197,7 @@ export async function POST(req: NextRequest) {
   await supabase.from("claude_actions").insert({
     action_type: "recruit_candidate_full_analysis",
     target: candidateName,
-    summary: analysis.oneLiner || `候選人分析: ${candidateName}`,
+    summary: analysis.oneLiner || `求職者分析: ${candidateName}`,
     details: {
       candidateName,
       position,

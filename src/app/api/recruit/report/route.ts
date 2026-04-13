@@ -3,14 +3,14 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
 
 /**
- * 招聘自我回報 + 候選人分析 API
+ * 招聘自我回報 + 求職者分析 API
  *
  * POST /api/recruit/report
  *
  * body.action:
  *   'daily_report'     — 招聘員回報今日活動量 (發信/邀約/面試/錄取)
- *   'candidate_update' — 更新候選人狀態 (stage change + notes)
- *   'analyze_candidate' — 丟候選人資訊 (筆記/錄音transcript) 給 Claude 分析
+ *   'candidate_update' — 更新求職者狀態 (stage change + notes)
+ *   'analyze_candidate' — 丟求職者資訊 (筆記/錄音transcript) 給 Claude 分析
  *   'interview_advice' — 問 Claude 面試這個人該注意什麼
  *   'ask_claude'       — 自由問 Claude 關於招聘的任何問題
  *
@@ -22,7 +22,7 @@ import { NextRequest } from "next/server";
  * 設計原則:
  *   - 招聘員只需要回報，不需要分析 — Claude 幫他分析
  *   - 主管只需要看結果，不需要問 — Claude 主動推
- *   - 候選人只需要被追蹤，不需要管 — Claude 幫忙管
+ *   - 求職者只需要被追蹤，不需要管 — Claude 幫忙管
  */
 
 export const maxDuration = 60;
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // === 2. 候選人狀態更新 ===
+  // === 2. 求職者狀態更新 ===
   if (action === "candidate_update") {
     const { recruitId, newStage, notes, recruiterEmail } = body;
     if (!recruitId || !newStage) return Response.json({ ok: false, error: "recruitId + newStage 必填" }, { status: 400 });
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
     await supabase.from("claude_actions").insert({
       action_type: "recruit_stage_change",
       target: recruitId,
-      summary: `候選人 → ${newStage}${notes ? ` · ${notes.slice(0, 100)}` : ""}`,
+      summary: `求職者 → ${newStage}${notes ? ` · ${notes.slice(0, 100)}` : ""}`,
       details: { recruitId, newStage, notes, recruiterEmail },
       result: "success",
     });
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: true, recruitId, newStage });
   }
 
-  // === 3. Claude 分析候選人 ===
+  // === 3. Claude 分析求職者 ===
   if (action === "analyze_candidate") {
     const { candidateName, info, transcript, interviewNotes, recruiterEmail } = body;
     if (!candidateName) return Response.json({ ok: false, error: "candidateName 必填" }, { status: 400 });
@@ -165,12 +165,12 @@ export async function POST(req: NextRequest) {
     if (!apiKey) return Response.json({ ok: false, error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
 
     const context = [
-      `候選人: ${candidateName}`,
+      `求職者: ${candidateName}`,
       info ? `基本資訊: ${info}` : "",
       transcript ? `\n通話/面試逐字稿:\n${transcript}` : "",
       interviewNotes ? `\n面試筆記:\n${interviewNotes}` : "",
       `\n招聘員: ${recruiterEmail || "未知"}`,
-      "\n請根據以上資訊，分析這個候選人是否適合墨宇集團的電銷業務職位。",
+      "\n請根據以上資訊，分析這個求職者是否適合墨宇集團的電銷業務職位。",
     ].filter(Boolean).join("\n");
 
     const client = new Anthropic({ apiKey });
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
     await supabase.from("claude_actions").insert({
       action_type: "recruit_candidate_analysis",
       target: candidateName,
-      summary: analysis.analysis?.slice(0, 200) || `分析候選人 ${candidateName}`,
+      summary: analysis.analysis?.slice(0, 200) || `分析求職者 ${candidateName}`,
       details: { candidateName, analysis, recruiterEmail },
       result: "success",
     });
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return Response.json({ ok: false, error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
 
-    const prompt = `候選人: ${candidateName}
+    const prompt = `求職者: ${candidateName}
 ${resumeInfo ? `履歷摘要: ${resumeInfo}` : ""}
 應徵職位: ${position || "電銷業務"}
 面試階段: ${stage || "一面"}
@@ -237,7 +237,7 @@ ${resumeInfo ? `履歷摘要: ${resumeInfo}` : ""}
     const msg = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 2000,
-      system: "你是墨宇戰情中樞的面試顧問。根據候選人資訊和墨宇的 5 大面試評估標準，給面試官具體的面試建議。不要空泛建議。",
+      system: "你是墨宇戰情中樞的面試顧問。根據求職者資訊和墨宇的 5 大面試評估標準，給面試官具體的面試建議。不要空泛建議。",
       messages: [{ role: "user", content: prompt }],
     });
 
@@ -279,7 +279,7 @@ ${resumeInfo ? `履歷摘要: ${resumeInfo}` : ""}
     const systemContext = [
       "你是墨宇戰情中樞的招聘分析師。回答招聘員的問題，帶數據、具體、可行動。",
       recentRecruits && recentRecruits.length > 0
-        ? `\n最近候選人:\n${recentRecruits.map((r) => `  ${r.name} · ${r.stage} · ${r.brand}`).join("\n")}`
+        ? `\n最近求職者:\n${recentRecruits.map((r) => `  ${r.name} · ${r.stage} · ${r.brand}`).join("\n")}`
         : "",
       recentReports && recentReports.length > 0
         ? `\n最近活動:\n${recentReports.map((r) => `  ${r.summary}`).join("\n")}`

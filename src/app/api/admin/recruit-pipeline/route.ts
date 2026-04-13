@@ -5,13 +5,13 @@ import { NextRequest } from "next/server";
  * 招聘漏斗 + 104 發信追蹤 API
  *
  * GET /api/admin/recruit-pipeline
- *   回傳: 候選人 + 發信紀錄 + 排程進度
+ *   回傳: 求職者 + 發信紀錄 + 排程進度
  *
  * POST /api/admin/recruit-pipeline
  *   body.action: 'add_candidate' | 'log_outreach' | 'update_schedule'
  *
  * 這個 API 負責管理整個招聘流程:
- *   1. 候選人 (recruits table)
+ *   1. 求職者 (recruits table)
  *   2. 104/LinkedIn 發信追蹤 (outreach_log table)
  *   3. 每週目標 vs 實際進度 (recruit_schedule table)
  */

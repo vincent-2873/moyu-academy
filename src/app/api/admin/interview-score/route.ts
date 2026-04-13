@@ -20,7 +20,7 @@ import { NextRequest } from "next/server";
 
 export const maxDuration = 60;
 
-const SCORING_PROMPT = `你是墨宇戰情中樞的「面試評分官」，根據面試筆記為候選人評分。
+const SCORING_PROMPT = `你是墨宇戰情中樞的「面試評分官」，根據面試筆記為求職者評分。
 
 5 大評估面向（from 集團招募紀錄表的面試評估標準）:
 
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     messages: [
       {
         role: "user",
-        content: `候選人: ${candidateName}\n面試官: ${interviewerEmail || "未知"}\n\n面試筆記:\n${interviewNotes}`,
+        content: `求職者: ${candidateName}\n面試官: ${interviewerEmail || "未知"}\n\n面試筆記:\n${interviewNotes}`,
       },
     ],
   });

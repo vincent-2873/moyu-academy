@@ -9,10 +9,10 @@ import { useState, useEffect, useCallback } from "react";
  *
  * 功能：
  *   1. Pipeline 總覽 (今日/本週/本月 活動量 + 積分)
- *   2. 候選人清單 + 狀態追蹤
- *   3. 新增候選人
+ *   2. 求職者清單 + 狀態追蹤
+ *   3. 新增求職者
  *   4. 每日回報 (發信/邀約/面試/錄取)
- *   5. Claude 分析候選人 (丟筆記或錄音)
+ *   5. Claude 分析求職者 (丟筆記或錄音)
  *   6. 面試建議 (問 Claude 該問什麼)
  */
 
@@ -46,15 +46,16 @@ interface ClaudeAnalysis {
 }
 
 const STAGES = [
-  { id: "new", label: "新進", color: "#94a3b8" },
-  { id: "contacted", label: "已聯繫", color: "#3b82f6" },
-  { id: "screening", label: "篩選中", color: "#8b5cf6" },
-  { id: "interview_1", label: "一面", color: "#f59e0b" },
-  { id: "interview_2", label: "二面", color: "#ea580c" },
+  { id: "new", label: "待處理", color: "#94a3b8" },
+  { id: "contacted", label: "已發信/致電", color: "#3b82f6" },
+  { id: "invited", label: "已邀約面試", color: "#8b5cf6" },
+  { id: "interview_1", label: "一面完成", color: "#f59e0b" },
+  { id: "interview_2", label: "二面完成", color: "#ea580c" },
   { id: "offer", label: "已發 Offer", color: "#16a34a" },
   { id: "onboarded", label: "已報到", color: "#059669" },
-  { id: "rejected", label: "拒絕", color: "#dc2626" },
-  { id: "dropped", label: "放棄", color: "#6b7280" },
+  { id: "no_response", label: "未回覆", color: "#9ca3af" },
+  { id: "rejected", label: "不合適", color: "#dc2626" },
+  { id: "dropped", label: "求職者放棄", color: "#6b7280" },
 ];
 
 export default function RecruitPage() {
@@ -157,7 +158,7 @@ export default function RecruitPage() {
   const candidates = pipeline?.candidates || [];
 
   const addCandidate = async () => {
-    if (!newName) { setMsg("請填候選人姓名"); return; }
+    if (!newName) { setMsg("請填求職者姓名"); return; }
     setBusy(true);
     setMsg(null);
     try {
@@ -177,7 +178,7 @@ export default function RecruitPage() {
       });
       const d = await r.json();
       if (d.ok) {
-        setMsg("✅ 候選人已新增");
+        setMsg("✅ 求職者已新增");
         setNewName(""); setNewEmail(""); setNewPhone("");
         loadPipeline();
       } else {
@@ -214,7 +215,7 @@ export default function RecruitPage() {
   };
 
   const analyzeCandidate = async () => {
-    if (!analyzeTarget || !analyzeNotes) { setMsg("請填候選人名字 + 面試筆記"); return; }
+    if (!analyzeTarget || !analyzeNotes) { setMsg("請填求職者名字 + 面試筆記"); return; }
     setBusy(true);
     setMsg(null);
     setAnalysisResult(null);
@@ -268,10 +269,10 @@ export default function RecruitPage() {
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 0, background: "#fff", borderBottom: "1px solid #e2e8f0" }}>
         {([
-          { id: "pipeline", label: "📊 Pipeline", icon: "" },
-          { id: "add", label: "➕ 新增候選人", icon: "" },
-          { id: "report", label: "📝 每日回報", icon: "" },
-          { id: "analyze", label: "🧠 Claude 分析", icon: "" },
+          { id: "pipeline", label: "📋 邀約紀錄", icon: "" },
+          { id: "add", label: "➕ 新增求職者", icon: "" },
+          { id: "report", label: "📝 今日回報", icon: "" },
+          { id: "analyze", label: "🧠 AI 面試分析", icon: "" },
         ] as const).map((tab) => (
           <button
             key={tab.id}
@@ -307,17 +308,17 @@ export default function RecruitPage() {
             {/* Summary cards */}
             {summary && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 20 }}>
-                <SummaryCard label="總候選人" value={summary.totalCandidates} color="#4f46e5" />
-                <SummaryCard label="本週發信" value={summary.thisWeekOutreach} color="#3b82f6" />
+                <SummaryCard label="邀約總數" value={summary.totalCandidates} color="#4f46e5" />
+                <SummaryCard label="本週發信/致電" value={summary.thisWeekOutreach} color="#3b82f6" />
                 <SummaryCard label="本週面試" value={summary.thisWeekInterviews} color="#f59e0b" />
-                <SummaryCard label="本週錄取" value={summary.thisWeekHires} color="#16a34a" />
+                <SummaryCard label="本週報到" value={summary.thisWeekHires} color="#16a34a" />
               </div>
             )}
 
             {/* Stage funnel */}
             {summary && Object.keys(summary.byStage).length > 0 && (
               <div style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 16, border: "1px solid #e2e8f0" }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>📊 漏斗狀態</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>📊 各階段人數</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {STAGES.map((s) => {
                     const count = summary.byStage[s.id] || 0;
@@ -335,12 +336,13 @@ export default function RecruitPage() {
             {/* Candidate list */}
             <div style={{ background: "#fff", borderRadius: 14, padding: 16, border: "1px solid #e2e8f0" }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>
-                👥 候選人 ({candidates.length})
+                👥 邀約紀錄 ({candidates.length} 筆)
               </div>
               {loading && <div style={{ color: "#94a3b8", fontSize: 13 }}>載入中...</div>}
               {!loading && candidates.length === 0 && (
                 <div style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", padding: 20 }}>
-                  還沒有候選人 → 點上面「➕ 新增候選人」開始
+                  還沒有邀約紀錄<br />
+                  去 104 找到人 → 點上面「➕ 新增求職者」記錄邀約
                 </div>
               )}
               {candidates.map((c) => {
@@ -391,35 +393,38 @@ export default function RecruitPage() {
         {/* ═══ Add Candidate Tab ═══ */}
         {activeTab === "add" && (
           <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: "#0f172a", marginBottom: 16 }}>➕ 新增候選人</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: "#0f172a", marginBottom: 4 }}>➕ 新增邀約紀錄</div>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+              從 104 找到人之後，在這裡記錄邀約。對應 Google Sheet「招募紀錄表」的格式。
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <InputField label="姓名 *" value={newName} onChange={setNewName} placeholder="王小明" />
-              <InputField label="Email" value={newEmail} onChange={setNewEmail} placeholder="email@example.com" />
               <InputField label="電話" value={newPhone} onChange={setNewPhone} placeholder="0912-345-678" />
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>來源</div>
-                <select value={newSource} onChange={(e) => setNewSource(e.target.value)} style={selectStyle}>
-                  <option value="104">104</option>
-                  <option value="1111">1111</option>
-                  <option value="linkedin">LinkedIn</option>
-                  <option value="referral">內推</option>
-                  <option value="ig">IG 廣告</option>
-                  <option value="fb">FB 廣告</option>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>經銷據點/組別</div>
+                <select value={newBrand} onChange={(e) => setNewBrand(e.target.value)} style={selectStyle}>
+                  <option value="nschool">nSchool 財經學院</option>
+                  <option value="xuemi">XUEMI 學米</option>
+                  <option value="ooschool">無限學院</option>
+                  <option value="aischool">AI 未來學院</option>
                 </select>
               </div>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>品牌</div>
-                <select value={newBrand} onChange={(e) => setNewBrand(e.target.value)} style={selectStyle}>
-                  <option value="nschool">nSchool 財經</option>
-                  <option value="xuemi">XUEMI 學米</option>
-                  <option value="ooschool">OOschool 無限</option>
-                  <option value="aischool">AIschool 未來</option>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>邀約方式</div>
+                <select value={newSource} onChange={(e) => setNewSource(e.target.value)} style={selectStyle}>
+                  <option value="信件邀約">信件邀約</option>
+                  <option value="電話邀約">電話邀約</option>
+                  <option value="主動應徵">主動應徵</option>
+                  <option value="內推">內推</option>
+                  <option value="IG">IG</option>
+                  <option value="FB">FB</option>
                 </select>
               </div>
+              <InputField label="Email" value={newEmail} onChange={setNewEmail} placeholder="email@example.com" />
               <InputField label="應徵職位" value={newPosition} onChange={setNewPosition} placeholder="電銷業務" />
             </div>
             <button onClick={addCandidate} disabled={busy} style={{ ...btnPrimary, marginTop: 16, width: "100%" }}>
-              {busy ? "新增中..." : "新增候選人"}
+              {busy ? "新增中..." : "新增邀約紀錄"}
             </button>
           </div>
         )}
@@ -452,11 +457,11 @@ export default function RecruitPage() {
         {/* ═══ Claude Analysis Tab ═══ */}
         {activeTab === "analyze" && (
           <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: "#0f172a", marginBottom: 4 }}>🧠 Claude 候選人分析</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: "#0f172a", marginBottom: 4 }}>🧠 AI 面試分析</div>
             <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
-              貼面試筆記 / 通話 transcript → Claude 幫你判斷錄取/保留/拒絕 + 原因
+              面試完把筆記貼進來 → AI 幫你判斷這個人適不適合 + 要注意什麼 + 建議錄取/不錄取
             </div>
-            <InputField label="候選人姓名" value={analyzeTarget} onChange={setAnalyzeTarget} placeholder="王小明" />
+            <InputField label="求職者姓名" value={analyzeTarget} onChange={setAnalyzeTarget} placeholder="王小明" />
             <div style={{ marginTop: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>面試筆記 / 通話內容</div>
               <textarea
@@ -468,7 +473,7 @@ export default function RecruitPage() {
               />
             </div>
             <button onClick={analyzeCandidate} disabled={busy || !analyzeTarget || !analyzeNotes} style={{ ...btnPrimary, marginTop: 16, width: "100%" }}>
-              {busy ? "Claude 分析中..." : "🧠 開始分析"}
+              {busy ? "AI 分析中 (約 15 秒)..." : "🧠 分析這個人適不適合"}
             </button>
 
             {/* Analysis result */}
