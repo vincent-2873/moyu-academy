@@ -207,6 +207,40 @@ export default function RecruitPage() {
           ))}
         </div>
 
+        {/* ═══ SECTION: 今天你要做什麼 ═══ */}
+        <div style={{ background: "linear-gradient(135deg, #fef3c7, #fde68a)", border: "2px solid #f59e0b", borderRadius: 16, padding: 20, marginBottom: 24 }}>
+          <div style={{ fontSize: 20, fontWeight: 900, color: "#92400e", marginBottom: 12 }}>🔥 今天你要做這些事</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <TodoItem
+              done={todaySent >= 30}
+              text={todaySent >= 30 ? `✅ 已發 ${todaySent} 封信 (達標！)` : `📨 發信至少 30 封 — 目前才 ${todaySent} 封，還差 ${Math.max(0, 30 - todaySent)} 封`}
+              hint={todaySent < 30 ? "→ 打開 104 搜尋求職者，用信件邀約發出去" : ""}
+            />
+            <TodoItem
+              done={todayInvite >= 3}
+              text={todayInvite >= 3 ? `✅ 已邀約 ${todayInvite} 人 (達標！)` : `📞 邀約至少 3 人到面試 — 目前 ${todayInvite} 人`}
+              hint={todayInvite < 3 ? "→ 打電話追蹤已發信的人，確認是否願意來面試" : ""}
+            />
+            <TodoItem
+              done={false}
+              text="📝 追蹤昨天發信的人有沒有回覆"
+              hint="→ 到 104 招募管理 > 聯絡 > 查看昨天發的信有誰已讀/回覆"
+            />
+            <TodoItem
+              done={false}
+              text="📋 更新求職者狀態 — 有回覆的改成「已邀約」，沒回的標「未回覆」"
+              hint="→ 在下面的紀錄清單裡，用下拉選單更新每個人的狀態"
+            />
+            {weekInterview > 0 && (
+              <TodoItem
+                done={false}
+                text={`🪑 本週有 ${weekInterview} 場面試要準備`}
+                hint="→ 確認面試時間、地點、面試官已通知"
+              />
+            )}
+          </div>
+        </div>
+
         {/* ═══ SECTION: KPI Dashboard ═══ */}
         <SectionHeader title="今日戰績" subtitle="你今天的關鍵數字，一眼看清楚進度" />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
@@ -217,7 +251,7 @@ export default function RecruitPage() {
         </div>
 
         {/* ═══ SECTION: Quick Add ═══ */}
-        <SectionHeader title="快速新增邀約" subtitle="找到人了？花 10 秒記錄下來，不要漏掉任何一個" />
+        <SectionHeader title="✏️ 第二步：記錄你剛邀約的人" subtitle="在 104 發完信或打完電話後，在這裡填姓名和電話，系統會自動幫你記到 Google Sheet + 資料庫" />
         <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 28, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Field label="姓名 *" value={qName} onChange={setQName} placeholder="王小明" />
@@ -259,7 +293,7 @@ export default function RecruitPage() {
         )}
 
         {/* ═══ SECTION: Recent Activity ═══ */}
-        <SectionHeader title="最近 10 筆紀錄" subtitle="你最近新增的求職者，直接在這裡更新狀態" />
+        <SectionHeader title="📋 第三步：追蹤這些人的進度" subtitle="每個人的狀態都要更新！有回覆的改成「已邀約」，面試完的改成「一面完成」，沒回的標「未回覆」" />
         <div style={{ background: "#fff", borderRadius: 16, padding: 16, marginBottom: 28, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           {loading && <div style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", padding: 20 }}>載入中...</div>}
           {!loading && recent.length === 0 && (
@@ -297,7 +331,7 @@ export default function RecruitPage() {
         </div>
 
         {/* ═══ SECTION: AI Analysis ═══ */}
-        <SectionHeader title="AI 面試分析" subtitle="面試完成後，把筆記貼進來，AI 幫你判斷這個人適不適合、該注意什麼" />
+        <SectionHeader title="🧠 第四步：面試完讓 AI 幫你判斷" subtitle="把面試筆記或觀察貼進來，AI 會告訴你這個人適不適合、風險在哪、該不該錄取" />
         <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 28, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           <Field label="求職者姓名" value={aiName} onChange={setAiName} placeholder="王小明" />
           <div style={{ marginTop: 12 }}>
@@ -367,6 +401,15 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
     <div>
       <div style={labelStyle}>{label}</div>
       <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={inputStyle} />
+    </div>
+  );
+}
+
+function TodoItem({ done, text, hint }: { done: boolean; text: string; hint: string }) {
+  return (
+    <div style={{ background: done ? "#f0fdf4" : "#fff", border: done ? "1px solid #86efac" : "1px solid #fbbf24", borderRadius: 12, padding: "12px 16px" }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: done ? "#16a34a" : "#92400e", lineHeight: 1.5 }}>{text}</div>
+      {hint && <div style={{ fontSize: 13, color: "#78716c", marginTop: 4, lineHeight: 1.5 }}>{hint}</div>}
     </div>
   );
 }
