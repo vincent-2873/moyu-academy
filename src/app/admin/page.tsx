@@ -4980,6 +4980,15 @@ function UsersTab({ token }: { token: string }) {
     fetchUsers();
   };
 
+  const updateBrand = async (userId: string, brand: string) => {
+    try {
+      const res = await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: userId, brand }) });
+      const json = await res.json();
+      if (!json.user) alert(json.error || "更新品牌失敗");
+    } catch { alert("網路錯誤"); }
+    fetchUsers();
+  };
+
   const unbindLine = async (email: string) => {
     if (!confirm(`確定要解除 ${email} 的 LINE 綁定嗎？\n\n解除後該用戶需要重新綁定才能收到 LINE 推播。`)) return;
     try {
@@ -5134,7 +5143,9 @@ function UsersTab({ token }: { token: string }) {
                   <td style={{ padding: "12px 14px", fontWeight: 600, fontSize: 14 }}>{u.name}</td>
                   <td style={{ padding: "12px 14px", fontSize: 13, color: "var(--text2)" }}>{u.email}</td>
                   <td style={{ padding: "12px 14px" }}>
-                    <span style={{ background: "rgba(102,126,234,0.13)", color: "var(--accent)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>{BRAND_LABELS[u.brand] || u.brand}</span>
+                    <select value={u.brand} onChange={(e) => updateBrand(u.id, e.target.value)} style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", color: "var(--accent)", fontSize: 12, fontWeight: 600 }}>
+                      {Object.entries(BRAND_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
                   </td>
                   <td style={{ padding: "12px 14px" }}>
                     <select value={u.role} onChange={(e) => updateRole(u.id, e.target.value)} style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", color: "var(--text)", fontSize: 12 }}>
