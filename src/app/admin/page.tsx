@@ -157,6 +157,7 @@ const ROLE_LABELS: Record<string, string> = {
   super_admin: "超級管理員", ceo: "總經理", coo: "營運長", cfo: "財務長", director: "總監",
   brand_manager: "品牌主管", team_leader: "老祖宗",
   trainer: "武公", reserve_cadre: "師傅", mentor: "師傅（帶訓）", sales_rep: "業務人員",
+  recruiter: "招聘專員", hr: "人資", intern: "實習生",
 };
 
 /** 高階角色 — 可看到所有部門 + 所有數據 */
@@ -4780,10 +4781,75 @@ function DashboardTab({ token }: { token: string }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 24 }}>
               <div>
                 <h3 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{selectedUser.name}</h3>
-                <p style={{ color: "var(--text3)", fontSize: 13, margin: "4px 0" }}>{selectedUser.email} · {BRAND_LABELS[selectedUser.brand]} · {ROLE_LABELS[selectedUser.role] || selectedUser.role}</p>
+                <p style={{ color: "var(--text3)", fontSize: 13, margin: "4px 0" }}>{selectedUser.email}</p>
                 <p style={{ color: "var(--text3)", fontSize: 12 }}>加入：{new Date(selectedUser.created_at).toLocaleDateString("zh-TW")}</p>
               </div>
               <button onClick={() => setSelectedUser(null)} style={{ background: "var(--border)", border: "none", borderRadius: 8, padding: "6px 12px", color: "var(--text2)", cursor: "pointer" }}>✕</button>
+            </div>
+
+            {/* ✏️ 品牌 + 角色 編輯器 */}
+            <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap", alignItems: "end" }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", marginBottom: 4 }}>品牌</div>
+                <select
+                  defaultValue={selectedUser.brand}
+                  onChange={async (e) => {
+                    const newBrand = e.target.value;
+                    try {
+                      const r = await fetch("/api/admin/users", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id: selectedUser.id, brand: newBrand }),
+                      });
+                      const d = await r.json();
+                      if (d.user) {
+                        alert(`✅ 品牌已改為 ${BRAND_LABELS[newBrand] || newBrand}`);
+                      } else {
+                        alert(`❌ ${d.error || "更新失敗"}`);
+                      }
+                    } catch (err) {
+                      alert("❌ 更新失敗: " + err);
+                    }
+                  }}
+                  style={{ padding: "8px 12px", borderRadius: 10, border: "1.5px solid var(--border)", background: "var(--bg2)", color: "var(--text)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  {Object.entries(BRAND_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", marginBottom: 4 }}>角色</div>
+                <select
+                  defaultValue={selectedUser.role}
+                  onChange={async (e) => {
+                    const newRole = e.target.value;
+                    try {
+                      const r = await fetch("/api/admin/users", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id: selectedUser.id, role: newRole }),
+                      });
+                      const d = await r.json();
+                      if (d.user) {
+                        alert(`✅ 角色已改為 ${ROLE_LABELS[newRole] || newRole}`);
+                      } else {
+                        alert(`❌ ${d.error || "更新失敗"}`);
+                      }
+                    } catch (err) {
+                      alert("❌ 更新失敗: " + err);
+                    }
+                  }}
+                  style={{ padding: "8px 12px", borderRadius: 10, border: "1.5px solid var(--border)", background: "var(--bg2)", color: "var(--text)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  {Object.entries(ROLE_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ fontSize: 10, color: "var(--text3)", alignSelf: "center" }}>
+                ↑ 選完自動儲存
+              </div>
             </div>
 
             {/* Progress overview */}
