@@ -146,12 +146,15 @@ export default function Home() {
   // root / 的舊 DashboardPage 吃 localStorage KPI 完全不會顯示 Metabase 真實資料，
   // 會讓業務以為系統沒東西。管理員留在原本的 /admin 或 root dashboard
   if (typeof window !== "undefined" && user.role === "sales_rep") {
-    // 同步寫 sessionStorage 讓 /me 可以讀到登入狀態
     sessionStorage.setItem("moyu_current_user", user.email);
-    window.location.replace("/me");
+    // 獵頭公司 (moyuhunt) 走 /recruit，業務走 /me
+    const dest = user.brand === "moyuhunt" ? "/recruit" : "/me";
+    window.location.replace(dest);
     return (
       <div className="h-screen flex items-center justify-center">
-        <div className="text-lg text-[var(--text2)] animate-pulse">載入我的戰情中…</div>
+        <div className="text-lg text-[var(--text2)] animate-pulse">
+          {user.brand === "moyuhunt" ? "載入招聘中心…" : "載入我的戰情中…"}
+        </div>
       </div>
     );
   }

@@ -146,6 +146,11 @@ export default function MePage() {
       const res = await fetch(`/api/v3/me?email=${encodeURIComponent(email)}`, { cache: "no-store" });
       const json: MeData = await res.json();
       if (!json.ok) throw new Error(json.message || "讀取失敗");
+      // 獵頭公司 → redirect to /recruit
+      if (json.profile?.brand === "moyuhunt" && typeof window !== "undefined") {
+        window.location.replace("/recruit");
+        return;
+      }
       setData(json);
     } catch (err) {
       setError(err instanceof Error ? err.message : "讀取失敗");
