@@ -427,7 +427,6 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
   const [companyType, setCompanyType] = useState<CompanyType>("hq");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
-  const [forgotMode, setForgotMode] = useState(false);
   const [binding, setBinding] = useState<BindingInfo | null>(null);
   const [bindingPolling, setBindingPolling] = useState(false);
 
@@ -526,16 +525,19 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
       // 理論上不會走到這（後端一定會回綁定碼），保險：直接擋住並要求重試
       setError("註冊完成但沒拿到 LINE 綁定碼，請重新整理再試一次");
     } else {
-      // 優先直接打後端：後端是 LINE 綁定真實來源
+      // 真密碼驗證
+      if (!password) {
+        setError("請輸入密碼（預設 0000）");
+        return;
+      }
       try {
         const cloudRes = await fetch("/api/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, password }),
         });
         const cloudData = await cloudRes.json();
 
-        // 403 + LINE_BIND_REQUIRED → 跳綁定畫面，直接彈 LINE
         if (cloudRes.status === 403 && cloudData?.error === "LINE_BIND_REQUIRED") {
           if (cloudData.lineBindingCode) {
             setBinding({
@@ -544,31 +546,30 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
               mode: "login",
             });
             if (cloudData.lineFriendUrl) {
-              try {
-                window.open(cloudData.lineFriendUrl, "_blank", "noopener,noreferrer");
-              } catch {
-                /* popup blocker */
-              }
+              try { window.open(cloudData.lineFriendUrl, "_blank", "noopener,noreferrer"); } catch {}
             }
             return;
           }
-          setError("此帳號尚未綁定 LINE，且系統無法產生綁定碼，請聯繫管理員");
+          setError("此帳號尚未綁定 LINE，請聯繫管理員");
           return;
         }
 
         if (cloudRes.ok && cloudData?.user) {
-          // 忘記密碼模式：用 email 當密碼重置 localStorage
-          restoreUserFromCloud(email, forgotMode ? email : (password || email), cloudData.user);
-          if (forgotMode) setForgotMode(false);
+          restoreUserFromCloud(email, password, cloudData.user);
+          if (cloudData.mustChangePassword) {
+            alert("⚠️ 您目前使用預設密碼 0000，建議登入後立即至「帳號 → 變更密碼」修改。");
+          }
           onLogin();
           return;
         }
 
         if (cloudRes.status === 404) {
-          setError("找不到此帳號，請先註冊");
-          return;
+          setError("找不到此帳號");
+        } else if (cloudRes.status === 401) {
+          setError("密碼錯誤（預設 0000；忘記請聯繫管理員）");
+        } else {
+          setError(cloudData?.error || "登入失敗");
         }
-        setError(cloudData?.error || "登入失敗");
       } catch {
         setError("無法連接伺服器，請稍後再試");
       }
@@ -753,32 +754,25 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
             />
           </div>
 
-          {!(forgotMode && !isRegister) && (
-            <div className="mb-2">
-              <label className="block text-xs text-[var(--text2)] mb-1">密碼</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="auth-input"
-                required={!forgotMode}
-              />
-            </div>
-          )}
+          <div className="mb-2">
+            <label className="block text-xs text-[var(--text2)] mb-1">密碼 <span className="text-[var(--text3)]">（預設 0000，登入後請修改）</span></label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="auth-input"
+              required
+              placeholder="0000"
+            />
+          </div>
 
           {!isRegister && (
             <div className="mb-4 text-right">
-              <button
-                type="button"
-                onClick={() => { setForgotMode(!forgotMode); setError(""); }}
-                className="text-xs text-[var(--accent)] hover:underline"
-              >
-                {forgotMode ? "返回密碼登入" : "忘記密碼？用 Email 直接登入"}
-              </button>
+              <span className="text-xs text-[var(--text3)]">
+                忘記密碼？請聯繫管理員重置
+              </span>
             </div>
           )}
-
-          {forgotMode && !isRegister && <div className="mb-4" />}
 
           {error && (
             <p className="text-[var(--red)] text-sm mb-4">{error}</p>
@@ -788,7 +782,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
             type="submit"
             className="auth-btn-primary"
           >
-            {isRegister ? "註冊" : forgotMode ? "用 Email 登入" : "登入"}
+            {isRegister ? "註冊" : "登入"}
           </button>
 
           {/* 或用 LINE 一鍵登入／註冊 — 註冊時必須先填 email + 姓名 */}

@@ -333,7 +333,7 @@ function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [forgotMode, setForgotMode] = useState(false);
+  // forgotMode 已移除 — 密碼改用真驗證
 
   // LINE OAuth 回來後自動登入
   useEffect(() => {
@@ -373,13 +373,17 @@ function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const body = forgotMode
-        ? { email, password: "", forgotPassword: true }
-        : { email, password };
-      const res = await fetch("/api/admin/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "登入失敗");
-      onLogin({ name: data.name || data.user?.name || email, email: data.email || data.user?.email || email, token: data.token || "admin" });
+      if (data.mustChangePassword) {
+        alert("⚠️ 您目前使用預設密碼 0000，登入後請立即到「帳號設定」變更密碼。");
+      }
+      onLogin({ name: data.user?.name || email, email: data.user?.email || email, token: "admin" });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "登入失敗");
     } finally { setLoading(false); }
@@ -398,21 +402,16 @@ function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
             <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>管理員帳號</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} placeholder="admin@example.com" />
           </div>
-          {!forgotMode && (
-            <div>
-              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>密碼</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} placeholder="••••••••" />
-            </div>
-          )}
-          <div style={{ textAlign: "right", marginTop: -8 }}>
-            <button type="button" onClick={() => { setForgotMode(!forgotMode); setError(""); }}
-              style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 12, cursor: "pointer", padding: 0 }}>
-              {forgotMode ? "返回密碼登入" : "忘記密碼？用 Email 直接登入"}
-            </button>
+          <div>
+            <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>密碼 <span style={{ color: "var(--text3)" }}>(預設 0000)</span></label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} placeholder="0000" />
+          </div>
+          <div style={{ textAlign: "right", marginTop: -8, color: "var(--text3)", fontSize: 12 }}>
+            忘記密碼？請聯繫超級管理員重置
           </div>
           {error && <div style={{ background: "rgba(248,113,113,0.13)", border: "1px solid rgba(248,113,113,0.27)", borderRadius: 8, padding: "10px 14px", color: "#f87171", fontSize: 13 }}>{error}</div>}
           <button type="submit" disabled={loading} style={{ background: loading ? "var(--border)" : "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: 13, fontSize: 15, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", marginTop: 4 }}>
-            {loading ? "登入中..." : forgotMode ? "用 Email 登入" : "登入"}
+            {loading ? "登入中..." : "登入"}
           </button>
         </form>
 

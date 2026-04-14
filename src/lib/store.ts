@@ -71,6 +71,15 @@ export function getCurrentUser(): User | null {
 }
 
 export function setCurrentUser(email: string) {
+  // 切換登入者時先清掉所有跟前一個使用者有關的 session/cookie 殘留
+  try {
+    sessionStorage.removeItem("moyu_recruit_email");
+    sessionStorage.removeItem("adminSession");
+    // 清 LINE OAuth / 忘記密碼流程 cookie
+    document.cookie = "moyu_oauth_session=; Path=/; Max-Age=0";
+    document.cookie = "moyu_oauth_state=; Path=/; Max-Age=0";
+    document.cookie = "moyu_oauth_nonce=; Path=/; Max-Age=0";
+  } catch {}
   sessionStorage.setItem("moyu_current_user", email);
 }
 
