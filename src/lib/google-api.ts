@@ -49,6 +49,7 @@ function getAuth() {
 
 /** 檢查 Google credentials 是否有設定（不 throw） */
 export function hasGoogleCredentials(): boolean {
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64) return true;
   return !!(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
 }
 
