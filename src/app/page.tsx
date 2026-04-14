@@ -416,6 +416,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
   const [companyType, setCompanyType] = useState<CompanyType>("hq");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
+  const [forgotMode, setForgotMode] = useState(false);
   const [binding, setBinding] = useState<BindingInfo | null>(null);
   const [bindingPolling, setBindingPolling] = useState(false);
 
@@ -545,7 +546,9 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
         }
 
         if (cloudRes.ok && cloudData?.user) {
-          restoreUserFromCloud(email, password || email, cloudData.user);
+          // 忘記密碼模式：用 email 當密碼重置 localStorage
+          restoreUserFromCloud(email, forgotMode ? email : (password || email), cloudData.user);
+          if (forgotMode) setForgotMode(false);
           onLogin();
           return;
         }
@@ -739,16 +742,32 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
             />
           </div>
 
-          <div className="mb-6">
-            <label className="block text-xs text-[var(--text2)] mb-1">密碼</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="auth-input"
-              required
-            />
-          </div>
+          {!(forgotMode && !isRegister) && (
+            <div className="mb-2">
+              <label className="block text-xs text-[var(--text2)] mb-1">密碼</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="auth-input"
+                required={!forgotMode}
+              />
+            </div>
+          )}
+
+          {!isRegister && (
+            <div className="mb-4 text-right">
+              <button
+                type="button"
+                onClick={() => { setForgotMode(!forgotMode); setError(""); }}
+                className="text-xs text-[var(--accent)] hover:underline"
+              >
+                {forgotMode ? "返回密碼登入" : "忘記密碼？用 Email 直接登入"}
+              </button>
+            </div>
+          )}
+
+          {forgotMode && !isRegister && <div className="mb-4" />}
 
           {error && (
             <p className="text-[var(--red)] text-sm mb-4">{error}</p>
@@ -758,7 +777,7 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
             type="submit"
             className="auth-btn-primary"
           >
-            {isRegister ? "註冊" : "登入"}
+            {isRegister ? "註冊" : forgotMode ? "用 Email 登入" : "登入"}
           </button>
 
           {/* 或用 LINE 一鍵登入／註冊 — 註冊時必須先填 email + 姓名 */}

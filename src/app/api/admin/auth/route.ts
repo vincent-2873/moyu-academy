@@ -8,20 +8,26 @@ const ALLOWED_ROLES = ['super_admin', 'ceo', 'coo', 'cfo', 'director', 'brand_ma
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json();
+    const { email, password, forgotPassword, lineLogin } = await req.json();
 
-    if (!email || !password) {
+    if (!email) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Email is required' },
         { status: 400 }
       );
     }
 
-    if (password !== ADMIN_PASSWORD) {
-      return NextResponse.json(
-        { error: 'Invalid credentials' },
-        { status: 401 }
-      );
+    // 三種登入方式：
+    // 1. 密碼登入（預設）
+    // 2. 忘記密碼（forgotPassword=true）— 只驗 email + role
+    // 3. LINE 登入（lineLogin=true）— 只驗 email + role + line_user_id
+    if (!forgotPassword && !lineLogin) {
+      if (!password) {
+        return NextResponse.json({ error: 'Password is required' }, { status: 400 });
+      }
+      if (password !== ADMIN_PASSWORD) {
+        return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+      }
     }
 
     const { data: user, error } = await getSupabaseAdmin()
@@ -34,6 +40,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
+      );
+    }
+
+    // LINE 登入需要已綁定 LINE
+    if (lineLogin && !user.line_user_id) {
+      return NextResponse.json(
+        { error: '此帳號尚未綁定 LINE，請先用密碼登入再綁定' },
+        { status: 403 }
       );
     }
 

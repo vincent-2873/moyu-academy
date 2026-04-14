@@ -331,12 +331,50 @@ function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [forgotMode, setForgotMode] = useState(false);
+
+  // LINE OAuth 回來後自動登入
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const cookieMap = Object.fromEntries(
+      document.cookie.split(";").map((c) => { const [k, ...v] = c.trim().split("="); return [k, v.join("=")]; })
+    );
+    if (cookieMap.moyu_oauth_session) {
+      try {
+        const json = JSON.parse(atob(cookieMap.moyu_oauth_session.replace(/-/g, "+").replace(/_/g, "/")));
+        document.cookie = "moyu_oauth_session=; Path=/; Max-Age=0";
+        if (window.location.search.includes("line_oauth_success")) {
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+        // 用 LINE OAuth 回來的 email 做 admin auth（免密碼）
+        (async () => {
+          const res = await fetch("/api/admin/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: json.email, password: "", lineLogin: true }) });
+          const data = await res.json();
+          if (res.ok && data.user) {
+            onLogin({ name: data.user.name || json.name, email: data.user.email || json.email, token: "admin" });
+          } else {
+            setError(data.error || "LINE 登入失敗，可能沒有後台權限");
+          }
+        })();
+      } catch { /* ignore */ }
+    }
+    // 檢查 URL error
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthErr = urlParams.get("line_oauth_error");
+    if (oauthErr) {
+      window.history.replaceState({}, "", window.location.pathname);
+      setError("LINE 登入失敗：" + oauthErr);
+    }
+  }, [onLogin]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const res = await fetch("/api/admin/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const body = forgotMode
+        ? { email, password: "", forgotPassword: true }
+        : { email, password };
+      const res = await fetch("/api/admin/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "登入失敗");
       onLogin({ name: data.name || data.user?.name || email, email: data.email || data.user?.email || email, token: data.token || "admin" });
@@ -358,15 +396,43 @@ function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
             <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>管理員帳號</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} placeholder="admin@example.com" />
           </div>
-          <div>
-            <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>密碼</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} placeholder="••••••••" />
+          {!forgotMode && (
+            <div>
+              <label style={{ display: "block", color: "var(--text2)", fontSize: 13, marginBottom: 6 }}>密碼</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} placeholder="••••••••" />
+            </div>
+          )}
+          <div style={{ textAlign: "right", marginTop: -8 }}>
+            <button type="button" onClick={() => { setForgotMode(!forgotMode); setError(""); }}
+              style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 12, cursor: "pointer", padding: 0 }}>
+              {forgotMode ? "返回密碼登入" : "忘記密碼？用 Email 直接登入"}
+            </button>
           </div>
           {error && <div style={{ background: "rgba(248,113,113,0.13)", border: "1px solid rgba(248,113,113,0.27)", borderRadius: 8, padding: "10px 14px", color: "#f87171", fontSize: 13 }}>{error}</div>}
           <button type="submit" disabled={loading} style={{ background: loading ? "var(--border)" : "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: 13, fontSize: 15, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", marginTop: 4 }}>
-            {loading ? "登入中..." : "登入"}
+            {loading ? "登入中..." : forgotMode ? "用 Email 登入" : "登入"}
           </button>
         </form>
+
+        {/* LINE 一鍵登入 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
+          <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+          <span style={{ fontSize: 12, color: "var(--text3)" }}>或</span>
+          <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+        </div>
+        <a
+          href="/api/line/oauth/start?mode=login"
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            width: "100%", padding: 13, borderRadius: 10, border: "none",
+            background: "linear-gradient(135deg, #06C755, #00B900)",
+            color: "#fff", fontSize: 15, fontWeight: 600, textDecoration: "none",
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ fontSize: 20 }}>📱</span>
+          <span>用 LINE 一鍵登入</span>
+        </a>
       </div>
     </div>
   );
