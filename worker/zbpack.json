@@ -1,0 +1,5 @@
+{
+  "build_command": "echo build done",
+  "start_command": "node src/index.js",
+  "node_version": "20"
+}
