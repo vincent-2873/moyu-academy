@@ -3313,6 +3313,21 @@ interface AutomationData {
   }>;
   recentLogs: Array<{ action_type: string; target: string; summary: string; result: string; created_at: string }>;
   phoneStatsByExt: Record<string, { agent: string; calls: number; totalSec: number; answered: number }>;
+  unified?: {
+    recruit?: {
+      funnel: { new: number; contacted: number; interview: number; offer: number; onboarded: number; rejected: number };
+      sent104Today: { mofan: number; ruifu: number };
+      repliesToday: number;
+      repliesTotals: Record<string, number>;
+    };
+    legal?: {
+      contractsTotal: number; contractsExpired: number; contractsExpiring: number;
+      complianceOverdue: number; complianceUpcoming: number;
+      disputesCritical: number; disputesOpen: number;
+    };
+    commands?: { total: number; pending: number; done: number; critical: number };
+    alerts?: Array<{ level: string; pillar: string; text: string; link?: string }>;
+  } | null;
 }
 
 function AutomationTab() {
@@ -3322,9 +3337,20 @@ function AutomationTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/admin/104-status", { cache: "no-store" });
-      const d = await r.json();
-      if (d.ok) setData(d);
+      // 並行抓 104-status (原有) + unified-dashboard (新)
+      const [r1, r2] = await Promise.all([
+        fetch("/api/admin/104-status", { cache: "no-store" }),
+        fetch("/api/admin/unified-dashboard", { cache: "no-store" }),
+      ]);
+      const d1 = await r1.json();
+      const d2 = await r2.json();
+      if (d1.ok) {
+        // 合併 unified 的資料到現有結構
+        setData({
+          ...d1,
+          unified: d2.ok ? d2 : null,
+        });
+      }
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);
@@ -3358,6 +3384,83 @@ function AutomationTab() {
           <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 4 }}>有興趣 / 婉拒 / 其他回覆總和</div>
         </div>
       </div>
+
+      {/* 統一警報（critical/high/normal） */}
+      {data.unified?.alerts && data.unified.alerts.length > 0 && (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, marginTop: 0, marginBottom: 12 }}>🚨 集團警報</h2>
+          {data.unified.alerts.map((a, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: "#fff",
+                background: a.level === "critical" ? "#dc2626" : a.level === "high" ? "#f59e0b" : "#3b82f6",
+                padding: "2px 8px", borderRadius: 4, whiteSpace: "nowrap",
+              }}>{a.level}</span>
+              <span style={{ fontSize: 11, color: "var(--text3)", width: 50 }}>{a.pillar}</span>
+              <span style={{ fontSize: 13, flex: 1 }}>{a.text}</span>
+              {a.link && <a href={a.link} style={{ fontSize: 11, color: "var(--accent)" }}>→</a>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 集團 3 大支柱快覽 */}
+      {data.unified && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+          {data.unified.recruit && (
+            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
+              <div style={{ fontSize: 12, color: "var(--text3)", fontWeight: 600, marginBottom: 10 }}>🎯 招聘 Funnel（近 7 天）</div>
+              {[
+                { label: "新候選人", val: data.unified.recruit.funnel.new, color: "#3b82f6" },
+                { label: "聯繫中", val: data.unified.recruit.funnel.contacted, color: "#7c3aed" },
+                { label: "面試", val: data.unified.recruit.funnel.interview, color: "#f59e0b" },
+                { label: "Offer", val: data.unified.recruit.funnel.offer, color: "#dc2626" },
+                { label: "到職/試用", val: data.unified.recruit.funnel.onboarded, color: "#16a34a" },
+              ].map((r) => (
+                <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 12, color: "var(--text3)", width: 80 }}>{r.label}</span>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: r.color }}>{r.val}</span>
+                </div>
+              ))}
+              <div style={{ marginTop: 10, fontSize: 11, color: "var(--text3)" }}>
+                今日新回覆 {data.unified.recruit.repliesToday}
+              </div>
+            </div>
+          )}
+          {data.unified.legal && (
+            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
+              <div style={{ fontSize: 12, color: "var(--text3)", fontWeight: 600, marginBottom: 10 }}>⚖️ 法務狀態</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <span style={{ fontSize: 12, color: "var(--text3)", width: 80 }}>合約</span>
+                <span style={{ fontSize: 16, fontWeight: 800 }}>{data.unified.legal.contractsTotal}</span>
+                {data.unified.legal.contractsExpired > 0 && <span style={{ fontSize: 11, color: "#dc2626" }}>過期 {data.unified.legal.contractsExpired}</span>}
+                {data.unified.legal.contractsExpiring > 0 && <span style={{ fontSize: 11, color: "#f59e0b" }}>30 天內 {data.unified.legal.contractsExpiring}</span>}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <span style={{ fontSize: 12, color: "var(--text3)", width: 80 }}>法遵申報</span>
+                <span style={{ fontSize: 16, fontWeight: 800 }}>{data.unified.legal.complianceUpcoming + data.unified.legal.complianceOverdue}</span>
+                {data.unified.legal.complianceOverdue > 0 && <span style={{ fontSize: 11, color: "#dc2626" }}>🔴 逾期 {data.unified.legal.complianceOverdue}</span>}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <span style={{ fontSize: 12, color: "var(--text3)", width: 80 }}>糾紛</span>
+                <span style={{ fontSize: 16, fontWeight: 800 }}>{data.unified.legal.disputesOpen}</span>
+                {data.unified.legal.disputesCritical > 0 && <span style={{ fontSize: 11, color: "#dc2626" }}>🚨 重大 {data.unified.legal.disputesCritical}</span>}
+              </div>
+              <a href="/legal" style={{ display: "inline-block", marginTop: 10, fontSize: 11, color: "var(--accent)" }}>→ 進法務中心</a>
+            </div>
+          )}
+          {data.unified.commands && (
+            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
+              <div style={{ fontSize: 12, color: "var(--text3)", fontWeight: 600, marginBottom: 10 }}>⚡ 今日命令</div>
+              <div style={{ fontSize: 26, fontWeight: 900 }}>{data.unified.commands.total}</div>
+              <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>
+                待處理 {data.unified.commands.pending} · 完成 {data.unified.commands.done}
+                {data.unified.commands.critical > 0 && <span style={{ color: "#dc2626" }}> · 🔴 緊急 {data.unified.commands.critical}</span>}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 電話分機統計 */}
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 24 }}>
