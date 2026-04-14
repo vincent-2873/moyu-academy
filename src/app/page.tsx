@@ -142,21 +142,32 @@ export default function Home() {
 
   const companyType: CompanyType = (user.companyType as CompanyType) || "sales";
 
-  // 業務員 (sales_rep) 統一走 /me 新體驗（晨報 / 即時 KPI / 成就 / 戰情官 / 通話診斷）
-  // root / 的舊 DashboardPage 吃 localStorage KPI 完全不會顯示 Metabase 真實資料，
-  // 會讓業務以為系統沒東西。管理員留在原本的 /admin 或 root dashboard
-  if (typeof window !== "undefined" && user.role === "sales_rep") {
+  // 根據 brand + role 導向對應前台：
+  // - 招聘 (moyuhunt / recruiter) → /recruit
+  // - 法務 (legal) → /legal (TODO: 法務前台)
+  // - 業務 (sales_rep) → /me
+  // - 管理員 (super_admin / ceo / coo / director) 且 brand=hq → 留在 root dashboard
+  const isAdmin = ["super_admin", "ceo", "coo", "cfo", "director"].includes(user.role || "");
+  const isRecruit = user.brand === "moyuhunt" || user.role === "recruiter";
+  const isLegal = user.brand === "legal";
+
+  if (typeof window !== "undefined" && !isAdmin) {
     sessionStorage.setItem("moyu_current_user", user.email);
-    // 獵頭公司 (moyuhunt) 走 /recruit，業務走 /me
-    const dest = user.brand === "moyuhunt" ? "/recruit" : "/me";
+    let dest = "/me"; // 預設業務
+    let label = "載入我的戰情中…";
+    if (isRecruit) { dest = "/recruit"; label = "載入招聘中心…"; }
+    else if (isLegal) { dest = "/me"; label = "載入法務中心…"; } // 法務暫時也走 /me
     window.location.replace(dest);
     return (
       <div className="h-screen flex items-center justify-center">
-        <div className="text-lg text-[var(--text2)] animate-pulse">
-          {user.brand === "moyuhunt" ? "載入招聘中心…" : "載入我的戰情中…"}
-        </div>
+        <div className="text-lg text-[var(--text2)] animate-pulse">{label}</div>
       </div>
     );
+  }
+
+  // 管理員 + 招聘角色（如 Lynn brand=hq role=director 但負責招聘）也設 session
+  if (typeof window !== "undefined") {
+    sessionStorage.setItem("moyu_current_user", user.email);
   }
 
   return (
