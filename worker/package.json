@@ -1,0 +1,24 @@
+{
+  "name": "moyu-worker",
+  "version": "1.0.0",
+  "description": "Moyu 招聘自動化背景 worker — 104 發信、回覆輪詢、面試派送、電話紀錄同步",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "104-sender": "node src/jobs/104-sender.js",
+    "104-poller": "node src/jobs/104-poller.js",
+    "104-interview": "node src/jobs/104-interview-sender.js",
+    "phone-sync": "node src/jobs/phone-call-sync.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.49.0",
+    "googleapis": "^144.0.0"
+  }
+}
