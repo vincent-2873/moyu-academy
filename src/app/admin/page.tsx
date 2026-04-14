@@ -7,7 +7,7 @@ import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "commands" | "org" | "people" | "system-hub";
+type AdminTab = "pillars" | "sales" | "commands" | "org" | "people" | "automation" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -217,6 +217,7 @@ export default function AdminPage() {
     { id: "commands", label: "命令中心", icon: "⚡" },
     { id: "org", label: "組織架構", icon: "🏢" },
     { id: "people", label: "人員管理", icon: "👥" },
+    { id: "automation", label: "104 & 電話", icon: "🤖" },
     { id: "system-hub", label: "系統管控", icon: "⚙️" },
   ];
 
@@ -317,6 +318,7 @@ export default function AdminPage() {
           {tab === "commands" && <V3CommandsHub />}
           {tab === "org" && <V3OrgChartTab />}
           {tab === "people" && <PeopleHubTab token={session.token} scope={scope} />}
+          {tab === "automation" && <AutomationTab />}
           {tab === "system-hub" && <SystemHubTab token={session.token} />}
         </div>
       </main>
@@ -3288,6 +3290,171 @@ function PeopleHubTab({ token, scope }: { token: string; scope: CompanyScope }) 
       </div>
 
       <UsersTab token={token} />
+    </div>
+  );
+}
+
+// ─── Automation Tab (104 自動化 + 電話紀錄) ─────────────────
+
+interface AutomationData {
+  ok: boolean;
+  date: string;
+  sending: {
+    mofan: { sent: number; quota: number };
+    ruifu: { sent: number; quota: number };
+  };
+  newRepliesToday: number;
+  pendingActions: Array<{
+    id: string;
+    action_type: string;
+    candidate_name: string;
+    account: string;
+    status: string;
+    created_at: string;
+  }>;
+  recentLogs: Array<{ action_type: string; target: string; summary: string; result: string; created_at: string }>;
+  phoneStatsByExt: Record<string, { agent: string; calls: number; totalSec: number; answered: number }>;
+}
+
+function AutomationTab() {
+  const [data, setData] = useState<AutomationData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/admin/104-status", { cache: "no-store" });
+      const d = await r.json();
+      if (d.ok) setData(d);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  if (loading && !data) return <div style={{ padding: 24, color: "var(--text3)" }}>載入中...</div>;
+  if (!data) return <div style={{ padding: 24, color: "var(--red)" }}>載入失敗</div>;
+
+  const pctMofan = Math.round((data.sending.mofan.sent / data.sending.mofan.quota) * 100) || 0;
+  const pctRuifu = Math.round((data.sending.ruifu.sent / data.sending.ruifu.quota) * 100) || 0;
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 20 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>🤖 104 自動化 & 電話紀錄</h1>
+        <span style={{ fontSize: 12, color: "var(--text3)" }}>{data.date} · 每 30 秒自動更新</span>
+      </div>
+
+      {/* 發信進度 */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
+        <ProgressCard label="墨凡 104 發信" sent={data.sending.mofan.sent} quota={data.sending.mofan.quota} pct={pctMofan} color="#dc2626" />
+        <ProgressCard label="睿富 104 發信" sent={data.sending.ruifu.sent} quota={data.sending.ruifu.quota} pct={pctRuifu} color="#7c3aed" />
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
+          <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 8 }}>💬 今日新回覆</div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: "#16a34a" }}>{data.newRepliesToday}</div>
+          <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 4 }}>有興趣 / 婉拒 / 其他回覆總和</div>
+        </div>
+      </div>
+
+      {/* 電話分機統計 */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 24 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginTop: 0, marginBottom: 12 }}>☎️ 今日電話紀錄（依分機）</h2>
+        {Object.keys(data.phoneStatsByExt).length === 0 ? (
+          <div style={{ color: "var(--text3)", fontSize: 13 }}>
+            尚未有今日電話紀錄。請確認 PBX worker 是否運行 + PBX_USER / PBX_PASSWORD 環境變數是否設定。
+          </div>
+        ) : (
+          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ color: "var(--text3)", textAlign: "left" }}>
+                <th style={{ padding: "6px 0" }}>分機</th>
+                <th>姓名</th>
+                <th>通話數</th>
+                <th>接通</th>
+                <th>總通話時間</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(data.phoneStatsByExt).map(([ext, s]) => (
+                <tr key={ext} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td style={{ padding: "10px 0", fontWeight: 700 }}>{ext}</td>
+                  <td>{s.agent}</td>
+                  <td>{s.calls}</td>
+                  <td>{s.answered}</td>
+                  <td>{Math.floor(s.totalSec / 60)} 分 {s.totalSec % 60} 秒</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* 待處理 104 佇列 */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 24 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginTop: 0, marginBottom: 12 }}>📋 104 待處理佇列（{data.pendingActions.length}）</h2>
+        {data.pendingActions.length === 0 ? (
+          <div style={{ color: "var(--text3)", fontSize: 13 }}>目前沒有待處理任務</div>
+        ) : (
+          <table style={{ width: "100%", fontSize: 13 }}>
+            <thead>
+              <tr style={{ color: "var(--text3)", textAlign: "left" }}>
+                <th>類型</th><th>候選人</th><th>帳號</th><th>狀態</th><th>建立時間</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.pendingActions.map((a) => (
+                <tr key={a.id} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td style={{ padding: "8px 0" }}>{a.action_type}</td>
+                  <td>{a.candidate_name}</td>
+                  <td>{a.account}</td>
+                  <td>{a.status}</td>
+                  <td style={{ color: "var(--text3)", fontSize: 11 }}>{new Date(a.created_at).toLocaleString("zh-TW")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* 最近 log */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginTop: 0, marginBottom: 12 }}>📜 最近自動化 log</h2>
+        {data.recentLogs.length === 0 ? (
+          <div style={{ color: "var(--text3)", fontSize: 13 }}>還沒有 log</div>
+        ) : (
+          <div style={{ maxHeight: 400, overflowY: "auto", fontSize: 12, fontFamily: "ui-monospace,monospace" }}>
+            {data.recentLogs.map((l, i) => (
+              <div key={i} style={{ padding: "6px 0", borderBottom: "1px solid var(--border)", color: l.result === "success" ? "var(--text2)" : "var(--red)" }}>
+                <span style={{ color: "var(--text3)" }}>{new Date(l.created_at).toLocaleString("zh-TW")}</span>
+                {" · "}
+                <strong>{l.action_type}</strong>
+                {" · "}
+                {l.summary}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProgressCard({ label, sent, quota, pct, color }: { label: string; sent: number; quota: number; pct: number; color: string }) {
+  return (
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
+      <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 8 }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <div style={{ fontSize: 32, fontWeight: 900, color }}>{sent}</div>
+        <div style={{ color: "var(--text3)", fontSize: 14 }}>/ {quota} 封</div>
+      </div>
+      <div style={{ marginTop: 10, height: 8, background: "var(--border)", borderRadius: 4, overflow: "hidden" }}>
+        <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: color, transition: "width 0.3s" }} />
+      </div>
+      <div style={{ marginTop: 6, fontSize: 11, color: "var(--text3)" }}>{pct}% 達成</div>
     </div>
   );
 }

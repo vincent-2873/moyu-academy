@@ -110,7 +110,27 @@ export async function POST(req: NextRequest) {
     results.commandDone = true;
   }
 
-  // 4. Log
+  // 4. 安排二面 → 丟 worker 佇列去 104 發面試邀請
+  if (arrangeSecond && secondInterviewTime) {
+    const { error: queueErr } = await supabase.from("pending_104_actions").insert({
+      action_type: "send_interview_invite",
+      candidate_name: candidateName,
+      candidate_104_id: body.candidate104Id || null,
+      account: body.account || "mofan",
+      payload: {
+        interviewTime: secondInterviewTime,
+        interviewManager: secondManager,
+        location: body.location || null,
+        round: 2,
+        messageTemplate: "default",
+      },
+      recruit_id: recruitId || null,
+    });
+    results.queued104 = !queueErr;
+    if (queueErr) results.queue104Error = queueErr.message;
+  }
+
+  // 5. Log
   await supabase.from("claude_actions").insert({
     action_type: "recruit_interview_update",
     target: candidateName,

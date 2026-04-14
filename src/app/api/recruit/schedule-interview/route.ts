@@ -109,7 +109,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 4. Log
+  // 4. 推入 104 worker 佇列
+  const { error: queueErr } = await supabase.from("pending_104_actions").insert({
+    action_type: "send_interview_invite",
+    candidate_name: candidateName,
+    candidate_104_id: body.candidate104Id || null,
+    account: body.account || "mofan",
+    payload: {
+      interviewTime: startTime,
+      endTime,
+      interviewManager,
+      location: location || null,
+      round,
+      calendarLink: results.calendarLink || null,
+    },
+    recruit_id: recruitId || null,
+  });
+  results.queued104 = !queueErr;
+  if (queueErr) results.queue104Error = queueErr.message;
+
+  // 5. Log
   await supabase.from("claude_actions").insert({
     action_type: "recruit_schedule_interview",
     target: candidateName,
