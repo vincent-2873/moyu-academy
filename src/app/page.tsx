@@ -156,7 +156,7 @@ export default function Home() {
     let dest = "/me"; // 預設業務
     let label = "載入我的戰情中…";
     if (isRecruit) { dest = "/recruit"; label = "載入招聘中心…"; }
-    else if (isLegal) { dest = "/me"; label = "載入法務中心…"; } // 法務暫時也走 /me
+    else if (isLegal) { dest = "/legal"; label = "載入法務中心…"; }
     window.location.replace(dest);
     return (
       <div className="h-screen flex items-center justify-center">
