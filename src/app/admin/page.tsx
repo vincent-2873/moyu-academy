@@ -3337,18 +3337,20 @@ function AutomationTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // 並行抓 104-status (原有) + unified-dashboard (新)
-      const [r1, r2] = await Promise.all([
+      // 並行抓 104-status + unified-dashboard + worker-status
+      const [r1, r2, r3] = await Promise.all([
         fetch("/api/admin/104-status", { cache: "no-store" }),
         fetch("/api/admin/unified-dashboard", { cache: "no-store" }),
+        fetch("/api/admin/worker-status", { cache: "no-store" }),
       ]);
       const d1 = await r1.json();
       const d2 = await r2.json();
+      const d3 = await r3.json();
       if (d1.ok) {
-        // 合併 unified 的資料到現有結構
         setData({
           ...d1,
           unified: d2.ok ? d2 : null,
+          workerStatus: d3.ok ? d3 : null,
         });
       }
     } catch { /* ignore */ }
@@ -3369,9 +3371,24 @@ function AutomationTab() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>🤖 104 自動化 & 電話紀錄</h1>
         <span style={{ fontSize: 12, color: "var(--text3)" }}>{data.date} · 每 30 秒自動更新</span>
+        {(() => {
+          const ws = (data as { workerStatus?: { services?: Array<{ service: string; alive: boolean; age_seconds: number; uptime_seconds?: number; jobs?: string[] }> } }).workerStatus;
+          const svc = ws?.services?.find((x) => x.service === "moyu-worker");
+          if (!svc) {
+            return <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: "#7f1d1d", color: "#fecaca" }}>⛔ worker 未回報</span>;
+          }
+          return (
+            <span
+              title={`jobs: ${(svc.jobs || []).join(", ")} · uptime=${svc.uptime_seconds ?? "-"}s · last seen ${svc.age_seconds}s ago`}
+              style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: svc.alive ? "#14532d" : "#7f1d1d", color: svc.alive ? "#bbf7d0" : "#fecaca" }}
+            >
+              {svc.alive ? "✅" : "💀"} moyu-worker · {svc.age_seconds}s ago
+            </span>
+          );
+        })()}
       </div>
 
       {/* 發信進度 */}
