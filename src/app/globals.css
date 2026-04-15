@@ -22,17 +22,76 @@
   --border: #e2e8f0;
   --border-strong: #cbd5e1;
   --shadow-glow: 0 0 40px rgba(79, 70, 229, 0.12);
+
+  /* Body gradient blobs (light) */
+  --body-grad-1: rgba(79, 70, 229, 0.12);
+  --body-grad-2: rgba(13, 148, 136, 0.10);
+  --body-grad-3: rgba(236, 72, 153, 0.07);
+  --body-grad-4: rgba(124, 108, 240, 0.08);
 }
+
+/* 深色主題 — 覆蓋在 html[data-theme="dark"] 上 */
+html[data-theme="dark"] {
+  --bg: #0b1020;
+  --bg2: #111733;
+  --bg3: #0e1430;
+  --card: #151c3b;
+  --card2: #1a2146;
+  --accent: #818cf8;
+  --accent-light: #a5b4fc;
+  --teal: #2dd4bf;
+  --gold: #fbbf24;
+  --orange: #fb923c;
+  --red: #f87171;
+  --green: #4ade80;
+  --pink: #f472b6;
+  --cyan: #22d3ee;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #64748b;
+  --border: #27305a;
+  --border-strong: #3b4576;
+  --shadow-glow: 0 0 40px rgba(129, 140, 248, 0.25);
+
+  --body-grad-1: rgba(99, 102, 241, 0.20);
+  --body-grad-2: rgba(45, 212, 191, 0.15);
+  --body-grad-3: rgba(244, 114, 182, 0.10);
+  --body-grad-4: rgba(129, 140, 248, 0.14);
+
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] .auth-card {
+  background: rgba(21, 28, 59, 0.85);
+  border: 1px solid rgba(59, 69, 118, 0.6);
+  box-shadow:
+    0 30px 80px -30px rgba(0, 0, 0, 0.6),
+    0 10px 40px -10px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+html[data-theme="dark"] .auth-input {
+  background: rgba(14, 20, 48, 0.8);
+  border-color: var(--border);
+  color: var(--text);
+}
+html[data-theme="dark"] .auth-input:focus {
+  background: var(--card);
+  box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.2);
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-track { background: var(--bg2); }
+html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border-strong); }
+html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: "SF Pro Display", "PingFang TC", "Microsoft JhengHei", -apple-system, sans-serif;
   background-image:
-    radial-gradient(at 8% 0%, rgba(79, 70, 229, 0.12) 0px, transparent 55%),
-    radial-gradient(at 92% 6%, rgba(13, 148, 136, 0.10) 0px, transparent 55%),
-    radial-gradient(at 50% 100%, rgba(236, 72, 153, 0.07) 0px, transparent 60%),
-    radial-gradient(at 0% 90%, rgba(124, 108, 240, 0.08) 0px, transparent 50%);
+    radial-gradient(at 8% 0%, var(--body-grad-1) 0px, transparent 55%),
+    radial-gradient(at 92% 6%, var(--body-grad-2) 0px, transparent 55%),
+    radial-gradient(at 50% 100%, var(--body-grad-3) 0px, transparent 60%),
+    radial-gradient(at 0% 90%, var(--body-grad-4) 0px, transparent 50%);
   background-attachment: fixed;
   min-height: 100vh;
 }
