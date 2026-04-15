@@ -64,5 +64,70 @@
       "Bash(dd *)",
       "Bash(mkfs*)"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "allowUnsandboxedCommands": true,
+    "excludedCommands": [
+      "docker *",
+      "docker-compose *"
+    ],
+    "filesystem": {
+      "allowWrite": [
+        "/tmp",
+        "/private/tmp",
+        "/var/folders",
+        "~/.npm",
+        "~/.cache",
+        "~/.config",
+        "~/.local/share",
+        "~/.supabase",
+        "~/.zeabur",
+        "~/.vercel",
+        "~/.gitconfig",
+        "~/Library/Caches"
+      ],
+      "denyRead": [
+        "~/.ssh",
+        "~/.aws",
+        "~/.gnupg",
+        "~/.netrc",
+        "~/Library/Keychains"
+      ]
+    },
+    "network": {
+      "allowLocalBinding": true,
+      "allowedDomains": [
+        "registry.npmjs.org",
+        "*.npmjs.org",
+        "registry.yarnpkg.com",
+        "*.yarnpkg.com",
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        "raw.githubusercontent.com",
+        "objects.githubusercontent.com",
+        "uploads.github.com",
+        "*.supabase.co",
+        "*.supabase.com",
+        "*.supabase.net",
+        "*.zeabur.com",
+        "*.zeabur.app",
+        "*.vercel.app",
+        "*.vercel.com",
+        "vercel.com",
+        "fonts.googleapis.com",
+        "fonts.gstatic.com",
+        "cdn.jsdelivr.net",
+        "unpkg.com",
+        "deno.land",
+        "*.anthropic.com",
+        "api.openai.com",
+        "api.line.me",
+        "notify-api.line.me",
+        "*.line.biz"
+      ]
+    }
   }
 }
