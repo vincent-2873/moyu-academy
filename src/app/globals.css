@@ -409,3 +409,58 @@ body:has(.admin-light) {
   background: #ffffff;
   box-shadow: 0 4px 18px -8px rgba(15,23,42,0.10);
 }
+
+/* Admin 後台也跟著深色模式 —— 以 html[data-theme="dark"] 覆蓋 admin-light 的強制淺色 */
+html[data-theme="dark"] body:has(.admin-light) {
+  background: #0b1020 !important;
+  background-image:
+    radial-gradient(at 6% 0%, rgba(99, 102, 241, 0.20) 0px, transparent 50%),
+    radial-gradient(at 95% 8%, rgba(45, 212, 191, 0.14) 0px, transparent 50%) !important;
+  color: #e2e8f0 !important;
+}
+html[data-theme="dark"] .admin-light {
+  --bg: #0b1020;
+  --bg2: #111733;
+  --bg3: #0e1430;
+  --card: #151c3b;
+  --card2: #1a2146;
+  --accent: #818cf8;
+  --accent-light: #a5b4fc;
+  --teal: #2dd4bf;
+  --gold: #fbbf24;
+  --orange: #fb923c;
+  --red: #f87171;
+  --green: #4ade80;
+  --pink: #f472b6;
+  --cyan: #22d3ee;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #64748b;
+  --border: #27305a;
+  --border-strong: #3b4576;
+}
+html[data-theme="dark"] .admin-light input,
+html[data-theme="dark"] .admin-light textarea,
+html[data-theme="dark"] .admin-light select {
+  background: var(--card) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+html[data-theme="dark"] .admin-light input::placeholder,
+html[data-theme="dark"] .admin-light textarea::placeholder {
+  color: var(--text3);
+}
+html[data-theme="dark"] .admin-light ::-webkit-scrollbar-track { background: var(--bg2); }
+html[data-theme="dark"] .admin-light ::-webkit-scrollbar-thumb { background: var(--border-strong); }
+html[data-theme="dark"] .admin-light .surface-elevated {
+  background: var(--card);
+  box-shadow: 0 8px 30px -10px rgba(0,0,0,0.5);
+}
+html[data-theme="dark"] .admin-light .glass-card {
+  background: rgba(21, 28, 59, 0.85);
+  border: 1px solid var(--border);
+}
+html[data-theme="dark"] .admin-light .metric-tile {
+  background: var(--card);
+  box-shadow: 0 4px 18px -8px rgba(0,0,0,0.5);
+}
