@@ -107,6 +107,8 @@ interface Briefing {
   cached?: boolean;
 }
 
+export const maxDuration = 60;
+
 export async function GET(req: NextRequest) {
   const email = req.nextUrl.searchParams.get("email");
   const forceRefresh = req.nextUrl.searchParams.get("refresh") === "1";
@@ -129,6 +131,8 @@ export async function GET(req: NextRequest) {
       .select("details")
       .eq("action_type", "daily_briefing")
       .eq("target", cacheKey)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
     if (cached?.details) {
       const details = cached.details as Briefing;
