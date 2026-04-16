@@ -33,15 +33,19 @@ export async function GET(req: NextRequest) {
   if (ownerEmail) q2 = q2.eq("owner_email", ownerEmail);
   const { data: contacted } = await q2;
 
-  // 3. 今日安排的面試
-  const today = new Date();
-  const tpToday = new Date(today.getTime() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+  // 3. 今日安排的面試（以台北時間 00:00-23:59 為範圍）
+  const now = new Date();
+  const tpNow = new Date(now.getTime() + 8 * 3600 * 1000);
+  const tpToday = tpNow.toISOString().slice(0, 10);
+  // TPE 00:00 對應 UTC = 前一天 16:00；TPE 23:59:59 對應 UTC = 當天 15:59:59
+  const tpe0 = new Date(`${tpToday}T00:00:00+08:00`);
+  const tpe24 = new Date(`${tpToday}T23:59:59+08:00`);
   let q3 = supabase
     .from("outreach_104_queue")
     .select("*")
     .not("interview_scheduled_at", "is", null)
-    .gte("interview_scheduled_at", tpToday + "T00:00:00Z")
-    .lte("interview_scheduled_at", tpToday + "T23:59:59Z");
+    .gte("interview_scheduled_at", tpe0.toISOString())
+    .lte("interview_scheduled_at", tpe24.toISOString());
   if (ownerEmail) q3 = q3.eq("owner_email", ownerEmail);
   const { data: todayInterviews } = await q3;
 

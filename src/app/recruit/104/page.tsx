@@ -38,7 +38,12 @@ export default function Recruit104Page() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const e = sessionStorage.getItem("moyu_current_user");
-    if (e) setEmail(e);
+    if (!e) {
+      // 未登入 → 回首頁
+      window.location.href = "/";
+      return;
+    }
+    setEmail(e);
   }, []);
 
   const load = useCallback(async () => {
