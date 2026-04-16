@@ -137,6 +137,7 @@ export default function RecruitPage() {
         <div style={{ flex: 1 }} />
         <div style={S.badge}>新訓 {sopStats.percent}%</div>
         <div style={S.badge}>{totalPending > 0 ? `${totalPending} 件待辦` : "全部完成"}</div>
+        <a href="/recruit/104" style={{ ...S.linkBtn, background: "#fef3c7", color: "#92400e", fontWeight: 700 }}>🔥 104 熱名單</a>
         <a href="/account/password" style={S.linkBtn}>🔑 改密碼</a>
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={S.logoutBtn}>登出</button>
       </div>

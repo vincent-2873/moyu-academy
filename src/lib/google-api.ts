@@ -345,6 +345,44 @@ export async function updateRecruitSheetRow(
 }
 
 /**
+ * 依照姓名查 sheet row，找不到就加一筆，然後更新指定欄位
+ * 用於 104 自動化流程中事後補登 Sheet
+ */
+export async function findAndUpdateSheetByName(
+  name: string,
+  phone: string | null | undefined,
+  updates: Record<string, string>,
+  fallbackNewRow?: Parameters<typeof appendRecruitRecord>[0]
+): Promise<{ rowIndex: number; created: boolean }> {
+  if (!name) throw new Error("name required");
+  const rows = await readRecruitSheet({ daysBack: 90 });
+  // 用姓名 + (電話末4碼 or 空) 匹配最近一筆
+  const phone4 = (phone || "").replace(/\D/g, "").slice(-4);
+  const matched = rows.find((r) => {
+    if (r.name.trim() !== name.trim()) return false;
+    if (!phone4) return true;
+    const rp4 = (r.phone || "").replace(/\D/g, "").slice(-4);
+    return !rp4 || rp4 === phone4;
+  }) || rows.find((r) => r.name.trim() === name.trim());
+
+  if (matched) {
+    await updateRecruitSheetRow(matched.rowIndex, updates);
+    return { rowIndex: matched.rowIndex, created: false };
+  }
+  // 找不到：先 append 新 row（需要 fallback 資料），再 patch
+  if (!fallbackNewRow) throw new Error("sheet row not found and no fallback");
+  await appendRecruitRecord(fallbackNewRow);
+  // 再讀一次找新 row
+  const rows2 = await readRecruitSheet({ daysBack: 90 });
+  const newRow = rows2.find((r) => r.name.trim() === name.trim());
+  if (newRow) {
+    await updateRecruitSheetRow(newRow.rowIndex, updates);
+    return { rowIndex: newRow.rowIndex, created: true };
+  }
+  return { rowIndex: -1, created: true };
+}
+
+/**
  * 取得 Google Sheet 特定行的連結
  */
 export function getSheetRowLink(rowIndex: number): string {
