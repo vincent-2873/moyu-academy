@@ -8974,17 +8974,35 @@ function LegalAdminTab() {
         </div>
       </div>
 
+      {/* 未來 30 天 deadline 熱力圖 */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 0 }}>🌡️ 未來 30 天回函/答辯期限熱力圖</h3>
+        <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 10 }}>每格代表一天，顏色越深表示當天到期案件越多</div>
+        <DeadlineHeatmap heat={data.deadline_heat} />
+      </div>
+
+      {/* Aging 案件存續時長分佈 */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 0 }}>⏳ 案件 Aging 分佈</h3>
+        <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 10 }}>越多案件落在右側桶代表久懸未結</div>
+        <AgingBars aging={data.aging} />
+      </div>
+
       {/* Top 逾期 */}
       {data.top_overdue.length > 0 && (
         <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: 16, marginBottom: 20 }}>
           <h3 style={{ fontSize: 14, fontWeight: 800, marginTop: 0, color: "#991b1b" }}>🚨 最嚴重逾期 TOP 10</h3>
           {data.top_overdue.map((c) => (
-            <a key={c.id} href={`/legal/cases/${c.id}`} style={{ display: "flex", padding: "8px 0", borderTop: "1px solid #fecaca", textDecoration: "none", color: "var(--text)", fontSize: 13 }}>
+            <a key={c.id} href={`/legal/cases/${c.id}`} style={{ display: "flex", padding: "8px 0", borderTop: "1px solid #fecaca", textDecoration: "none", color: "var(--text)", fontSize: 13, alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 60, textAlign: "center", padding: "6px 0", borderRadius: 6,
+                background: "#fee2e2", color: "#991b1b", fontSize: 11, fontWeight: 800, flexShrink: 0,
+              }}>{c.days_overdue} 天</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>{c.title}</div>
                 <div style={{ fontSize: 11, color: "#64748b" }}>{c.case_no || "-"} · {c.owner || "(未指派)"}</div>
               </div>
-              <div style={{ color: "#dc2626", fontWeight: 700, fontSize: 12 }}>逾期 {c.days_overdue} 天</div>
+              <div style={{ color: "#cbd5e1", fontSize: 16 }}>›</div>
             </a>
           ))}
         </div>
@@ -9067,6 +9085,81 @@ function NewMgrModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
           <button onClick={onClose} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--text)", fontSize: 13, cursor: "pointer" }}>取消</button>
           <button onClick={submit} style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>建立</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Deadline 30-day Heatmap ─────────────────
+function DeadlineHeatmap({ heat }: { heat: Record<string, number> }) {
+  const today = new Date();
+  const cells: { date: string; count: number; dom: number; isToday: boolean }[] = [];
+  const max = Math.max(1, ...Object.values(heat || {}));
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(today.getTime() + i * 86400000);
+    const iso = d.toISOString().slice(0, 10);
+    cells.push({
+      date: iso,
+      count: heat[iso] || 0,
+      dom: d.getDate(),
+      isToday: i === 0,
+    });
+  }
+  const shade = (n: number) => {
+    if (n === 0) return "#f8fafc";
+    const ratio = n / max;
+    if (ratio < 0.25) return "#dbeafe";
+    if (ratio < 0.5) return "#93c5fd";
+    if (ratio < 0.75) return "#3b82f6";
+    return "#1d4ed8";
+  };
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(15, 1fr)", gap: 4 }}>
+      {cells.map((c) => (
+        <div key={c.date} title={`${c.date}: ${c.count} 件到期`} style={{
+          padding: "8px 4px", borderRadius: 6, background: shade(c.count),
+          textAlign: "center", fontSize: 10, fontWeight: 600,
+          border: c.isToday ? "2px solid #dc2626" : "none",
+          color: c.count > 0 ? (c.count / max > 0.5 ? "#fff" : "#0f172a") : "#94a3b8",
+        }}>
+          <div>{c.dom}</div>
+          {c.count > 0 && <div style={{ fontSize: 9, marginTop: 1 }}>{c.count}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Aging Bars ─────────────────
+function AgingBars({ aging }: { aging: Record<string, number> }) {
+  const buckets = [
+    { key: "d0_7", label: "0-7 天", color: "#10b981" },
+    { key: "d8_30", label: "8-30 天", color: "#4f46e5" },
+    { key: "d31_60", label: "31-60 天", color: "#f59e0b" },
+    { key: "d61_90", label: "61-90 天", color: "#ea580c" },
+    { key: "d91plus", label: "91+ 天", color: "#dc2626" },
+  ];
+  const total = buckets.reduce((s, b) => s + (aging[b.key] || 0), 0);
+  return (
+    <div>
+      <div style={{ display: "flex", height: 28, borderRadius: 8, overflow: "hidden", marginBottom: 10 }}>
+        {total === 0 ? (
+          <div style={{ flex: 1, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#94a3b8" }}>無資料</div>
+        ) : buckets.map((b) => {
+          const v = aging[b.key] || 0;
+          if (v === 0) return null;
+          const pct = (v / total) * 100;
+          return <div key={b.key} title={`${b.label}: ${v}`} style={{ width: `${pct}%`, background: b.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff" }}>{v}</div>;
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        {buckets.map((b) => (
+          <div key={b.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: b.color }} />
+            <span style={{ color: "var(--text2)" }}>{b.label}</span>
+            <span style={{ fontWeight: 700 }}>{aging[b.key] || 0}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

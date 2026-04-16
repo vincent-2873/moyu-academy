@@ -99,37 +99,53 @@ export default function Recruit104Page() {
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{email || "請先登入"} · {data.date}</div>
         </div>
         <div style={{ flex: 1 }} />
+        <a href="/today" style={S.linkBtn}>📋 今日待辦</a>
         <a href="/recruit" style={S.linkBtn}>← 回新訓</a>
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={S.logoutBtn}>登出</button>
       </div>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "20px 14px" }}>
 
-        {/* 3 大指標 */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
-          <Stat label="🔴 待打電話" value={data.stats.hot} sub="有興趣候選人" color="#dc2626" />
+        {/* 3 大指標 + 完成率 */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
+          <Stat label="🔴 待打電話" value={data.stats.hot} sub={data.stats.hot > 0 ? "立即處理" : "全部打完 🎉"} color="#dc2626" highlight={data.stats.hot > 10} />
           <Stat label="🟡 待排面試" value={data.stats.contacted} sub="已聯絡等排時間" color="#f59e0b" />
           <Stat label="🟢 今日面試" value={data.stats.todayInterviews} sub="已排好" color="#16a34a" />
+          <Stat label="💯 處理進度" value={`${Math.round(((data.stats.contacted + data.stats.todayInterviews) / Math.max(1, data.stats.hot + data.stats.contacted + data.stats.todayInterviews)) * 100)}%`} sub="已聯絡 / 總" color="#4f46e5" />
         </div>
 
-        {/* 熱名單 */}
+        {/* 熱名單 — 依 urgency 自動排序（最久沒處理排前） */}
         <Section title={`🔴 待打電話 (${data.hot.length})`} empty="目前無熱名單。poller 每 15 分鐘掃一次 104，有人回覆『我有興趣』會出現在這裡。">
-          {data.hot.map((r) => (
-            <Row key={r.id}>
-              <Cell style={{ width: 120 }}>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{r.candidate_name}</div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>{r.account} · {r.candidate_104_id}</div>
-              </Cell>
-              <Cell style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: "#1e293b" }}>{r.last_reply_text || "(無內容)"}</div>
-                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>回覆 {timeAgo(r.reply_received_at)}</div>
-              </Cell>
-              <Cell style={{ width: 180, textAlign: "right" }}>
-                <button style={S.btnRed} onClick={() => { setSelected(r); setModalType("phone"); }}>已打電話</button>
-                <button style={S.btnGreen} onClick={() => { setSelected(r); setModalType("interview"); }}>直接排面試</button>
-              </Cell>
-            </Row>
-          ))}
+          {[...data.hot].sort((a, b) => {
+            const aT = a.reply_received_at ? new Date(a.reply_received_at).getTime() : 0;
+            const bT = b.reply_received_at ? new Date(b.reply_received_at).getTime() : 0;
+            return aT - bT; // 最舊的最前
+          }).map((r) => {
+            const replyAt = r.reply_received_at ? new Date(r.reply_received_at).getTime() : Date.now();
+            const hoursAgo = (Date.now() - replyAt) / 3600_000;
+            const urgency = hoursAgo >= 24 ? "critical" : hoursAgo >= 12 ? "warm" : "fresh";
+            const urgencyColor = urgency === "critical" ? "#dc2626" : urgency === "warm" ? "#f59e0b" : "#10b981";
+            const urgencyLabel = urgency === "critical" ? `⏰ ${Math.floor(hoursAgo / 24)} 天前` : urgency === "warm" ? `🟡 ${Math.floor(hoursAgo)}h 前` : `🟢 ${Math.floor(hoursAgo * 60)}m 前`;
+            return (
+              <div key={r.id} style={{
+                display: "flex", padding: "12px 0", borderTop: "1px solid #f1f5f9", alignItems: "center", gap: 12,
+                borderLeft: `4px solid ${urgencyColor}`, paddingLeft: 12, marginLeft: -8,
+              }}>
+                <div style={{ width: 120 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{r.candidate_name}</div>
+                  <div style={{ fontSize: 10, color: "#64748b" }}>{r.account} · {r.candidate_104_id}</div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: "#1e293b", lineHeight: 1.5 }}>{r.last_reply_text || "(無內容，poller 會補)"}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: urgencyColor, marginTop: 3 }}>{urgencyLabel}</div>
+                </div>
+                <div style={{ width: 200, textAlign: "right", display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  <button style={S.btnRed} onClick={() => { setSelected(r); setModalType("phone"); }}>📞 已打電話</button>
+                  <button style={S.btnGreen} onClick={() => { setSelected(r); setModalType("interview"); }}>📅 排面試</button>
+                </div>
+              </div>
+            );
+          })}
         </Section>
 
         {/* 已聯絡待排面試 */}
@@ -186,9 +202,9 @@ export default function Recruit104Page() {
   );
 }
 
-function Stat({ label, value, sub, color }: { label: string; value: number; sub: string; color: string }) {
+function Stat({ label, value, sub, color, highlight }: { label: string; value: number | string; sub: string; color: string; highlight?: boolean }) {
   return (
-    <div style={{ background: "#fff", borderRadius: 14, padding: 18, border: "1px solid #e2e8f0" }}>
+    <div style={{ background: "#fff", borderRadius: 14, padding: 18, border: highlight ? `2px solid ${color}` : "1px solid #e2e8f0", boxShadow: highlight ? `0 10px 25px -10px ${color}44` : "none" }}>
       <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 36, fontWeight: 900, color, lineHeight: 1.1, marginTop: 4 }}>{value}</div>
       <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{sub}</div>
