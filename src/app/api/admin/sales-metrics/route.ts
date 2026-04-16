@@ -91,12 +91,11 @@ function checkIntegrity(r: {
   raw_appointments: number;
   appointments_show: number;
   closures: number;
+  is_monthly_rollup?: boolean;
 }): DataIssue[] {
-  // Skip integrity check for monthly rollup rows (stored with date=YYYY-MM-01)
-  // Monthly aggregates often have closures > shows because different days' events aggregate
-  // Also skip ANY row with very high calls (> 300/person/day) — likely monthly
-  if (r.date.endsWith("-01") && r.calls > 200) return [];
-  // Also skip historical data before 2026-03 (all monthly rollups, integrity not meaningful)
+  // 只對明確標記為 monthly rollup 的 row skip（不再以 date 結尾猜）
+  if (r.is_monthly_rollup) return [];
+  // 歷史資料太舊 → 無法驗證，skip
   if (r.date < "2026-03-01") return [];
 
   const issues: DataIssue[] = [];
@@ -121,9 +120,14 @@ type Metric = {
   call_minutes: number;
   connected: number;
   raw_appointments: number;
+  raw_no_show: number;
   appointments_show: number;
   raw_demos: number;
+  demo_failed: number;
   closures: number;
+  net_closures_daily: number;
+  net_closures_contract: number;
+  gross_revenue: number;
   net_revenue_daily: number;
   net_revenue_contract: number;
 };
@@ -138,6 +142,7 @@ type Row = Metric & {
   email: string | null;
   level: string | null;
   last_synced_at: string;
+  is_monthly_rollup?: boolean; // Metabase 匯入時若為 YYYY-MM-01 rollup 要打旗
 };
 
 function emptyMetric(): Metric {
@@ -146,11 +151,35 @@ function emptyMetric(): Metric {
     call_minutes: 0,
     connected: 0,
     raw_appointments: 0,
+    raw_no_show: 0,
     appointments_show: 0,
     raw_demos: 0,
+    demo_failed: 0,
     closures: 0,
+    net_closures_daily: 0,
+    net_closures_contract: 0,
+    gross_revenue: 0,
     net_revenue_daily: 0,
     net_revenue_contract: 0,
+  };
+}
+
+function metricFromRow(r: Row | Record<string, number | null | undefined>): Metric {
+  return {
+    calls: Number(r.calls) || 0,
+    call_minutes: Number(r.call_minutes) || 0,
+    connected: Number(r.connected) || 0,
+    raw_appointments: Number(r.raw_appointments) || 0,
+    raw_no_show: Number(r.raw_no_show) || 0,
+    appointments_show: Number(r.appointments_show) || 0,
+    raw_demos: Number(r.raw_demos) || 0,
+    demo_failed: Number(r.demo_failed) || 0,
+    closures: Number(r.closures) || 0,
+    net_closures_daily: Number(r.net_closures_daily) || 0,
+    net_closures_contract: Number(r.net_closures_contract) || 0,
+    gross_revenue: Number(r.gross_revenue) || 0,
+    net_revenue_daily: Number(r.net_revenue_daily) || 0,
+    net_revenue_contract: Number(r.net_revenue_contract) || 0,
   };
 }
 
@@ -160,9 +189,14 @@ function addMetric(a: Metric, b: Metric): Metric {
     call_minutes: a.call_minutes + b.call_minutes,
     connected: a.connected + b.connected,
     raw_appointments: a.raw_appointments + b.raw_appointments,
+    raw_no_show: a.raw_no_show + b.raw_no_show,
     appointments_show: a.appointments_show + b.appointments_show,
     raw_demos: a.raw_demos + b.raw_demos,
+    demo_failed: a.demo_failed + b.demo_failed,
     closures: a.closures + b.closures,
+    net_closures_daily: a.net_closures_daily + b.net_closures_daily,
+    net_closures_contract: a.net_closures_contract + b.net_closures_contract,
+    gross_revenue: a.gross_revenue + b.gross_revenue,
     net_revenue_daily: a.net_revenue_daily + b.net_revenue_daily,
     net_revenue_contract: a.net_revenue_contract + b.net_revenue_contract,
   };
@@ -197,7 +231,9 @@ interface FunnelRates {
 }
 
 function computeRates(m: Metric): FunnelRates {
-  const safe = (num: number, den: number) => (den > 0 ? num / den : null);
+  // 分母 0 → null；rate > 1 → 夾到 1（分子可能因跨期或重複邀約溢出）
+  const safe = (num: number, den: number) => (den > 0 ? Math.min(1, num / den) : null);
+  // 不 clamp 的原始率（給 data quality 判斷用）
   const calls = Number(m.calls) || 0;
   const connected = Number(m.connected) || 0;
   const appointments = Number(m.raw_appointments) || 0;
@@ -212,8 +248,8 @@ function computeRates(m: Metric): FunnelRates {
     showRate: safe(shows, appointments),
     closeRate: safe(closures, shows),
     demoCloseRate: safe(closures, demos),
-    avgCallMinutes: safe(callMinutes, calls),
-    avgDealSize: safe(revenue, closures),
+    avgCallMinutes: calls > 0 ? callMinutes / calls : null,
+    avgDealSize: closures > 0 ? revenue / closures : null,
     orderRevenueEstimate: Math.round(revenue * 1.1),
   };
 }
@@ -297,9 +333,14 @@ export async function GET(req: NextRequest) {
     existing.call_minutes = (Number(existing.call_minutes) || 0) + (Number(r.call_minutes) || 0);
     existing.connected += r.connected;
     existing.raw_appointments += r.raw_appointments;
+    existing.raw_no_show = (Number(existing.raw_no_show) || 0) + (Number(r.raw_no_show) || 0);
     existing.appointments_show += r.appointments_show;
     existing.raw_demos += r.raw_demos;
+    existing.demo_failed = (Number(existing.demo_failed) || 0) + (Number(r.demo_failed) || 0);
     existing.closures += r.closures;
+    existing.net_closures_daily = (Number(existing.net_closures_daily) || 0) + (Number(r.net_closures_daily) || 0);
+    existing.net_closures_contract = (Number(existing.net_closures_contract) || 0) + (Number(r.net_closures_contract) || 0);
+    existing.gross_revenue = (Number(existing.gross_revenue) || 0) + (Number(r.gross_revenue) || 0);
     existing.net_revenue_daily = (Number(existing.net_revenue_daily) || 0) + (Number(r.net_revenue_daily) || 0);
     existing.net_revenue_contract = (Number(existing.net_revenue_contract) || 0) + (Number(r.net_revenue_contract) || 0);
   }
@@ -313,20 +354,12 @@ export async function GET(req: NextRequest) {
   let count = 0;
   for (const r of rows) {
     count++;
-    const delta: Metric = {
-      calls: r.calls,
-      call_minutes: Number(r.call_minutes) || 0,
-      connected: r.connected,
-      raw_appointments: r.raw_appointments,
-      appointments_show: r.appointments_show,
-      raw_demos: r.raw_demos,
-      closures: r.closures,
-      net_revenue_daily: Number(r.net_revenue_daily) || 0,
-      net_revenue_contract: Number(r.net_revenue_contract) || 0,
-    };
+    const delta: Metric = metricFromRow(r);
     Object.assign(brandSummary, addMetric(brandSummary, delta));
 
-    const teamKey = r.team || "(未分組)";
+    // Team key：trim + 合併同名（去掉前後空白 / 全形標點差異 / 括號不一致）
+    const normTeam = (r.team || "").replace(/\s+/g, "").replace(/[（）]/g, "").trim();
+    const teamKey = normTeam || "(未分組)";
     const entry = teamMap.get(teamKey) || {
       team: teamKey,
       count: 0,
@@ -346,17 +379,7 @@ export async function GET(req: NextRequest) {
   // 幫 rows 附加個人漏斗率
   const rowsWithRates = rows.map((r) => ({
     ...r,
-    rates: computeRates({
-      calls: r.calls,
-      call_minutes: Number(r.call_minutes) || 0,
-      connected: r.connected,
-      raw_appointments: r.raw_appointments,
-      appointments_show: r.appointments_show,
-      raw_demos: r.raw_demos,
-      closures: r.closures,
-      net_revenue_daily: Number(r.net_revenue_daily) || 0,
-      net_revenue_contract: Number(r.net_revenue_contract) || 0,
-    }),
+    rates: computeRates(metricFromRow(r)),
   }));
 
   // 品牌層級漏斗率（= 整張表合計後算）+ 用來給前端 vs 團隊平均 比對用
@@ -368,17 +391,7 @@ export async function GET(req: NextRequest) {
     const orgKey = r.org || "(未分配)";
     const entry = orgMap.get(orgKey) || { org: orgKey, count: 0, metric: emptyMetric() };
     entry.count += 1;
-    entry.metric = addMetric(entry.metric, {
-      calls: r.calls,
-      call_minutes: Number(r.call_minutes) || 0,
-      connected: r.connected,
-      raw_appointments: r.raw_appointments,
-      appointments_show: r.appointments_show,
-      raw_demos: r.raw_demos,
-      closures: r.closures,
-      net_revenue_daily: Number(r.net_revenue_daily) || 0,
-      net_revenue_contract: Number(r.net_revenue_contract) || 0,
-    });
+    entry.metric = addMetric(entry.metric, metricFromRow(r));
     orgMap.set(orgKey, entry);
   }
   const orgAggregate = Array.from(orgMap.values())
@@ -407,28 +420,10 @@ export async function GET(req: NextRequest) {
   for (const r of typedRows) {
     const existing = dailyMap.get(r.date);
     if (existing) {
-      existing.calls += r.calls;
-      existing.call_minutes = (Number(existing.call_minutes) || 0) + (Number(r.call_minutes) || 0);
-      existing.connected += r.connected;
-      existing.raw_appointments += r.raw_appointments;
-      existing.appointments_show += r.appointments_show;
-      existing.raw_demos += r.raw_demos;
-      existing.closures += r.closures;
-      existing.net_revenue_daily = (Number(existing.net_revenue_daily) || 0) + (Number(r.net_revenue_daily) || 0);
-      existing.net_revenue_contract = (Number(existing.net_revenue_contract) || 0) + (Number(r.net_revenue_contract) || 0);
+      const merged = addMetric(existing, metricFromRow(r));
+      Object.assign(existing, merged);
     } else {
-      dailyMap.set(r.date, {
-        date: r.date,
-        calls: r.calls,
-        call_minutes: Number(r.call_minutes) || 0,
-        connected: r.connected,
-        raw_appointments: r.raw_appointments,
-        appointments_show: r.appointments_show,
-        raw_demos: r.raw_demos,
-        closures: r.closures,
-        net_revenue_daily: Number(r.net_revenue_daily) || 0,
-        net_revenue_contract: Number(r.net_revenue_contract) || 0,
-      });
+      dailyMap.set(r.date, { date: r.date, ...metricFromRow(r) });
     }
   }
   const dailyTrend = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
@@ -453,17 +448,7 @@ export async function GET(req: NextRequest) {
       const entry = byBrand.get(b) || { people: new Set<string>(), m: emptyMetric() };
       if (r.email) entry.people.add(r.email);
       else if (r.salesperson_id) entry.people.add(r.salesperson_id);
-      entry.m = addMetric(entry.m, {
-        calls: r.calls,
-        call_minutes: Number(r.call_minutes) || 0,
-        connected: r.connected,
-        raw_appointments: r.raw_appointments,
-        appointments_show: r.appointments_show,
-        raw_demos: r.raw_demos,
-        closures: r.closures,
-        net_revenue_daily: Number(r.net_revenue_daily) || 0,
-        net_revenue_contract: Number(r.net_revenue_contract) || 0,
-      });
+      entry.m = addMetric(entry.m, metricFromRow(r));
       byBrand.set(b, entry);
     }
     brandCompare = Array.from(byBrand.entries())

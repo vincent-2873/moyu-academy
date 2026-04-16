@@ -66,6 +66,8 @@ export default function LegalPage() {
             🚨 {data.alerts.filter((a) => a.severity === "critical").length} 件緊急
           </div>
         )}
+        <a href="/legal/cases" style={{ ...S.linkBtn, background: "#4f46e5", color: "#fff", fontWeight: 700 }}>⚖️ 案件管理</a>
+        <a href="/today" style={S.linkBtn}>📋 今日待辦</a>
         <a href="/account/password" style={S.linkBtn}>🔑 改密碼</a>
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={S.logoutBtn}>登出</button>
       </div>

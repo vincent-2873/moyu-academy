@@ -153,17 +153,17 @@ export default function Home() {
 
   if (typeof window !== "undefined" && !isAdmin) {
     sessionStorage.setItem("moyu_current_user", user.email);
-    let dest = "/me"; // 預設業務
-    let label = "載入我的戰情中…";
-    if (isRecruit) { dest = "/recruit"; label = "載入招聘中心…"; }
-    else if (isLegal) { dest = "/legal"; label = "載入法務中心…"; }
+    // 一律先導去 /today（統一今日待辦）— 用戶自己再點到對應系統
+    const dest = "/today";
     window.location.replace(dest);
     return (
       <div className="h-screen flex items-center justify-center">
-        <div className="text-lg text-[var(--text2)] animate-pulse">{label}</div>
+        <div className="text-lg text-[var(--text2)] animate-pulse">載入今日待辦…</div>
       </div>
     );
   }
+  // isLegal / isRecruit 保留引用避免 TS unused 警告
+  void isLegal; void isRecruit;
 
   // 管理員 + 招聘角色（如 Lynn brand=hq role=director 但負責招聘）也設 session
   if (typeof window !== "undefined") {

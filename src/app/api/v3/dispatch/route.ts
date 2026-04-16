@@ -59,25 +59,48 @@ async function dispatchOne(supabase: ReturnType<typeof getSupabaseAdmin>, c: V3C
   const title = pillarLabel ? `${pillarLabel}｜${c.title}` : c.title;
   const priority = SEVERITY_TO_PRIORITY[c.severity] || "normal";
 
-  const result = await linePush({
-    title,
-    body: buildBody(c),
-    priority,
-    taskId: c.id,
-    userEmail: c.owner_email,
-    reason: "v3_command",
-  });
+  // 收件人列表：1. 承辦人 2. 同 pillar 的主管（priority 首位）
+  const recipients: { email: string; line_user_id?: string | null; role: string }[] = [];
+  recipients.push({ email: c.owner_email, role: "owner" });
 
-  // 記錄到 v3_line_dispatch
-  await supabase.from("v3_line_dispatch").insert({
-    command_id: c.id,
-    recipient_email: c.owner_email,
-    recipient_line_user_id: result.resolvedUserId || null,
-    push_status: result.ok ? "sent" : "failed",
-    push_error: result.error || null,
-  });
+  // critical / high：同時推給該 pillar 的主管
+  if (c.pillar_id && (c.severity === "critical" || c.severity === "high")) {
+    const { data: mgrs } = await supabase
+      .from("pillar_managers")
+      .select("email, line_user_id, priority")
+      .eq("pillar_id", c.pillar_id)
+      .eq("active", true)
+      .order("priority", { ascending: true });
+    for (const m of mgrs || []) {
+      if (m.email !== c.owner_email) {
+        recipients.push({ email: m.email, line_user_id: m.line_user_id, role: "manager" });
+      }
+    }
+  }
 
-  return result;
+  const results = [];
+  for (const r of recipients) {
+    const sendTitle = r.role === "manager" ? `[${r.role === "manager" ? "主管通知" : "我的"}]${title}` : title;
+    const result = await linePush({
+      title: sendTitle,
+      body: buildBody(c),
+      priority,
+      taskId: c.id,
+      userEmail: r.email,
+      lineUserId: r.line_user_id || undefined,
+      reason: `v3_command_${r.role}`,
+    });
+    await supabase.from("v3_line_dispatch").insert({
+      command_id: c.id,
+      recipient_email: r.email,
+      recipient_line_user_id: result.resolvedUserId || null,
+      push_status: result.ok ? "sent" : "failed",
+      push_error: result.error || null,
+    });
+    results.push(result);
+  }
+
+  return results[0] || { ok: false, error: "no recipients" };
 }
 
 export async function POST(request: NextRequest) {

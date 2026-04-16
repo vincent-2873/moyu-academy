@@ -7,7 +7,7 @@ import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "commands" | "org" | "people" | "automation" | "system-hub";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "automation" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -214,6 +214,7 @@ export default function AdminPage() {
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
     { id: "pillars", label: "指揮中心", icon: "👁️" },
     { id: "sales", label: "業務數據", icon: "📞" },
+    { id: "legal", label: "法務案件", icon: "⚖️" },
     { id: "commands", label: "命令中心", icon: "⚡" },
     { id: "org", label: "組織架構", icon: "🏢" },
     { id: "people", label: "人員管理", icon: "👥" },
@@ -315,6 +316,7 @@ export default function AdminPage() {
             </>
           )}
           {tab === "sales" && <SalesMetricsTab token={session.token} />}
+          {tab === "legal" && <LegalAdminTab />}
           {tab === "commands" && <V3CommandsHub />}
           {tab === "org" && <V3OrgChartTab />}
           {tab === "people" && <PeopleHubTab token={session.token} scope={scope} />}
@@ -8886,6 +8888,186 @@ function MetricCard({
       />
       <div style={{ fontSize: 11, color: "var(--text3)", fontWeight: 600, marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 900, color: highlight ? color : "var(--text)" }}>{value}</div>
+    </div>
+  );
+}
+
+// ─── Legal Admin Tab ─────────────────────────────────
+interface LegalDashData {
+  stats: { total: number; open: number; closed: number; overdue: number; due_week: number; by_kind: Record<string, number>; by_brand: Record<string, number> };
+  owner_load: { email: string; open: number; overdue: number }[];
+  aging: Record<string, number>;
+  top_overdue: { id: string; title: string; case_no: string | null; owner: string | null; deadline: string; days_overdue: number }[];
+  deadline_heat: Record<string, number>;
+  recent_events: { id: string; case_id: string; event_type: string; title: string; event_date: string; actor_email: string | null }[];
+}
+
+function LegalAdminTab() {
+  const [data, setData] = useState<LegalDashData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [managers, setManagers] = useState<Array<{ id: string; pillar_id: string; email: string; display_name: string | null; line_user_id: string | null; role: string; priority: number; active: boolean }>>([]);
+  const [newMgr, setNewMgr] = useState(false);
+
+  const loadAll = async () => {
+    setLoading(true);
+    const [d1, d2] = await Promise.all([
+      fetch("/api/admin/legal-dashboard", { cache: "no-store" }).then(r => r.json()),
+      fetch("/api/admin/pillar-managers", { cache: "no-store" }).then(r => r.json()),
+    ]);
+    if (d1.ok) setData(d1);
+    if (d2.ok) setManagers(d2.data);
+    setLoading(false);
+  };
+  useEffect(() => { loadAll(); }, []);
+
+  if (loading) return <div style={{ padding: 40, color: "var(--text3)" }}>載入中...</div>;
+  if (!data) return <div style={{ padding: 40, color: "#dc2626" }}>載入失敗</div>;
+
+  const s = data.stats;
+
+  return (
+    <div style={{ padding: "24px 32px" }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 20 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>⚖️ 法務案件中心</h1>
+        <div style={{ flex: 1 }} />
+        <a href="/legal/cases" style={{ padding: "6px 14px", borderRadius: 8, background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700, textDecoration: "none", marginRight: 8 }}>→ 案件列表</a>
+        <button onClick={loadAll} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", color: "var(--text)", fontSize: 13, cursor: "pointer" }}>🔄 重新整理</button>
+      </div>
+
+      {/* 指標卡 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 20 }}>
+        <MetricCard label="全部案件" value={s.total} color="#64748b" />
+        <MetricCard label="進行中" value={s.open} color="#4f46e5" />
+        <MetricCard label="🚨 逾期" value={s.overdue} color="#dc2626" highlight />
+        <MetricCard label="⏰ 本週到期" value={s.due_week} color="#f59e0b" />
+        <MetricCard label="已結案" value={s.closed} color="#16a34a" />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+        {/* 按類型 */}
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 0 }}>📊 按類型</h3>
+          {Object.entries(s.by_kind).length === 0 && <div style={{ fontSize: 12, color: "var(--text3)" }}>暫無資料</div>}
+          {Object.entries(s.by_kind).sort((a,b)=>b[1]-a[1]).map(([k, v]) => (
+            <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", fontSize: 13 }}>
+              <span style={{ width: 120 }}>{k}</span>
+              <div style={{ flex: 1, height: 8, background: "var(--bg2)", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ width: `${Math.min(100, (v / Math.max(...Object.values(s.by_kind))) * 100)}%`, height: "100%", background: "#4f46e5" }} />
+              </div>
+              <span style={{ width: 30, textAlign: "right", fontWeight: 700 }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        {/* 按品牌 */}
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 0 }}>🏢 按品牌</h3>
+          {Object.entries(s.by_brand).length === 0 && <div style={{ fontSize: 12, color: "var(--text3)" }}>暫無資料</div>}
+          {Object.entries(s.by_brand).sort((a,b)=>b[1]-a[1]).map(([k, v]) => (
+            <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", fontSize: 13 }}>
+              <span style={{ width: 80, fontWeight: 700 }}>{k}</span>
+              <div style={{ flex: 1, height: 8, background: "var(--bg2)", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ width: `${Math.min(100, (v / Math.max(...Object.values(s.by_brand))) * 100)}%`, height: "100%", background: "#7c6cf0" }} />
+              </div>
+              <span style={{ width: 30, textAlign: "right", fontWeight: 700 }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Top 逾期 */}
+      {data.top_overdue.length > 0 && (
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 800, marginTop: 0, color: "#991b1b" }}>🚨 最嚴重逾期 TOP 10</h3>
+          {data.top_overdue.map((c) => (
+            <a key={c.id} href={`/legal/cases/${c.id}`} style={{ display: "flex", padding: "8px 0", borderTop: "1px solid #fecaca", textDecoration: "none", color: "var(--text)", fontSize: 13 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700 }}>{c.title}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>{c.case_no || "-"} · {c.owner || "(未指派)"}</div>
+              </div>
+              <div style={{ color: "#dc2626", fontWeight: 700, fontSize: 12 }}>逾期 {c.days_overdue} 天</div>
+            </a>
+          ))}
+        </div>
+      )}
+
+      {/* 承辦人負荷 */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 0 }}>👥 承辦人負荷</h3>
+        {data.owner_load.length === 0 && <div style={{ fontSize: 12, color: "var(--text3)" }}>暫無資料</div>}
+        {data.owner_load.map((o) => (
+          <div key={o.email} style={{ display: "flex", alignItems: "center", padding: "7px 0", borderTop: "1px solid var(--border)", fontSize: 13 }}>
+            <span style={{ flex: 1 }}>{o.email}</span>
+            <span style={{ width: 100, textAlign: "right" }}>進行 {o.open}</span>
+            <span style={{ width: 100, textAlign: "right", color: o.overdue > 0 ? "#dc2626" : "var(--text3)", fontWeight: o.overdue > 0 ? 700 : 400 }}>逾期 {o.overdue}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 主管綁定管理 */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>📣 支柱主管 LINE 通知綁定</h3>
+          <div style={{ flex: 1 }} />
+          <button onClick={() => setNewMgr(true)} style={{ padding: "4px 10px", borderRadius: 6, background: "var(--accent)", color: "#fff", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer" }}>+ 新增</button>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 10 }}>
+          法務 / 業務 / 招聘 主管對應 email + LINE userId — 30 分鐘自動掃描發現 critical/high 問題會推給對應主管
+        </div>
+        <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+          <thead><tr style={{ color: "var(--text3)", textAlign: "left" }}>
+            <th style={{ padding: "6px 0" }}>支柱</th><th>Email</th><th>LINE userId</th><th>角色</th><th>Priority</th><th></th>
+          </tr></thead>
+          <tbody>
+            {managers.filter(m => m.active).map((m) => (
+              <tr key={m.id} style={{ borderTop: "1px solid var(--border)" }}>
+                <td style={{ padding: "7px 0" }}>{m.pillar_id === "sales" ? "💰 業務" : m.pillar_id === "legal" ? "⚖️ 法務" : "🎯 招聘"}</td>
+                <td>{m.email}</td>
+                <td style={{ fontFamily: "monospace", fontSize: 11, color: m.line_user_id ? "var(--text)" : "var(--text3)" }}>{m.line_user_id ? m.line_user_id.slice(0,14)+"..." : "(未綁)"}</td>
+                <td>{m.role}</td>
+                <td>{m.priority}</td>
+                <td><button onClick={async () => { if(!confirm('刪除 '+m.email+'?')) return; await fetch('/api/admin/pillar-managers?id='+m.id,{method:'DELETE'}); loadAll(); }} style={{ padding: "2px 8px", border: "1px solid var(--border)", background: "transparent", color: "#dc2626", fontSize: 11, borderRadius: 4, cursor: "pointer" }}>刪除</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {newMgr && <NewMgrModal onClose={() => setNewMgr(false)} onDone={() => { setNewMgr(false); loadAll(); }} />}
+    </div>
+  );
+}
+
+function NewMgrModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [form, setForm] = useState({ pillar_id: "legal", email: "", display_name: "", line_user_id: "", priority: 100 });
+  async function submit() {
+    if (!form.email) return alert("email required");
+    const r = await fetch("/api/admin/pillar-managers", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    const d = await r.json();
+    if (d.ok) onDone(); else alert("失敗: " + d.error);
+  }
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={onClose}>
+      <div style={{ background: "var(--card)", borderRadius: 14, padding: 22, width: 420, maxWidth: "92%" }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: 0, fontSize: 16 }}>新增支柱主管</h3>
+        <div style={{ marginTop: 12 }}>
+          <select value={form.pillar_id} onChange={e => setForm({ ...form, pillar_id: e.target.value })} style={{ width: "100%", padding: 8, fontSize: 13, border: "1px solid var(--border)", borderRadius: 6, background: "var(--card)", color: "var(--text)" }}>
+            <option value="legal">⚖️ 法務</option>
+            <option value="sales">💰 業務</option>
+            <option value="recruit">🎯 招聘</option>
+          </select>
+        </div>
+        <input placeholder="Email (required)" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={{ width: "100%", padding: 8, fontSize: 13, marginTop: 8, border: "1px solid var(--border)", borderRadius: 6, background: "var(--card)", color: "var(--text)", boxSizing: "border-box" }} />
+        <input placeholder="顯示名稱" value={form.display_name} onChange={e => setForm({ ...form, display_name: e.target.value })} style={{ width: "100%", padding: 8, fontSize: 13, marginTop: 8, border: "1px solid var(--border)", borderRadius: 6, background: "var(--card)", color: "var(--text)", boxSizing: "border-box" }} />
+        <input placeholder="LINE userId (可選)" value={form.line_user_id} onChange={e => setForm({ ...form, line_user_id: e.target.value })} style={{ width: "100%", padding: 8, fontSize: 13, marginTop: 8, border: "1px solid var(--border)", borderRadius: 6, background: "var(--card)", color: "var(--text)", boxSizing: "border-box" }} />
+        <input type="number" placeholder="Priority (1-999, 越小越早通知)" value={form.priority} onChange={e => setForm({ ...form, priority: parseInt(e.target.value, 10) || 100 })} style={{ width: "100%", padding: 8, fontSize: 13, marginTop: 8, border: "1px solid var(--border)", borderRadius: 6, background: "var(--card)", color: "var(--text)", boxSizing: "border-box" }} />
+        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--text)", fontSize: 13, cursor: "pointer" }}>取消</button>
+          <button onClick={submit} style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>建立</button>
+        </div>
+      </div>
     </div>
   );
 }
