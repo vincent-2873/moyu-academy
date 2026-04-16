@@ -94,14 +94,17 @@ export async function POST(req: NextRequest) {
   }
 
   // 5. Google Calendar 事件
+  // 注意：Service Account 無法直接用招聘員 email 當 calendar owner（除非域名驗證）
+  // 改策略：建事件到「墨宇共用行事曆」並邀請招聘員當 attendee → 他會收到 Calendar 邀請
   if (hasGoogleCredentials()) {
+    const SHARED_CAL = process.env.RECRUIT_SHARED_CALENDAR_ID || "primary";
     try {
       const cal = await createCalendarEvent({
-        calendarId: byEmail,
+        calendarId: SHARED_CAL,
         candidateName: queue.candidate_name,
         location: location || "線上視訊",
         startTime: new Date(interviewTime).toISOString(),
-        attendees: interviewManager ? [] : [],
+        attendees: [byEmail], // 招聘員會收到邀請
         description: [
           `候選人：${queue.candidate_name}`,
           `來源：104 ${queue.account === "ruifu" ? "睿富" : "墨凡"}`,
@@ -115,6 +118,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       results.calendarCreated = false;
       results.calendarError = String(e);
+      // Calendar 失敗不阻擋主流程
     }
   }
 
