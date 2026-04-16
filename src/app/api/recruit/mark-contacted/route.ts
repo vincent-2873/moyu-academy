@@ -52,7 +52,22 @@ export async function POST(req: NextRequest) {
           notes ? `備註: ${notes}` : "",
         ].filter(Boolean).join(" / "),
       };
-      const r = await findAndUpdateSheetByName(queue.candidate_name, finalPhone, updates);
+      // fallback：Sheet 找不到就新增一筆
+      const r = await findAndUpdateSheetByName(
+        queue.candidate_name,
+        finalPhone,
+        updates,
+        {
+          name: queue.candidate_name,
+          branch: "高雄",
+          recruiter: byEmail,
+          phone: finalPhone,
+          inviteDate: new Date().toISOString().slice(0, 10).replace(/-/g, "/"),
+          inviteMethod: "104信件邀約",
+          channel: queue.account === "ruifu" ? "睿富" : "墨凡",
+          jobType: "業務",
+        }
+      );
       sheetResult = { synced: true, rowIndex: r.rowIndex, created: r.created };
     } catch (e) {
       sheetResult = { synced: false, error: String(e) };
