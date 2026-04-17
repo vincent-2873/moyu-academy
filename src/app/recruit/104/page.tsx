@@ -62,12 +62,18 @@ export default function Recruit104Page() {
     return () => clearInterval(t);
   }, [load]);
 
-  async function markContacted(queueId: string, phone: string, notes: string) {
+  async function markContacted(queueId: string, phone: string, notes: string, extra?: {
+    contactResult?: string;
+    interviewTime?: string;
+    interviewMethod?: string;
+    expectedSalary?: string;
+    workStatus?: string;
+  }) {
     if (!email) { alert("請先登入"); return; }
     const r = await fetch("/api/recruit/mark-contacted", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ queueId, byEmail: email, phone, notes }),
+      body: JSON.stringify({ queueId, byEmail: email, phone, notes, ...extra }),
     });
     const d = await r.json();
     if (d.ok) { setModalType(null); setSelected(null); load(); }
@@ -99,6 +105,7 @@ export default function Recruit104Page() {
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{email || "請先登入"} · {data.date}</div>
         </div>
         <div style={{ flex: 1 }} />
+        <a href="/recruit/calendar" style={{ ...S.linkBtn, background: "#eef2ff", color: "#4f46e5", fontWeight: 700, border: "1px solid #c7d2fe" }}>📅 日曆</a>
         <a href="/today" style={S.linkBtn}>📋 今日待辦</a>
         <a href="/recruit" style={S.linkBtn}>← 回新訓</a>
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={S.logoutBtn}>登出</button>
@@ -229,24 +236,89 @@ function Cell({ children, style }: { children: React.ReactNode; style?: React.CS
   return <div style={{ minWidth: 0, ...style }}>{children}</div>;
 }
 
-function PhoneModal({ row, onClose, onSubmit }: { row: QueueRow; onClose: () => void; onSubmit: (id: string, phone: string, notes: string) => void }) {
+function PhoneModal({ row, onClose, onSubmit }: {
+  row: QueueRow;
+  onClose: () => void;
+  onSubmit: (id: string, phone: string, notes: string, extra?: {
+    contactResult?: string;
+    interviewTime?: string;
+    interviewMethod?: string;
+    expectedSalary?: string;
+    workStatus?: string;
+  }) => void;
+}) {
   const [phone, setPhone] = useState(row.candidate_phone || "");
   const [notes, setNotes] = useState("");
+  const [contactResult, setContactResult] = useState("有意願");
+  const [interviewTime, setInterviewTime] = useState("");
+  const [interviewMethod, setInterviewMethod] = useState("線上Google Meet");
+  const [expectedSalary, setExpectedSalary] = useState("");
+  const [workStatus, setWorkStatus] = useState("在職");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSubmit(row.id, phone, notes, {
+      contactResult,
+      interviewTime: interviewTime || undefined,
+      interviewMethod,
+      expectedSalary: expectedSalary || undefined,
+      workStatus,
+    });
+    setSaving(false);
+  };
+
   return (
     <div style={S.modalOverlay} onClick={onClose}>
-      <div style={S.modalCard} onClick={e => e.stopPropagation()}>
+      <div style={{ ...S.modalCard, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
         <h3 style={{ margin: 0, fontSize: 16 }}>已打電話：{row.candidate_name}</h3>
         <div style={{ marginTop: 12 }}>
           <label style={S.label}>電話號碼</label>
           <input style={S.input} value={phone} onChange={e => setPhone(e.target.value)} placeholder="09XX-XXX-XXX" />
         </div>
         <div style={{ marginTop: 8 }}>
-          <label style={S.label}>通話摘要</label>
-          <textarea style={{...S.input, minHeight: 80}} value={notes} onChange={e => setNotes(e.target.value)} placeholder="例如：對方下週二 14:00 方便，安排線上面試..." />
+          <label style={S.label}>聯絡結果</label>
+          <select style={S.input} value={contactResult} onChange={e => setContactResult(e.target.value)}>
+            <option value="有意願">有意願</option>
+            <option value="考慮中">考慮中</option>
+            <option value="暫不考慮">暫不考慮</option>
+            <option value="未接通">未接通</option>
+            <option value="稍後回電">稍後回電</option>
+          </select>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <label style={S.label}>預計面試時間（選填）</label>
+          <input type="datetime-local" style={S.input} value={interviewTime} onChange={e => setInterviewTime(e.target.value)} />
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <label style={S.label}>面試方式</label>
+          <select style={S.input} value={interviewMethod} onChange={e => setInterviewMethod(e.target.value)}>
+            <option value="線上Google Meet">線上Google Meet</option>
+            <option value="實體高雄辦公室">實體高雄辦公室</option>
+            <option value="實體台北辦公室">實體台北辦公室</option>
+          </select>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <label style={S.label}>期望薪資</label>
+          <input style={S.input} value={expectedSalary} onChange={e => setExpectedSalary(e.target.value)} placeholder="例如：35,000-40,000" />
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <label style={S.label}>目前工作狀態</label>
+          <select style={S.input} value={workStatus} onChange={e => setWorkStatus(e.target.value)}>
+            <option value="在職">在職</option>
+            <option value="待業">待業</option>
+            <option value="即將離職">即將離職</option>
+          </select>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <label style={S.label}>備註</label>
+          <textarea style={{ ...S.input, minHeight: 80 }} value={notes} onChange={e => setNotes(e.target.value)} placeholder="例如：對方下週二 14:00 方便，安排線上面試..." />
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
-          <button style={S.btnGray} onClick={onClose}>取消</button>
-          <button style={S.btnRed} onClick={() => onSubmit(row.id, phone, notes)}>儲存</button>
+          <button style={S.btnGray} onClick={onClose} disabled={saving}>取消</button>
+          <button style={{ ...S.btnRed, opacity: saving ? 0.6 : 1 }} onClick={handleSave} disabled={saving}>
+            {saving ? "儲存中..." : "儲存"}
+          </button>
         </div>
       </div>
     </div>
