@@ -47,6 +47,10 @@
     {
       "path": "/api/cron/auto-iterate-30min",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/system-health-3h",
+      "schedule": "0 */3 * * *"
     }
   ]
 }
