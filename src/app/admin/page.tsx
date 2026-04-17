@@ -312,6 +312,7 @@ export default function AdminPage() {
           {tab === "pillars" && (
             <>
               <CeoOverviewSection />
+              <PillarManagersOverview />
               <V3PillarsBoard />
             </>
           )}
@@ -9126,6 +9127,64 @@ function DeadlineHeatmap({ heat }: { heat: Record<string, number> }) {
           {c.count > 0 && <div style={{ fontSize: 9, marginTop: 1 }}>{c.count}</div>}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Pillar Managers Overview (主管對照表) ─────────────────
+function PillarManagersOverview() {
+  const [managers, setManagers] = useState<{ id: string; pillar_id: string; email: string; display_name: string; line_user_id: string | null; role: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/admin/pillar-managers");
+        const d = await r.json();
+        if (d.ok) setManagers(d.data || []);
+      } catch { /* ignore */ }
+      setLoading(false);
+    })();
+  }, []);
+
+  const pillars = [
+    { id: "sales", emoji: "\u{1F4B0}", label: "業務", color: "#f59e0b" },
+    { id: "legal", emoji: "\u2696\uFE0F", label: "法務", color: "#7c6cf0" },
+    { id: "recruit", emoji: "\u{1F3AF}", label: "招聘", color: "#10b981" },
+  ];
+
+  if (loading) return <div style={{ padding: 20, textAlign: "center", color: "var(--text3)", fontSize: 13 }}>載入主管資料...</div>;
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text1)", marginBottom: 14 }}>主管對照表</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+        {pillars.map((p) => {
+          const pManagers = managers.filter((m) => m.pillar_id === p.id);
+          return (
+            <div key={p.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 18, borderTop: `3px solid ${p.color}` }}>
+              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>{p.emoji} {p.label}</div>
+              {pManagers.length === 0 ? (
+                <div style={{ fontSize: 12, color: "var(--text3)" }}>尚未設定主管</div>
+              ) : (
+                pManagers.map((m) => (
+                  <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: "1px solid var(--border)" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text1)" }}>{m.display_name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text3)" }}>{m.email}</div>
+                    </div>
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: m.role === "manager" ? "#eef2ff" : "#f0fdf4", color: m.role === "manager" ? "#4f46e5" : "#16a34a", fontWeight: 700 }}>{m.role}</span>
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: m.line_user_id ? "#dcfce7" : "#fef2f2", color: m.line_user_id ? "#16a34a" : "#dc2626", fontWeight: 600 }}>{m.line_user_id ? "LINE 已綁" : "LINE 未綁"}</span>
+                  </div>
+                ))
+              )}
+              <div style={{ marginTop: 10, fontSize: 11, color: "var(--text3)" }}>
+                前往左側「法務」分頁管理主管設定
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

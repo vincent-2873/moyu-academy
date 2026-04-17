@@ -99,16 +99,23 @@ export async function POST(req: NextRequest) {
   if (hasGoogleCredentials()) {
     const SHARED_CAL = process.env.RECRUIT_SHARED_CALENDAR_ID || "primary";
     try {
+      const LYNN_EMAIL = "lynn@xplatform.world";
+      const attendeeList = [byEmail, LYNN_EMAIL];
+      // 避免重複（如果 byEmail 就是 Lynn）
+      const uniqueAttendees = [...new Set(attendeeList)];
+      const finalPhone = phone || queue.candidate_phone || "";
       const cal = await createCalendarEvent({
         calendarId: SHARED_CAL,
         candidateName: queue.candidate_name,
         location: location || "線上視訊",
         startTime: new Date(interviewTime).toISOString(),
-        attendees: [byEmail], // 招聘員會收到邀請
+        attendees: uniqueAttendees,
         description: [
           `候選人：${queue.candidate_name}`,
-          `來源：104 ${queue.account === "ruifu" ? "睿富" : "墨凡"}`,
-          `負責人：${byEmail}`,
+          `104 帳號：${queue.account === "ruifu" ? "睿富" : "墨凡"} (${queue.candidate_104_id})`,
+          `電話：${finalPhone || "未提供"}`,
+          `面試地點：${location || "線上視訊"}`,
+          `負責招聘員：${byEmail}`,
           `面試主管：${interviewManager || "待定"}`,
           notes ? `備註：${notes}` : "",
         ].filter(Boolean).join("\n"),

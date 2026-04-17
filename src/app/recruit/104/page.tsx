@@ -28,23 +28,71 @@ interface HotListData {
   stats: { hot: number; contacted: number; todayInterviews: number };
 }
 
+interface RecruitTask {
+  id: string;
+  title: string;
+  severity: "info" | "normal" | "high" | "critical";
+  status: string;
+  owner_email: string;
+  detail: string | null;
+  created_at: string;
+}
+
+const LYNN_EMAIL = "lynn@xplatform.world";
+
 export default function Recruit104Page() {
   const [email, setEmail] = useState("");
   const [data, setData] = useState<HotListData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<QueueRow | null>(null);
   const [modalType, setModalType] = useState<"phone" | "interview" | null>(null);
+  const [isManager, setIsManager] = useState(false);
+  const [myTasks, setMyTasks] = useState<RecruitTask[]>([]);
+  const [unassignedTasks, setUnassignedTasks] = useState<RecruitTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const e = sessionStorage.getItem("moyu_current_user");
     if (!e) {
-      // 未登入 → 回首頁
       window.location.href = "/";
       return;
     }
     setEmail(e);
+    // Check if user is a recruit manager
+    (async () => {
+      try {
+        const r = await fetch("/api/admin/pillar-managers?pillar=recruit");
+        const d = await r.json();
+        if (d.ok && Array.isArray(d.data)) {
+          setIsManager(d.data.some((m: { email: string }) => m.email === e));
+        }
+      } catch { /* ignore */ }
+    })();
   }, []);
+
+  // Fetch tasks when email is available
+  useEffect(() => {
+    if (!email) return;
+    (async () => {
+      setTasksLoading(true);
+      try {
+        const [myR, unR] = await Promise.all([
+          fetch(`/api/recruit/tasks?owner=${encodeURIComponent(email)}&status=pending`),
+          email === LYNN_EMAIL || isManager
+            ? fetch("/api/recruit/tasks?unassigned=1")
+            : Promise.resolve(null),
+        ]);
+        const myD = await myR.json();
+        if (myD.ok) setMyTasks(myD.tasks || []);
+        if (unR) {
+          const unD = await unR.json();
+          if (unD.ok) setUnassignedTasks(unD.tasks || []);
+        }
+      } catch { /* ignore */ }
+      setTasksLoading(false);
+    })();
+  }, [email, isManager]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -102,7 +150,9 @@ export default function Recruit104Page() {
       <div style={S.header}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 900 }}>📞 104 招聘帶班</div>
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{email || "請先登入"} · {data.date}</div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
+            {email || "請先登入"} · {isManager ? "招聘主管" : "招聘員"} · {data.date}
+          </div>
         </div>
         <div style={{ flex: 1 }} />
         <a href="/recruit/calendar" style={{ ...S.linkBtn, background: "#eef2ff", color: "#4f46e5", fontWeight: 700, border: "1px solid #c7d2fe" }}>📅 日曆</a>
@@ -121,6 +171,42 @@ export default function Recruit104Page() {
           <Stat label="💯 處理進度" value={`${Math.round(((data.stats.contacted + data.stats.todayInterviews) / Math.max(1, data.stats.hot + data.stats.contacted + data.stats.todayInterviews)) * 100)}%`} sub="已聯絡 / 總" color="#4f46e5" />
         </div>
 
+        {/* 任務面板 */}
+        <TaskAssignmentPanel
+          email={email}
+          isManager={isManager}
+          myTasks={myTasks}
+          unassignedTasks={unassignedTasks}
+          tasksLoading={tasksLoading}
+          onClaim={async (taskId: string) => {
+            const r = await fetch("/api/recruit/tasks/claim", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ taskId, email }),
+            });
+            const d = await r.json();
+            if (d.ok) {
+              setMyTasks((prev) => prev.filter((t) => t.id !== taskId));
+              setUnassignedTasks((prev) => prev.filter((t) => t.id !== taskId));
+            } else {
+              alert("認領失敗: " + d.error);
+            }
+          }}
+          onAssign={async (taskId: string, assignTo: string) => {
+            const r = await fetch("/api/recruit/tasks", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: taskId, assignTo }),
+            });
+            const d = await r.json();
+            if (d.ok) {
+              setUnassignedTasks((prev) => prev.filter((t) => t.id !== taskId));
+            } else {
+              alert("派發失敗: " + d.error);
+            }
+          }}
+        />
+
         {/* 熱名單 — 依 urgency 自動排序（最久沒處理排前） */}
         <Section title={`🔴 待打電話 (${data.hot.length})`} empty="目前無熱名單。poller 每 15 分鐘掃一次 104，有人回覆『我有興趣』會出現在這裡。">
           {[...data.hot].sort((a, b) => {
@@ -134,9 +220,10 @@ export default function Recruit104Page() {
             const urgencyColor = urgency === "critical" ? "#dc2626" : urgency === "warm" ? "#f59e0b" : "#10b981";
             const urgencyLabel = urgency === "critical" ? `⏰ ${Math.floor(hoursAgo / 24)} 天前` : urgency === "warm" ? `🟡 ${Math.floor(hoursAgo)}h 前` : `🟢 ${Math.floor(hoursAgo * 60)}m 前`;
             return (
-              <div key={r.id} style={{
+              <div key={r.id} data-candidate={r.candidate_name} style={{
                 display: "flex", padding: "12px 0", borderTop: "1px solid #f1f5f9", alignItems: "center", gap: 12,
                 borderLeft: `4px solid ${urgencyColor}`, paddingLeft: 12, marginLeft: -8,
+                transition: "box-shadow 0.3s",
               }}>
                 <div style={{ width: 120 }}>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{r.candidate_name}</div>
@@ -368,6 +455,123 @@ function formatTime(iso: string | null): string {
   if (!iso) return "-";
   return new Date(iso).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+
+function TaskAssignmentPanel({
+  email, isManager, myTasks, unassignedTasks, tasksLoading, onClaim, onAssign,
+}: {
+  email: string;
+  isManager: boolean;
+  myTasks: RecruitTask[];
+  unassignedTasks: RecruitTask[];
+  tasksLoading: boolean;
+  onClaim: (taskId: string) => void;
+  onAssign: (taskId: string, assignTo: string) => void;
+}) {
+  const [assigning, setAssigning] = useState<string | null>(null);
+  const [assignEmail, setAssignEmail] = useState("");
+
+  if (tasksLoading) return null;
+  if (myTasks.length === 0 && unassignedTasks.length === 0) return null;
+
+  const severityBadge = (sev: string) => {
+    const map: Record<string, { bg: string; color: string; label: string }> = {
+      critical: { bg: "#fef2f2", color: "#dc2626", label: "緊急" },
+      high: { bg: "#fff7ed", color: "#ea580c", label: "高" },
+      normal: { bg: "#eef2ff", color: "#4f46e5", label: "一般" },
+      info: { bg: "#f0fdf4", color: "#16a34a", label: "資訊" },
+    };
+    const s = map[sev] || map.info;
+    return <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: s.bg, color: s.color, fontWeight: 700 }}>{s.label}</span>;
+  };
+
+  const scrollToCandidate = (title: string) => {
+    // Try to find candidate name in the hot list and scroll to it
+    const candidates = document.querySelectorAll("[data-candidate]");
+    for (const el of candidates) {
+      if ((el as HTMLElement).dataset.candidate && title.includes((el as HTMLElement).dataset.candidate!)) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        (el as HTMLElement).style.boxShadow = "0 0 0 3px #4f46e5";
+        setTimeout(() => { (el as HTMLElement).style.boxShadow = ""; }, 2000);
+        return;
+      }
+    }
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 18, border: "1px solid #e2e8f0" }}>
+      <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 12px 0" }}>
+        📋 你有 {myTasks.length} 個待辦
+      </h2>
+      {myTasks.map((t) => (
+        <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #f1f5f9", cursor: "pointer" }}
+          onClick={() => scrollToCandidate(t.title)}
+        >
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{t.title}</div>
+            {t.detail && <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{t.detail}</div>}
+          </div>
+          {severityBadge(t.severity)}
+          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: "#dcfce7", color: "#16a34a", fontWeight: 600 }}>已認領</span>
+        </div>
+      ))}
+
+      {isManager && unassignedTasks.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 14, fontWeight: 800, margin: "16px 0 8px 0", color: "#dc2626" }}>
+            未派發 ({unassignedTasks.length})
+          </h3>
+          {unassignedTasks.map((t) => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #f1f5f9" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{t.title}</div>
+                {t.detail && <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{t.detail}</div>}
+              </div>
+              {severityBadge(t.severity)}
+              {assigning === t.id ? (
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input
+                    style={{ fontSize: 11, padding: "3px 6px", border: "1px solid #cbd5e1", borderRadius: 6, width: 160 }}
+                    placeholder="email"
+                    value={assignEmail}
+                    onChange={(e) => setAssignEmail(e.target.value)}
+                  />
+                  <button style={{ ...STask.btnSmall, background: "#16a34a", color: "#fff" }} onClick={() => { onAssign(t.id, assignEmail); setAssigning(null); setAssignEmail(""); }}>確認</button>
+                  <button style={{ ...STask.btnSmall, background: "#f1f5f9", color: "#64748b" }} onClick={() => { setAssigning(null); setAssignEmail(""); }}>取消</button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button style={{ ...STask.btnSmall, background: "#4f46e5", color: "#fff" }} onClick={() => onClaim(t.id)}>認領</button>
+                  <button style={{ ...STask.btnSmall, background: "#f59e0b", color: "#fff" }} onClick={() => { setAssigning(t.id); setAssignEmail(""); }}>派發</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+
+      {!isManager && unassignedTasks.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 14, fontWeight: 800, margin: "16px 0 8px 0", color: "#f59e0b" }}>
+            可認領 ({unassignedTasks.length})
+          </h3>
+          {unassignedTasks.map((t) => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #f1f5f9" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{t.title}</div>
+              </div>
+              {severityBadge(t.severity)}
+              <button style={{ ...STask.btnSmall, background: "#4f46e5", color: "#fff" }} onClick={() => onClaim(t.id)}>認領</button>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+const STask: Record<string, React.CSSProperties> = {
+  btnSmall: { padding: "3px 10px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" },
+};
 
 const S: Record<string, React.CSSProperties> = {
   header: { background: "#0f172a", padding: "12px 16px", color: "#fff", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 10 },
