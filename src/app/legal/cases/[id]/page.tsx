@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import MobileNav from "@/components/MobileNav";
 
 interface CaseDetail {
   id: string;
@@ -78,7 +79,13 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
-      <div style={S.header}>
+      <style>{`
+        @media (max-width: 768px) {
+          .casedetail-header { flex-wrap: wrap !important; }
+          .casedetail-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+      <div className="casedetail-header" style={S.header}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 900 }}>⚖️ {c.title}</div>
           <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{c.case_no_internal || "-"} · {c.case_no_external || ""}</div>
@@ -88,7 +95,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={S.logoutBtn}>登出</button>
       </div>
 
-      <div style={{ maxWidth: 1300, margin: "0 auto", padding: "16px 14px", display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+      <div className="casedetail-grid" style={{ maxWidth: 1300, margin: "0 auto", padding: "16px 14px 80px", display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
         {/* 主區 */}
         <div>
           {isOverdue && <div style={S.alertBar}>🚨 此案件已逾期 — 請立即處理</div>}
@@ -185,6 +192,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
+      <MobileNav />
       {newEvent && <NewEventModal caseId={id} email={email} onClose={() => setNewEvent(false)} onDone={() => { setNewEvent(false); load(); }} />}
     </div>
   );

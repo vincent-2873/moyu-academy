@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import MobileNav from "@/components/MobileNav";
 
 interface CaseRow {
   id: string;
@@ -62,6 +63,13 @@ export default function LegalCasesPage() {
   const [newCase, setNewCase] = useState(false);
   const [view, setView] = useState<"list" | "kanban">("kanban");
   const [search, setSearch] = useState("");
+
+  // Default to list view on mobile (kanban overflows)
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setView("list");
+    }
+  }, []);
   const [recentEvents, setRecentEvents] = useState<{ id: string; case_id: string; case_title: string; event_type: string; note: string; created_at: string }[]>([]);
 
   useEffect(() => {
@@ -104,7 +112,16 @@ export default function LegalCasesPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
-      <div style={S.header}>
+      <style>{`
+        @media (max-width: 768px) {
+          .cases-header { flex-wrap: wrap !important; }
+          .cases-main { padding-bottom: 80px !important; }
+          .cases-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .cases-list-row { overflow-x: auto !important; }
+          .cases-sidebar { display: none !important; }
+        }
+      `}</style>
+      <div className="cases-header" style={S.header}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 900 }}>⚖️ 法務案件中心</div>
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{email}</div>
@@ -116,11 +133,11 @@ export default function LegalCasesPage() {
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={S.logoutBtn}>登出</button>
       </div>
 
-      <div style={{ maxWidth: 1600, margin: "0 auto", padding: "16px 18px" }}>
+      <div className="cases-main" style={{ maxWidth: 1600, margin: "0 auto", padding: "16px 18px" }}>
 
         {/* 指標卡 */}
         {stats && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 14 }}>
+          <div className="cases-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 14 }}>
             <Stat label="全部開啟中" value={stats.total} color="#4f46e5" />
             <Stat label="🚨 逾期" value={stats.overdue} color="#dc2626" highlight={stats.overdue > 0} />
             <Stat label="⏰ 本週到期" value={stats.due_this_week} color="#f59e0b" />
@@ -218,7 +235,7 @@ export default function LegalCasesPage() {
 
           {/* 最近事件時間軸 */}
           {recentEvents.length > 0 && (
-            <div style={{ width: 280, flexShrink: 0, background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0", padding: 14, position: "sticky", top: 60 }}>
+            <div className="cases-sidebar" style={{ width: 280, flexShrink: 0, background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0", padding: 14, position: "sticky", top: 60 }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 12 }}>🕐 最近事件</div>
               {recentEvents.map((evt, i) => (
                 <a key={evt.id || i} href={`/legal/cases/${evt.case_id}`} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: i > 0 ? "1px solid #f1f5f9" : "none", textDecoration: "none", color: "#0f172a" }}>
@@ -238,6 +255,7 @@ export default function LegalCasesPage() {
         </div>
       </div>
 
+      <MobileNav />
       {newCase && <NewCaseModal email={email} onClose={() => setNewCase(false)} onCreated={() => { setNewCase(false); load(); }} />}
     </div>
   );
@@ -316,7 +334,7 @@ function KanbanCard({ c, today }: { c: CaseRow; today: string }) {
 
 function ListView({ cases, today }: { cases: CaseRow[]; today: string }) {
   return (
-    <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0", overflow: "hidden" }}>
+    <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0", overflow: "hidden", overflowX: "auto" }}>
       <div style={S.rowHead}>
         <div style={{ width: 60 }}>類型</div>
         <div style={{ width: 150 }}>案號</div>

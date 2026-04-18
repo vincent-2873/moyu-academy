@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import MobileNav from "@/components/MobileNav";
 
 interface QueueRow {
   id: string;
@@ -147,7 +148,15 @@ export default function Recruit104Page() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
-      <div style={S.header}>
+      <style>{`
+        @media (max-width: 768px) {
+          .r104-header { flex-wrap: wrap !important; }
+          .r104-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .r104-main { padding-bottom: 80px !important; }
+          .r104-hot-actions { flex-direction: column !important; width: auto !important; }
+        }
+      `}</style>
+      <div className="r104-header" style={S.header}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 900 }}>📞 104 招聘帶班</div>
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
@@ -161,10 +170,10 @@ export default function Recruit104Page() {
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={S.logoutBtn}>登出</button>
       </div>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "20px 14px" }}>
+      <div className="r104-main" style={{ maxWidth: 1200, margin: "0 auto", padding: "20px 14px" }}>
 
         {/* 3 大指標 + 完成率 */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
+        <div className="r104-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 20 }}>
           <Stat label="🔴 待打電話" value={data.stats.hot} sub={data.stats.hot > 0 ? "立即處理" : "全部打完 🎉"} color="#dc2626" highlight={data.stats.hot > 10} />
           <Stat label="🟡 待排面試" value={data.stats.contacted} sub="已聯絡等排時間" color="#f59e0b" />
           <Stat label="🟢 今日面試" value={data.stats.todayInterviews} sub="已排好" color="#16a34a" />
@@ -286,6 +295,7 @@ export default function Recruit104Page() {
       </div>
 
       {/* Modals */}
+      <MobileNav />
       {modalType === "phone" && selected && (
         <PhoneModal row={selected} onClose={() => { setModalType(null); setSelected(null); }} onSubmit={markContacted} />
       )}

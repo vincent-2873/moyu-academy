@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import MobileNav from "@/components/MobileNav";
 
 interface Contract { id: string; contract_no: string | null; title: string; party_b: string; contract_type: string | null; status: string; effective_from: string | null; effective_to: string | null; amount: number | null; owner_email: string | null; }
 interface Compliance { id: string; task_name: string; category: string | null; authority: string | null; due_date: string; next_due_at: string | null; status: string; frequency: string | null; }
@@ -54,8 +55,15 @@ export default function LegalPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .legal-header { flex-wrap: wrap !important; }
+          .legal-main { padding-bottom: 80px !important; }
+          .legal-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+      `}</style>
       {/* Header */}
-      <div style={S.header}>
+      <div className="legal-header" style={S.header}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 900 }}>⚖️ 法務中心</div>
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{email || "請先登入"}</div>
@@ -72,7 +80,7 @@ export default function LegalPage() {
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={S.logoutBtn}>登出</button>
       </div>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 14px" }}>
+      <div className="legal-main" style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 14px" }}>
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 6, marginBottom: 18, overflowX: "auto" }}>
@@ -97,7 +105,7 @@ export default function LegalPage() {
         {tab === "overview" && (
           <div>
             {/* 4 大指標 */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }}>
+            <div className="legal-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 18 }}>
               <Stat label="進行中合約" value={data.summary.contracts.active} sub={`${data.summary.contracts.expiring} 件 30 天內到期`} color="#3b82f6" />
               <Stat label="法遵申報待辦" value={data.summary.compliance.upcoming} sub={data.summary.compliance.overdue > 0 ? `🔴 ${data.summary.compliance.overdue} 件已逾期` : "無逾期"} color={data.summary.compliance.overdue > 0 ? "#dc2626" : "#16a34a"} />
               <Stat label="進行中糾紛" value={data.summary.disputes.open} sub={`共 ${data.summary.disputes.total} 件`} color="#f59e0b" />
@@ -182,6 +190,7 @@ export default function LegalPage() {
           ⚖️ 墨宇法務中心 · 集團合約・法遵・糾紛・智財一站式
         </div>
       </div>
+      <MobileNav />
     </div>
   );
 }

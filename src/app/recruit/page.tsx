@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import MobileNav from "@/components/MobileNav";
 
 /**
  * 墨宇獵頭工作台 v5
@@ -139,7 +140,13 @@ export default function RecruitPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
-      <div style={S.header}>
+      <style>{`
+        @media (max-width: 768px) {
+          .recruit-header { flex-wrap: wrap !important; }
+          .recruit-main { padding-bottom: 80px !important; }
+        }
+      `}</style>
+      <div className="recruit-header" style={S.header}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 900 }}>🎯 墨宇獵頭工作台</div>
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{email}</div>
@@ -152,7 +159,7 @@ export default function RecruitPage() {
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={S.logoutBtn}>登出</button>
       </div>
 
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "20px 14px" }}>
+      <div className="recruit-main" style={{ maxWidth: 720, margin: "0 auto", padding: "20px 14px" }}>
 
         {/* ─── 1. 歡迎卡 / 已完成什麼 ─── */}
         <div style={S.welcomeCard}>
@@ -236,6 +243,7 @@ export default function RecruitPage() {
           墨宇獵頭工作台 v5 · 新訓・招聘・品牌 一站式
         </div>
       </div>
+      <MobileNav />
     </div>
   );
 }

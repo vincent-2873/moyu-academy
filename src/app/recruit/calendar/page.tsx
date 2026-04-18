@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import MobileNav from "@/components/MobileNav";
 
 interface InterviewEvent {
   id: string;
@@ -119,8 +120,16 @@ export default function RecruitCalendarPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .cal-header { flex-wrap: wrap !important; }
+          .cal-main { padding-bottom: 80px !important; }
+          .cal-day-cell { min-height: 56px !important; padding: 4px !important; }
+          .cal-day-cell span { font-size: 9px !important; }
+        }
+      `}</style>
       {/* Header */}
-      <div style={S.header}>
+      <div className="cal-header" style={S.header}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 900 }}>📅 招聘行事曆</div>
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{email}</div>
@@ -131,7 +140,7 @@ export default function RecruitCalendarPage() {
         <a href="/today" style={S.linkBtn}>📋 今日</a>
       </div>
 
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px" }}>
+      <div className="cal-main" style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px" }}>
         {/* Month navigation */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <button style={S.navBtn} onClick={prevMonth}>&larr; 上月</button>
@@ -253,6 +262,7 @@ export default function RecruitCalendarPage() {
           <span><span style={{ ...S.badgeRed, marginRight: 4 }}>N</span> 逾期任務</span>
         </div>
       </div>
+      <MobileNav />
     </div>
   );
 }

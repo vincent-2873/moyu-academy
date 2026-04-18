@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import MobileNav from "@/components/MobileNav";
 
 interface CmdRow {
   id: string;
@@ -145,8 +146,16 @@ export default function TodayPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #0f172a 0%, #f8fafc 180px)" }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .today-main-content { padding-bottom: 80px !important; }
+          .today-header { flex-wrap: wrap !important; }
+          .today-pillar-grid { grid-template-columns: 1fr !important; }
+          .today-bucket-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+      `}</style>
       {/* Hero Header */}
-      <div style={{ background: "transparent", padding: "16px 22px 0", color: "#fff", display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="today-header" style={{ background: "transparent", padding: "16px 22px 0", color: "#fff", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
         <div style={{ fontSize: 13, opacity: 0.7 }}>{data.date} ({weekday})</div>
         <div style={{ fontSize: 12, opacity: 0.5, fontFamily: "monospace" }}>
           {new Date(now).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })}
@@ -165,7 +174,7 @@ export default function TodayPage() {
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={navBtn}>登出</button>
       </div>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 22px 60px" }}>
+      <div className="today-main-content" style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 22px 60px" }}>
         {/* 問候 */}
         <div style={{ color: "#fff", marginBottom: 24 }}>
           <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: "-0.02em" }}>
@@ -184,7 +193,7 @@ export default function TodayPage() {
         )}
 
         {/* 三柱進度儀表 */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
+        <div className="today-pillar-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
           <PillarTile
             id="sales"
             count={data.commands.by_pillar.sales}
@@ -213,7 +222,7 @@ export default function TodayPage() {
         </div>
 
         {/* 時間桶 */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }}>
+        <div className="today-bucket-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 18 }}>
           <BucketCard title="🚨 逾期" count={overdue.length} color="#dc2626" tip="需立即處理" />
           <BucketCard title="📌 今天到期" count={todayCmds.length} color="#f59e0b" tip="今天完成" />
           <BucketCard title="📅 本週內" count={thisWeek.length} color="#0891b2" tip="週五前處理" />
@@ -296,6 +305,7 @@ export default function TodayPage() {
           </Section>
         )}
       </div>
+      <MobileNav />
     </div>
   );
 }

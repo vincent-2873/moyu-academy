@@ -193,6 +193,7 @@ export default function AdminPage() {
   const [session, setSession] = useState<AdminSession | null>(null);
   const [tab, setTab] = useState<AdminTab>("pillars");
   const [scope, setScope] = useState<CompanyScope>("all");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const saved = sessionStorage.getItem("adminSession");
@@ -228,18 +229,89 @@ export default function AdminPage() {
 
   return (
     <div className="admin-light" style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .admin-sidebar {
+            transform: translateX(-100%);
+            transition: transform 0.25s ease;
+            width: 100% !important;
+          }
+          .admin-sidebar.open {
+            transform: translateX(0);
+          }
+          .admin-sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 9;
+          }
+          .admin-sidebar-overlay.open {
+            display: block;
+          }
+          .admin-main {
+            margin-left: 0 !important;
+          }
+          .admin-hamburger {
+            display: flex !important;
+          }
+        }
+        @media (min-width: 769px) {
+          .admin-sidebar-overlay { display: none !important; }
+          .admin-hamburger { display: none !important; }
+        }
+      `}</style>
       {session.email && <LineBindBanner email={session.email} variant="top" />}
+      {/* Mobile hamburger */}
+      <button
+        className="admin-hamburger"
+        onClick={() => setSidebarOpen(true)}
+        style={{
+          display: "none",
+          position: "fixed",
+          top: 12,
+          left: 12,
+          zIndex: 20,
+          width: 40,
+          height: 40,
+          borderRadius: 10,
+          border: "1px solid var(--border)",
+          background: "var(--card)",
+          color: "var(--text)",
+          fontSize: 20,
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        }}
+      >
+        ☰
+      </button>
+      {/* Sidebar overlay for mobile */}
+      <div
+        className={`admin-sidebar-overlay${sidebarOpen ? " open" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+      />
       {/* Sidebar */}
-      <aside style={{ width: 240, background: "var(--bg2)", borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 10, boxShadow: "2px 0 8px rgba(15,23,42,0.04)" }}>
-        <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, background: "linear-gradient(135deg, var(--accent), var(--teal))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            墨宇戰情中樞
+      <aside className={`admin-sidebar${sidebarOpen ? " open" : ""}`} style={{ width: 240, background: "var(--bg2)", borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 10, boxShadow: "2px 0 8px rgba(15,23,42,0.04)" }}>
+        <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, background: "linear-gradient(135deg, var(--accent), var(--teal))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              墨宇戰情中樞
+            </div>
+            <div style={{ color: "var(--text3)", fontSize: 12, marginTop: 2 }}>指揮後台</div>
           </div>
-          <div style={{ color: "var(--text3)", fontSize: 12, marginTop: 2 }}>指揮後台</div>
+          <button
+            className="admin-hamburger"
+            onClick={() => setSidebarOpen(false)}
+            style={{ display: "none", background: "none", border: "none", fontSize: 22, color: "var(--text2)", cursor: "pointer", padding: 4, alignItems: "center", justifyContent: "center" }}
+          >
+            ✕
+          </button>
         </div>
         <nav style={{ flex: 1, padding: "8px 0" }}>
           {tabs.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
+            <button key={t.id} onClick={() => { setTab(t.id); setSidebarOpen(false); }} style={{
               display: "flex", alignItems: "center", gap: 10, width: "calc(100% - 16px)", margin: "2px 8px",
               padding: "10px 14px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 14,
               background: tab === t.id ? "var(--accent)" : "transparent",
@@ -261,7 +333,7 @@ export default function AdminPage() {
       </aside>
 
       {/* Main content */}
-      <main style={{ flex: 1, marginLeft: 240, padding: "0" }}>
+      <main className="admin-main" style={{ flex: 1, marginLeft: 240, padding: "0" }}>
         {/* Top bar — visible only when scope filter is meaningful (人員管理) */}
         {showScopeBar && (
           <div style={{
