@@ -51,6 +51,7 @@ export default function TodayPage() {
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [recentDone, setRecentDone] = useState<CmdRow[]>([]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -62,9 +63,18 @@ export default function TodayPage() {
   async function load() {
     setLoading(true);
     try {
-      const r = await fetch(`/api/v3/today?email=${encodeURIComponent(email)}`, { cache: "no-store" });
+      const [r, doneRes] = await Promise.all([
+        fetch(`/api/v3/today?email=${encodeURIComponent(email)}`, { cache: "no-store" }),
+        fetch(`/api/v3/commands?owner=${encodeURIComponent(email)}&status=done&limit=5`, { cache: "no-store" }).catch(() => null),
+      ]);
       const d = await r.json();
       if (d.ok) setData(d);
+      if (doneRes) {
+        try {
+          const dd = await doneRes.json();
+          if (dd.ok && dd.commands) setRecentDone(dd.commands.slice(0, 5));
+        } catch { /* ignore */ }
+      }
     } finally { setLoading(false); setNow(Date.now()); }
   }
 
@@ -138,6 +148,9 @@ export default function TodayPage() {
       {/* Hero Header */}
       <div style={{ background: "transparent", padding: "16px 22px 0", color: "#fff", display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ fontSize: 13, opacity: 0.7 }}>{data.date} ({weekday})</div>
+        <div style={{ fontSize: 12, opacity: 0.5, fontFamily: "monospace" }}>
+          {new Date(now).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })}
+        </div>
         <div style={{ flex: 1 }} />
         {data.managed_pillars.map((p) => (
           <span key={p} style={{ padding: "3px 10px", fontSize: 10, borderRadius: 12, background: "rgba(255,255,255,0.1)", color: "#cbd5e1", fontWeight: 600 }}>
@@ -234,15 +247,53 @@ export default function TodayPage() {
           </Section>
         )}
 
-        {/* 全空時的鼓勵訊息 */}
-        {data.commands.list.length === 0 && !hasLegal && !hasRecruit && (
-          <div style={{ background: "#fff", borderRadius: 18, padding: 50, textAlign: "center", border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: 54 }}>🎉</div>
-            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 10, color: "#0f172a" }}>今天沒有待辦事項</div>
-            <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>
+        {/* 全空時的慶祝訊息 */}
+        {data.commands.list.length === 0 && (!hasLegal || data.legal.counts.mine === 0) && (!hasRecruit || data.recruit.hot_to_call_count === 0) && (
+          <div style={{
+            background: "linear-gradient(135deg, #f0fdf4, #ecfdf5, #f0fdf4)",
+            borderRadius: 18, padding: 50, textAlign: "center",
+            border: "2px solid #bbf7d0",
+            animation: "celebrationFadeIn 0.8s ease-out",
+          }}>
+            <style>{`
+              @keyframes celebrationFadeIn {
+                0% { opacity: 0; transform: scale(0.95) translateY(10px); }
+                100% { opacity: 1; transform: scale(1) translateY(0); }
+              }
+              @keyframes celebrationPulse {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.15); }
+              }
+            `}</style>
+            <div style={{ fontSize: 64, animation: "celebrationPulse 2s ease-in-out infinite" }}>🎉</div>
+            <div style={{ fontSize: 22, fontWeight: 900, marginTop: 12, color: "#16a34a" }}>全部完成！今天沒有待辦事項。</div>
+            <div style={{ fontSize: 14, color: "#64748b", marginTop: 8, lineHeight: 1.6 }}>
               可以進新訓 SOP / 讀知識庫 / 回顧昨日戰報
             </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 18 }}>
+              <a href="/recruit" style={{ padding: "8px 16px", borderRadius: 10, background: "#16a34a", color: "#fff", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>🎯 招聘工作台</a>
+              <a href="/legal" style={{ padding: "8px 16px", borderRadius: 10, background: "#7c3aed", color: "#fff", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>⚖️ 法務概覽</a>
+            </div>
           </div>
+        )}
+
+        {/* 最近完成 */}
+        {recentDone.length > 0 && (
+          <Section title={`✅ 最近完成（${recentDone.length}）`} accent="#16a34a">
+            {recentDone.map((c) => {
+              const meta = PILLAR_META[c.pillar_id] || PILLAR_META.sales;
+              return (
+                <div key={c.id} style={{ display: "flex", padding: "10px 0", borderTop: "1px solid #f1f5f9", alignItems: "center", gap: 10, opacity: 0.7 }}>
+                  <span style={{ fontSize: 16 }}>{meta.emoji}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#64748b", textDecoration: "line-through" }}>{c.title}</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>完成於 {c.created_at?.slice(0, 10)}</div>
+                  </div>
+                  <span style={{ fontSize: 14, color: "#16a34a" }}>✓</span>
+                </div>
+              );
+            })}
+          </Section>
         )}
       </div>
     </div>

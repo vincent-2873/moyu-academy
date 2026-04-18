@@ -62,6 +62,7 @@ export default function LegalCasesPage() {
   const [newCase, setNewCase] = useState(false);
   const [view, setView] = useState<"list" | "kanban">("kanban");
   const [search, setSearch] = useState("");
+  const [recentEvents, setRecentEvents] = useState<{ id: string; case_id: string; case_title: string; event_type: string; note: string; created_at: string }[]>([]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -76,9 +77,18 @@ export default function LegalCasesPage() {
     if (filter.kind) params.set("kind", filter.kind);
     if (filter.brand) params.set("brand", filter.brand);
     if (filter.status) params.set("status", filter.status);
-    const r = await fetch(`/api/legal/cases?${params}`, { cache: "no-store" });
+    const [r, evtRes] = await Promise.all([
+      fetch(`/api/legal/cases?${params}`, { cache: "no-store" }),
+      fetch(`/api/legal/cases?timeline=recent&limit=10`, { cache: "no-store" }).catch(() => null),
+    ]);
     const d = await r.json();
     if (d.ok) { setCases(d.data); setStats(d.stats); }
+    if (evtRes) {
+      try {
+        const evtData = await evtRes.json();
+        if (evtData.ok && evtData.recent_events) setRecentEvents(evtData.recent_events);
+      } catch { /* ignore */ }
+    }
     setLoading(false);
   }, [filter]);
 
@@ -118,6 +128,43 @@ export default function LegalCasesPage() {
           </div>
         )}
 
+        {/* 案件類型快篩 chips */}
+        {stats && Object.keys(stats.by_kind).length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            <button
+              onClick={() => setFilter({ ...filter, kind: "" })}
+              style={{
+                padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700,
+                border: filter.kind === "" ? "2px solid #4f46e5" : "1px solid #e2e8f0",
+                background: filter.kind === "" ? "#eef2ff" : "#fff",
+                color: filter.kind === "" ? "#4f46e5" : "#475569",
+                cursor: "pointer",
+              }}
+            >
+              全部 {stats.total}
+            </button>
+            {Object.entries(stats.by_kind).map(([kind, count]) => {
+              const meta = KIND_META[kind] || { emoji: "📄", label: kind, color: "#64748b" };
+              const active = filter.kind === kind;
+              return (
+                <button
+                  key={kind}
+                  onClick={() => setFilter({ ...filter, kind: active ? "" : kind })}
+                  style={{
+                    padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700,
+                    border: active ? `2px solid ${meta.color}` : "1px solid #e2e8f0",
+                    background: active ? `${meta.color}15` : "#fff",
+                    color: active ? meta.color : "#475569",
+                    cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
+                  }}
+                >
+                  {meta.emoji} {meta.label} {count}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* 控制列 */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
           <input
@@ -146,25 +193,49 @@ export default function LegalCasesPage() {
           <button onClick={load} style={S.btnSmall}>🔄</button>
         </div>
 
-        {loading && <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>載入中...</div>}
+        <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {loading && <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>載入中...</div>}
 
-        {!loading && filtered.length === 0 && (
-          <div style={{ padding: 60, textAlign: "center", background: "#fff", borderRadius: 12 }}>
-            <div style={{ fontSize: 48 }}>📋</div>
-            <div style={{ fontSize: 16, fontWeight: 700, marginTop: 10 }}>目前無案件</div>
-            <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>點右上 + 新建案件 開始</div>
+            {!loading && filtered.length === 0 && (
+              <div style={{ padding: 60, textAlign: "center", background: "#fff", borderRadius: 12 }}>
+                <div style={{ fontSize: 48 }}>📋</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 10 }}>目前無案件</div>
+                <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>點右上 + 新建案件 開始</div>
+              </div>
+            )}
+
+            {/* Kanban 看板 */}
+            {!loading && filtered.length > 0 && view === "kanban" && (
+              <KanbanView cases={filtered} today={today} />
+            )}
+
+            {/* 列表 */}
+            {!loading && filtered.length > 0 && view === "list" && (
+              <ListView cases={filtered} today={today} />
+            )}
           </div>
-        )}
 
-        {/* Kanban 看板 */}
-        {!loading && filtered.length > 0 && view === "kanban" && (
-          <KanbanView cases={filtered} today={today} />
-        )}
-
-        {/* 列表 */}
-        {!loading && filtered.length > 0 && view === "list" && (
-          <ListView cases={filtered} today={today} />
-        )}
+          {/* 最近事件時間軸 */}
+          {recentEvents.length > 0 && (
+            <div style={{ width: 280, flexShrink: 0, background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0", padding: 14, position: "sticky", top: 60 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 12 }}>🕐 最近事件</div>
+              {recentEvents.map((evt, i) => (
+                <a key={evt.id || i} href={`/legal/cases/${evt.case_id}`} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: i > 0 ? "1px solid #f1f5f9" : "none", textDecoration: "none", color: "#0f172a" }}>
+                  <div style={{ width: 8, display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, paddingTop: 4 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: i === 0 ? "#4f46e5" : "#cbd5e1" }} />
+                    {i < recentEvents.length - 1 && <div style={{ width: 1, flex: 1, background: "#e2e8f0", marginTop: 2 }} />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{evt.case_title || evt.event_type}</div>
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{evt.note || evt.event_type}</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{evt.created_at?.slice(0, 16).replace("T", " ")}</div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {newCase && <NewCaseModal email={email} onClose={() => setNewCase(false)} onCreated={() => { setNewCase(false); load(); }} />}

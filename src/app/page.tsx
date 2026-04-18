@@ -658,9 +658,23 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
     );
   }
 
+  const [sysStatus, setSysStatus] = useState<"ok" | "error" | "loading">("loading");
+  const [statusTime, setStatusTime] = useState("");
+
+  useEffect(() => {
+    const updateTime = () => setStatusTime(new Date().toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }));
+    updateTime();
+    const t = setInterval(updateTime, 60_000);
+    fetch("/api/admin/104-status", { cache: "no-store" })
+      .then((r) => { setSysStatus(r.ok ? "ok" : "error"); })
+      .catch(() => setSysStatus("error"));
+    return () => clearInterval(t);
+  }, []);
+
   return (
-    <div className="h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <div className="h-screen flex flex-col items-center justify-center px-4">
+      <div className="w-full max-w-md flex-1 flex flex-col items-center justify-center">
+        <div className="w-full">
         <div className="text-center mb-8">
           <h1
             className="text-4xl font-bold mb-2"
@@ -833,6 +847,25 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
             </button>
           </p>
         </form>
+        </div>
+      </div>
+
+      {/* System status footer */}
+      <div style={{ padding: "16px 0 20px", textAlign: "center", width: "100%" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 4 }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: sysStatus === "ok" ? "#16a34a" : sysStatus === "error" ? "#dc2626" : "#f59e0b",
+            boxShadow: sysStatus === "ok" ? "0 0 6px #16a34a" : "none",
+          }} />
+          <span style={{ fontSize: 12, color: "var(--text3)" }}>
+            {sysStatus === "ok" ? "系統正常運行" : sysStatus === "error" ? "系統異常" : "檢查中..."}
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text3)", opacity: 0.7 }}>{statusTime}</div>
+        <div style={{ fontSize: 10, color: "var(--text3)", opacity: 0.5, marginTop: 2 }}>
+          墨宇戰情中樞 v5.0 — 業務 · 法務 · 招聘
+        </div>
       </div>
     </div>
   );

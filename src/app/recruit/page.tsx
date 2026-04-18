@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 /**
  * 墨宇獵頭工作台 v5
@@ -52,6 +52,7 @@ export default function RecruitPage() {
   const [sopDays, setSopDays] = useState<SopDay[]>([]);
   const [sopStats, setSopStats] = useState<{ totalTasks: number; doneTasks: number; percent: number }>({ totalTasks: 0, doneTasks: 0, percent: 0 });
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [funnelStats, setFunnelStats] = useState<{ sent: number; replied: number; interested: number; contacted: number; scheduled: number; completed: number } | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -65,14 +66,23 @@ export default function RecruitPage() {
     if (!email) return;
     setLoading(true);
     try {
-      const [cmdRes, sopRes, brandRes] = await Promise.all([
+      const [cmdRes, sopRes, brandRes, hotRes] = await Promise.all([
         fetch(`/api/v3/commands?owner=${encodeURIComponent(email)}&pillar=recruit`, { cache: "no-store" }),
         fetch(`/api/hr-training?email=${encodeURIComponent(email)}`, { cache: "no-store" }),
         fetch(`/api/xplatform/brands`, { cache: "no-store" }),
+        fetch(`/api/recruit/hot-list`, { cache: "no-store" }).catch(() => null),
       ]);
       const cmdData = await cmdRes.json();
       const sopData = await sopRes.json();
       const brandData = await brandRes.json();
+      if (hotRes) {
+        try {
+          const hotData = await hotRes.json();
+          if (hotData.ok && hotData.stats) {
+            setFunnelStats(hotData.stats);
+          }
+        } catch { /* ignore */ }
+      }
 
       if (cmdData.ok && cmdData.commands) {
         const todayStr = new Date().toLocaleDateString("sv-SE");
@@ -166,6 +176,9 @@ export default function RecruitPage() {
             </div>
           )}
         </div>
+
+        {/* ─── 招聘儀表板 ─── */}
+        <RecruitDashboard funnelStats={funnelStats} />
 
         {loading && <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>載入中...</div>}
 
@@ -370,6 +383,67 @@ function StatBox({ label, value, sub, color }: { label: string; value: string; s
       <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 26, fontWeight: 900, color, lineHeight: 1.1, marginTop: 2 }}>{value}</div>
       <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{sub}</div>
+    </div>
+  );
+}
+
+function RecruitDashboard({ funnelStats }: { funnelStats: { sent: number; replied: number; interested: number; contacted: number; scheduled: number; completed: number } | null }) {
+  const steps = useMemo(() => {
+    const s = funnelStats || { sent: 0, replied: 0, interested: 0, contacted: 0, scheduled: 0, completed: 0 };
+    const items = [
+      { label: "發信", count: s.sent, color: "#6366f1" },
+      { label: "回覆", count: s.replied, color: "#8b5cf6" },
+      { label: "有興趣", count: s.interested, color: "#a855f7" },
+      { label: "已聯絡", count: s.contacted, color: "#0ea5e9" },
+      { label: "排面試", count: s.scheduled, color: "#f59e0b" },
+      { label: "面試完成", count: s.completed, color: "#16a34a" },
+    ];
+    const max = Math.max(1, ...items.map((i) => i.count));
+    return items.map((i) => ({ ...i, pct: Math.round((i.count / max) * 100), pctOfFirst: s.sent > 0 ? Math.round((i.count / s.sent) * 100) : 0 }));
+  }, [funnelStats]);
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, padding: 20, border: "1px solid #e2e8f0", marginTop: 12, marginBottom: 4 }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", marginBottom: 14 }}>📊 招聘儀表板</div>
+
+      {/* Funnel bar chart */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+        {steps.map((step, i) => (
+          <div key={step.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 60, fontSize: 12, fontWeight: 600, color: "#475569", textAlign: "right", flexShrink: 0 }}>{step.label}</div>
+            <div style={{ flex: 1, height: 22, background: "#f1f5f9", borderRadius: 6, overflow: "hidden", position: "relative" }}>
+              <div style={{
+                width: `${Math.max(step.pct, 2)}%`, height: "100%", background: step.color,
+                borderRadius: 6, transition: "width 0.6s ease",
+                display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 6,
+              }}>
+                {step.count > 0 && step.pct > 15 && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#fff" }}>{step.count}</span>
+                )}
+              </div>
+              {step.count > 0 && step.pct <= 15 && (
+                <span style={{ position: "absolute", left: `${Math.max(step.pct, 2)}%`, top: "50%", transform: "translate(4px, -50%)", fontSize: 10, fontWeight: 700, color: step.color }}>{step.count}</span>
+              )}
+            </div>
+            <div style={{ width: 36, fontSize: 10, color: "#94a3b8", textAlign: "right", flexShrink: 0 }}>
+              {i === 0 ? "100%" : `${step.pctOfFirst}%`}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick links */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <a href="/recruit/104" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 10, background: "#fef2f2", color: "#dc2626", fontSize: 13, fontWeight: 700, textDecoration: "none", border: "1px solid #fecaca" }}>
+          🔴 熱名單
+        </a>
+        <a href="/recruit/calendar" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 10, background: "#eff6ff", color: "#2563eb", fontSize: 13, fontWeight: 700, textDecoration: "none", border: "1px solid #bfdbfe" }}>
+          📅 日曆
+        </a>
+        <a href="/today" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 10, background: "#f0fdf4", color: "#16a34a", fontSize: 13, fontWeight: 700, textDecoration: "none", border: "1px solid #bbf7d0" }}>
+          📋 今日待辦
+        </a>
+      </div>
     </div>
   );
 }
