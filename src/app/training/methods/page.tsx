@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 async function loadMethods(): Promise<string> {
   const candidates = [
-    path.resolve(process.cwd(), "../moyu-training-system/02_hrbp_series/HRBP_CORE_METHODS.md"),
+    path.resolve(process.cwd(), "content/training/hrbp_series/HRBP_CORE_METHODS.md"),
     path.resolve(process.cwd(), "content/HRBP_CORE_METHODS.md"),
   ];
   for (const p of candidates) {
@@ -17,7 +17,7 @@ async function loadMethods(): Promise<string> {
       // try next
     }
   }
-  return "# 速查手冊尚未同步\n\n請將 `moyu-training-system/02_hrbp_series/HRBP_CORE_METHODS.md` 放到 academy 可讀的位置，或接 GitHub raw URL。";
+  return "# 速查手冊尚未同步\n\n找不到 `content/training/hrbp_series/HRBP_CORE_METHODS.md`。";
 }
 
 export default async function MethodsPage() {
