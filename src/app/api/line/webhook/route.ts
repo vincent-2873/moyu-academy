@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
       // 預設回覆（非管理員、未綁定、或其他）
       await lineReply(
         event.replyToken,
-        "我只接收 6 位「綁定碼」（範例：ABC123）。\n還沒註冊先去 https://moyusales.vercel.app 註冊，完成綁定之前你進不了系統。"
+        "我只接收 6 位「綁定碼」（範例：ABC123）。\n還沒註冊先去 https://moyusales.zeabur.app 註冊，完成綁定之前你進不了系統。"
       );
     }
 

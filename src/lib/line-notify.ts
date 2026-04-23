@@ -368,7 +368,7 @@ export async function pushNewTask(task: {
     body,
     priority: task.priority,
     taskId: task.id,
-    link: "https://moyusales.vercel.app/admin",
+    link: "https://moyusales.zeabur.app/admin",
     userEmail: task.assignee_email || undefined,
     reason: "task",
   });
