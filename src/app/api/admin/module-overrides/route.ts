@@ -76,9 +76,12 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/admin/module-overrides?moduleId=...&brand=...
 export async function DELETE(req: NextRequest) {
-  const moduleId = req.nextUrl.searchParams.get("moduleId");
+  const moduleIdRaw = req.nextUrl.searchParams.get("moduleId");
   const brand = req.nextUrl.searchParams.get("brand");
-  if (!moduleId) return Response.json({ error: "moduleId required" }, { status: 400 });
+  const moduleId = Number(moduleIdRaw);
+  if (!moduleIdRaw || !Number.isInteger(moduleId) || moduleId <= 0) {
+    return Response.json({ error: "moduleId must be a positive integer" }, { status: 400 });
+  }
 
   const supabase = getSupabaseAdmin();
   const hasBrand = await checkBrandColumn();
@@ -86,7 +89,7 @@ export async function DELETE(req: NextRequest) {
   let query = supabase
     .from("module_overrides")
     .delete()
-    .eq("module_id", parseInt(moduleId));
+    .eq("module_id", moduleId);
 
   if (brand && hasBrand) {
     query = query.eq("brand", brand);
