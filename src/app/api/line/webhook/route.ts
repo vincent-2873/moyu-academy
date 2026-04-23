@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         // Fetch the command first for context
         const { data: before } = await supabase
           .from("v3_commands")
-          .select("id, title, owner_email")
+          .select("id, title, owner_email, created_at")
           .eq("id", id)
           .maybeSingle();
 
@@ -103,12 +103,12 @@ export async function POST(request: NextRequest) {
           await lineReply(event.replyToken, `❌ 找不到這個任務 (id=${id.slice(0, 8)}...)`);
         } else {
           // Write to v3_response_log for learning
-          const createdAt = Date.now(); // fallback - we didn't fetch created_at
+          const createdAtMs = before.created_at ? new Date(before.created_at).getTime() : Date.now();
           await supabase.from("v3_response_log").insert({
             command_id: id,
             owner_email: before.owner_email || "",
             action: status,
-            response_time_seconds: Math.floor((Date.now() - createdAt) / 1000),
+            response_time_seconds: Math.floor((Date.now() - createdAtMs) / 1000),
             note: `from LINE postback`,
           });
 
