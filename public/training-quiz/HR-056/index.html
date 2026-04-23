@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HR-056 致命提問應對 · 互動測驗</title>
+<style>
+  :root {
+    --navy: #1E3A5F; --navy-deep: #152a44;
+    --amber: #F59E0B; --amber-soft: #FEF3C7;
+    --green: #10B981; --red: #EF4444;
+    --gray-50: #F9FAFB; --gray-100: #F3F4F6;
+    --gray-300: #D1D5DB; --gray-500: #6B7280;
+    --gray-700: #374151; --gray-900: #111827;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4ecf7 100%);
+    color: var(--gray-900); min-height: 100vh;
+    padding: 24px 16px; line-height: 1.7;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .header {
+    background: var(--navy); color: white;
+    padding: 32px 28px; border-radius: 16px 16px 0 0;
+    position: relative; overflow: hidden;
+  }
+  .header::before {
+    content: ""; position: absolute;
+    top: -40px; right: -40px; width: 180px; height: 180px;
+    background: radial-gradient(circle, rgba(245,158,11,0.2), transparent 70%);
+    border-radius: 50%;
+  }
+  .tag { font-size: 12px; letter-spacing: 2px; color: var(--amber); font-weight: 600; }
+  .title { font-size: 26px; font-weight: 700; margin-top: 8px; }
+  .subtitle { font-size: 14px; opacity: 0.75; margin-top: 6px; }
+  .progress-bar { background: var(--gray-100); padding: 14px 28px; display: flex; align-items: center; gap: 14px; }
+  .progress-track { flex: 1; height: 6px; background: var(--gray-300); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--amber); width: 0%; transition: width 0.4s ease; }
+  .progress-text { font-size: 13px; color: var(--gray-700); font-weight: 600; white-space: nowrap; }
+  .card { background: white; padding: 36px 28px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 24px rgba(30,58,95,0.08); }
+  .q-num { display: inline-block; font-size: 12px; font-weight: 700; color: var(--amber); letter-spacing: 1.5px; margin-bottom: 8px; }
+  .q-text { font-size: 18px; font-weight: 600; color: var(--navy-deep); margin-bottom: 8px; line-height: 1.5; }
+  .q-scene {
+    background: var(--amber-soft); padding: 14px 16px;
+    border-left: 3px solid var(--amber); border-radius: 0 8px 8px 0;
+    margin-top: 14px; margin-bottom: 24px;
+    font-size: 15px; color: var(--gray-700);
+  }
+  .q-scene strong { color: var(--navy-deep); }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .opt {
+    padding: 16px 18px; border: 2px solid var(--gray-300);
+    border-radius: 10px; cursor: pointer; transition: all 0.2s;
+    font-size: 15px; color: var(--gray-700);
+    display: flex; align-items: flex-start; gap: 12px;
+    background: white; text-align: left; font-family: inherit; width: 100%;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--amber); background: #fffbeb; }
+  .opt:disabled { cursor: not-allowed; opacity: 0.9; }
+  .opt-letter {
+    flex-shrink: 0; width: 26px; height: 26px;
+    background: var(--gray-100); color: var(--gray-700);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+  .opt.correct { border-color: var(--green); background: #ecfdf5; color: var(--gray-900); }
+  .opt.correct .opt-letter { background: var(--green); color: white; }
+  .opt.wrong { border-color: var(--red); background: #fef2f2; color: var(--gray-900); }
+  .opt.wrong .opt-letter { background: var(--red); color: white; }
+  .feedback { margin-top: 20px; padding: 18px 20px; border-radius: 10px; font-size: 14.5px; line-height: 1.7; display: none; animation: fadeIn 0.3s ease; }
+  .feedback.show { display: block; }
+  .feedback.right { background: #ecfdf5; border-left: 4px solid var(--green); color: var(--gray-900); }
+  .feedback.miss { background: #fef2f2; border-left: 4px solid var(--red); color: var(--gray-900); }
+  .feedback-title { font-weight: 700; margin-bottom: 6px; font-size: 15px; }
+  .feedback-tip { margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(0,0,0,0.15); font-size: 13.5px; color: var(--gray-700); }
+  .nav { margin-top: 26px; display: flex; justify-content: space-between; gap: 12px; }
+  .btn { padding: 12px 26px; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+  .btn-primary { background: var(--navy); color: white; margin-left: auto; }
+  .btn-primary:hover:not(:disabled) { background: var(--navy-deep); }
+  .btn-primary:disabled { background: var(--gray-300); cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--gray-500); }
+  .btn-ghost:hover { color: var(--navy); }
+  .final { text-align: center; padding: 40px 24px; }
+  .final-score { font-size: 72px; font-weight: 700; color: var(--navy); line-height: 1; margin: 20px 0 8px; }
+  .final-score .suffix { font-size: 28px; color: var(--gray-500); font-weight: 500; }
+  .final-label { font-size: 14px; color: var(--gray-500); letter-spacing: 2px; }
+  .final-msg { font-size: 18px; color: var(--gray-700); margin: 20px 0 28px; line-height: 1.6; }
+  .summary { background: var(--gray-50); border-radius: 10px; padding: 20px; text-align: left; margin: 20px 0; }
+  .summary h4 { font-size: 14px; color: var(--navy); margin-bottom: 10px; letter-spacing: 1px; }
+  .summary-item { display: flex; gap: 10px; padding: 6px 0; font-size: 14px; align-items: flex-start; }
+  .complete-badge { display: inline-block; background: var(--green); color: white; padding: 8px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; letter-spacing: 1px; margin-bottom: 16px; }
+  .series-done {
+    background: linear-gradient(135deg, var(--amber), #FB923C);
+    color: white; padding: 20px; border-radius: 12px;
+    margin: 24px 0;
+  }
+  .series-done h3 { font-size: 18px; margin-bottom: 8px; }
+  .series-done p { font-size: 14px; opacity: 0.95; line-height: 1.6; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  @media (max-width: 480px) { .header { padding: 24px 20px; } .card { padding: 28px 20px; } .title { font-size: 22px; } .q-text { font-size: 16px; } .final-score { font-size: 56px; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="header">
+    <div class="tag">HRBP 招募訓練 · EP4 / 4 · 系列完結</div>
+    <div class="title">致命提問應對 · 情境測驗</div>
+    <div class="subtitle">8 題 · 答對 6 題以上通過</div>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-track"><div class="progress-fill" id="bar"></div></div>
+    <div class="progress-text" id="progressText">第 1 / 8 題</div>
+  </div>
+  <div class="card" id="card"></div>
+</div>
+
+<script>
+const quiz = [
+  {
+    num: "Q1",
+    text: "求職者問『這會有業績壓力嗎?』下列哪個回答最符合 Vincent 教的心法?",
+    scene: "情境:對方剛問完,等你回答。",
+    options: [
+      "取決於妳想領多少,想領多就壓力大",
+      "看妳自己的節奏,每個人感受不同",
+      "有,一定會有業績壓力,業務就是有業績壓力才叫業務,但我們有完善教育訓練幫妳化解",
+      "其實還好啦,不要想太多"
+    ],
+    correct: 2,
+    right: "正解!Vincent 的黃金三句:承認 + 正常化 + 轉向支持。",
+    tip: "曖昧不清的關係沒人喜歡。『取決於妳想領多少』看起來聰明,其實是把球踢回給求職者。直接承認反而建立信任。"
+  },
+  {
+    num: "Q2",
+    text: "Vincent 在教育訓練上強調的『安心感話術』,下列哪個最有說服力?",
+    scene: "情境:求職者聽到有業績壓力,有點猶豫。",
+    options: [
+      "有完善教育訓練不用擔心",
+      "第一週我們有固定課表:第一天學什麼、第二天學什麼;第二週學長姊會帶妳開單",
+      "我們會訓練妳,妳別怕",
+      "這裡大家都會幫妳"
+    ],
+    correct: 1,
+    right: "正解!具體到『第一天/第二天/第二週』,壓力從未知變可見。",
+    tip: "把『教育訓練』這種空詞變成『具體日程』,求職者的大腦會自動產生畫面,焦慮感降低 50%。這叫**可預見性**。"
+  },
+  {
+    num: "Q3",
+    text: "求職者問『團隊氛圍怎麼樣?』下列哪個回答最專業?",
+    scene: "情境:這是另一個致命題,你要答得讓對方有具體畫面。",
+    options: [
+      "我們團隊很好啊,大家都很 nice",
+      "我們不是壓迫型的,節奏快、互相幫忙。壓力一定有因為是業務,但是有節奏地推,不是被罵的那種",
+      "你自己來看就知道了",
+      "每個人感受不同,要看你自己"
+    ],
+    correct: 1,
+    right: "正解!事實 + 畫面,不是形容詞堆砌。",
+    tip: "記住 Vincent 的公式:定調(不是 X)+ 具象(而是 Y)+ 承認(壓力會有)+ 緩解(不是被罵)+ 承諾(幫你扛)。每句都是事實。"
+  },
+  {
+    num: "Q4",
+    text: "『曖昧不清的關係沒人喜歡』這句話的核心意思是?",
+    scene: "情境:你在思考 Vincent 為什麼這麼強調這個心法。",
+    options: [
+      "不要隨便跟求職者聊私事",
+      "該講清楚的就要明確講清楚,不要為了避免嚇跑對方而含糊迴避",
+      "面試時要保持距離",
+      "不要太熱情"
+    ],
+    correct: 1,
+    right: "正解!核心是『明確』而不是『保持距離』。",
+    tip: "很多新人怕嚇跑求職者所以講話含糊,結果反而顯得不誠實。**誠實比推銷更有說服力** —— 這是 EP4 的核心心態。"
+  },
+  {
+    num: "Q5",
+    text: "描述團隊氛圍時,Vincent 說要做到三件事。下列哪個『不是』那三件事之一?",
+    scene: "情境:你要檢視自己的團隊氛圍話術有沒有踩到正確的基礎。",
+    options: [
+      "針對團隊事實來陳述",
+      "用招募表單的文化描述和應聘條件當依據",
+      "講我們團隊需要什麼樣的人",
+      "描述主管的個人魅力和帶人風格"
+    ],
+    correct: 3,
+    right: "正解!主管個人特質是二面要講的,不是團隊氛圍的描述。",
+    tip: "主管的個人魅力留給主管自己二面建立第一印象(EP2 學的)。一面 HRBP 講團隊氛圍,要從事實、應聘條件、要誰這三個角度切入。"
+  },
+  {
+    num: "Q6",
+    text: "下列哪個『不是』Vincent 認為『致命提問回得不好』的後果?",
+    scene: "情境:你在思考為什麼這兩題這麼重要。",
+    options: [
+      "求職者直接跑掉,不願意繼續",
+      "回得太假,錄取後發現落差很大就跑了",
+      "對方覺得你不專業,對整個公司失去信心",
+      "主管會不開心"
+    ],
+    correct: 3,
+    right: "正解!主管不開心不是 Vincent 強調的重點,他在意的是求職者體驗。",
+    tip: "Vincent 的觀點:回得不好人跑掉、回得太假進來也撐不住。兩個方向都是『損失』,所以才叫『致命』。中心思想是**對求職者誠實**。"
+  },
+  {
+    num: "Q7",
+    text: "求職者語氣猶豫:『我怕業績做不到就被開除』。下列哪個回應最完整?",
+    scene: "情境:對方明顯焦慮,你要同時給事實和安全感。",
+    options: [
+      "不會啦,做不到再說",
+      "業績本來就有壓力,你要能接受",
+      "我們是階梯式降級,一次只降一階不會直接 fire,而且新人前兩週有固定課表和學長姊帶單,不是丟妳自己扛",
+      "你這樣想就不適合做業務了"
+    ],
+    correct: 2,
+    right: "正解!融合 EP1 的階梯式降級 + EP4 的教育訓練公式。",
+    tip: "這題考你**跨單元整合能力**。好的 HRBP 要能把 EP1 學的制度 + EP4 學的心法融合使用。一個回答解決『怕被 fire』和『怕撐不住』兩個擔憂。"
+  },
+  {
+    num: "Q8",
+    text: "完成 HRBP 招募訓練 EP1-EP4,你接下來應該做什麼?",
+    scene: "情境:你剛通過 EP4 測驗,即將進入實戰。",
+    options: [
+      "覺得自己已經精通,可以獨立接案",
+      "還是『知道』階段,準備進入實戰輔導期 —— 電訪對練 → 真實通話 → 一面模擬,逐步做到『做到』、『做好』",
+      "再把四集重看一次才上線",
+      "直接上線打 50 通電話"
+    ],
+    correct: 1,
+    right: "正解!你現在是『知道』,實戰才能進到『做到→做好→精通』。",
+    tip: "你現在有的是**地圖**,不是**經驗**。地圖很重要(沒地圖會迷路),但走路這件事只能自己走。祝你上線順利,我們實戰見!"
+  }
+];
+
+let current = 0; let answers = [];
+const card = document.getElementById('card');
+const bar = document.getElementById('bar');
+const progressText = document.getElementById('progressText');
+
+function updateProgress() {
+  const pct = ((current) / quiz.length) * 100;
+  bar.style.width = pct + '%';
+  progressText.textContent = `第 ${Math.min(current + 1, quiz.length)} / ${quiz.length} 題`;
+}
+
+function renderQuestion() {
+  updateProgress();
+  const q = quiz[current];
+  card.innerHTML = `
+    <div class="q-num">${q.num}</div>
+    <div class="q-text">${q.text}</div>
+    <div class="q-scene"><strong>📞 ${q.scene.split(':')[0]}:</strong>${q.scene.split(':').slice(1).join(':')}</div>
+    <div class="options" id="opts">
+      ${q.options.map((opt, i) => `
+        <button class="opt" data-idx="${i}">
+          <span class="opt-letter">${String.fromCharCode(65 + i)}</span>
+          <span>${opt}</span>
+        </button>
+      `).join('')}
+    </div>
+    <div class="feedback" id="feedback"></div>
+    <div class="nav">
+      <button class="btn btn-primary" id="next" disabled>${current === quiz.length - 1 ? '看結果' : '下一題 →'}</button>
+    </div>
+  `;
+  const opts = card.querySelectorAll('.opt');
+  opts.forEach(btn => btn.addEventListener('click', () => handleAnswer(parseInt(btn.dataset.idx), opts)));
+  document.getElementById('next').addEventListener('click', nextQuestion);
+}
+
+function handleAnswer(idx, opts) {
+  const q = quiz[current];
+  const isRight = idx === q.correct;
+  answers.push({ q: current, picked: idx, correct: isRight });
+  opts.forEach((btn, i) => {
+    btn.disabled = true;
+    if (i === q.correct) btn.classList.add('correct');
+    else if (i === idx) btn.classList.add('wrong');
+  });
+  const fb = document.getElementById('feedback');
+  fb.className = 'feedback show ' + (isRight ? 'right' : 'miss');
+  fb.innerHTML = `
+    <div class="feedback-title">${isRight ? '✓ ' + q.right : '✗ 再想想:' + q.right}</div>
+    <div class="feedback-tip">💡 <strong>致命題口袋:</strong>${q.tip}</div>
+  `;
+  document.getElementById('next').disabled = false;
+}
+
+function nextQuestion() {
+  current++;
+  if (current >= quiz.length) renderResult();
+  else renderQuestion();
+}
+
+function renderResult() {
+  bar.style.width = '100%';
+  progressText.textContent = '系列完成';
+  const rightCount = answers.filter(a => a.correct).length;
+  const passed = rightCount >= 6;
+  const msg = passed
+    ? (rightCount === 8 ? '完美!系列四集全部過關,你已經準備好實戰上線。' :
+       rightCount === 7 ? '很穩!致命題你已經掌握,實戰加油!' :
+       '過關!系列完成,繼續精進!')
+    : '還沒過關。這是系列最後一關,請回去重看 EP4,特別是【業績壓力黃金三句】和【團隊氛圍三步驟】。';
+
+  const topics = {
+    1: "業績壓力黃金三句",
+    2: "安心感話術",
+    3: "團隊氛圍公式",
+    4: "曖昧不清心法",
+    5: "團隊氛圍三件事",
+    6: "致命題後果認知",
+    7: "跨單元整合",
+    8: "成長心態"
+  };
+  const wrongTopics = answers.filter(a => !a.correct).map(a => 
+    `<div class="summary-item"><span class="icon">⚠️</span><span>Q${a.q + 1} ${topics[a.q + 1]}</span></div>`
+  ).join('');
+
+  card.innerHTML = `
+    <div class="final">
+      ${passed ? '<div class="complete-badge">✓ EP4 單元完成</div>' : ''}
+      <div class="final-label">ANSWERED CORRECTLY</div>
+      <div class="final-score">${rightCount}<span class="suffix"> / 8</span></div>
+      <div class="final-msg">${msg}</div>
+      ${wrongTopics ? `<div class="summary"><h4>建議複習這些主題</h4>${wrongTopics}</div>` : ''}
+      ${passed ? `
+        <div class="series-done">
+          <h3>🎉 HRBP 招募訓練全系列完成</h3>
+          <p>EP1 → EP2 → EP3 → EP4 全數通過。你現在在「知道」階段,接下來進入實戰輔導期,一步步走到「做到」、「做好」、「精通」。祝你上線順利!</p>
+        </div>
+      ` : ''}
+      <div style="margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--gray-100);">
+        <div style="font-size: 13px; color: var(--gray-500); letter-spacing: 1px; margin-bottom: 12px;">NEXT STEP</div>
+        <div style="font-size: 16px; color: var(--navy); font-weight: 600;">實戰輔導期 · 電訪對練 → 真實通話 → 一面模擬</div>
+      </div>
+      <button class="btn btn-ghost" onclick="restart()" style="margin-top: 24px;">↻ 重新測驗</button>
+    </div>
+  `;
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({
+      type: 'unit_complete',
+      unit: 'HR-056',
+      score: rightCount,
+      total: quiz.length,
+      passed: passed,
+      series_complete: passed
+    }, '*');
+  }
+}
+
+function restart() { current = 0; answers = []; renderQuestion(); }
+renderQuestion();
+</script>
+
+</body>
+</html>
