@@ -111,9 +111,9 @@ export async function POST(request: NextRequest) {
 
     if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
-    // 紅旗：寫入 breakthrough_log 觸發後續介入
+    // 紅旗：寫入 breakthrough_log 觸發後續介入（失敗不影響 check-in 回傳）
     if (ai_score.startsWith("red_")) {
-      await supabase.from("breakthrough_log").insert({
+      supabase.from("breakthrough_log").insert({
         rule_id: `checkin_${ai_score}`,
         user_email,
         trigger_reason:
@@ -122,6 +122,8 @@ export async function POST(request: NextRequest) {
             : `逃避欄位太短（${avoidance.length} 字）— 沒誠實面對`,
         intervention: "系統將指派你今天必須完成一件具體破舒適圈動作",
         severity: "medium",
+      }).then(({ error: logErr }) => {
+        if (logErr) console.error("[human-state] breakthrough_log insert failed:", logErr.message);
       });
     }
 
