@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-function hexToBytes(hex: string): Uint8Array {
+function hexToBytes(hex: string): ArrayBuffer {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) {
     bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   }
-  return bytes;
+  return bytes.buffer as ArrayBuffer;
 }
 
 async function verifyAdminSession(cookie: string): Promise<boolean> {
