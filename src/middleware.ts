@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
 async function verifyAdminSession(cookie: string): Promise<boolean> {
   const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
   if (!secret) return false;
@@ -10,24 +18,22 @@ async function verifyAdminSession(cookie: string): Promise<boolean> {
   const [email, expiry, signature] = parts;
   if (!email || !expiry || !signature) return false;
   if (Date.now() > Number(expiry)) return false;
+  if (!/^[0-9a-f]{64}$/.test(signature)) return false;
 
   const key = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['verify']
   );
-  const sigBuf = await crypto.subtle.sign(
+
+  return crypto.subtle.verify(
     'HMAC',
     key,
+    hexToBytes(signature),
     new TextEncoder().encode(`${email}|${expiry}`)
   );
-  const expected = Array.from(new Uint8Array(sigBuf))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-
-  return signature === expected;
 }
 
 export async function middleware(req: NextRequest) {
