@@ -120,8 +120,8 @@ export async function POST(request: NextRequest) {
         }
         continue;
       }
-      // Unknown postback
-      await lineReply(event.replyToken, `⚠️ 不認識的按鈕動作: ${event.postback.data.slice(0, 50)}`);
+      // Unknown postback — do not echo user-controlled data back into the chat
+      await lineReply(event.replyToken, "⚠️ 不認識的按鈕動作，請重新操作。");
       continue;
     }
 
