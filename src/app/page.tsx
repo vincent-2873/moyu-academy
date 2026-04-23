@@ -1233,11 +1233,17 @@ function CheckinPage({ user }: { user: User }) {
   const save = () => {
     try {
       localStorage.setItem(storageKey, JSON.stringify({ mood, energy, goal, blocker, t: Date.now() }));
-      // TODO: POST to /api/human-state
       fetch("/api/human-state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email, date: todayStr, mood, energy, goal, blocker }),
+        body: JSON.stringify({
+          user_email: user.email,
+          mood,
+          energy,
+          comfort_level: Math.round((mood + energy) / 2),
+          today_commit: goal,
+          avoidance: blocker,
+        }),
       }).catch(() => {});
       setSaved(true);
     } catch { /* ignore */ }
