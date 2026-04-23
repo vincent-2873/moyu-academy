@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
           "📥 收到，Claude 正在思考… (30-60 秒內會回覆你)"
         );
         // 立即觸發 dispatcher (不 await，fire-and-forget)
-        const host = process.env.NEXT_PUBLIC_APP_URL || "https://moyusales.vercel.app";
+        const host = process.env.NEXT_PUBLIC_APP_URL || "https://moyusales.zeabur.app";
         fetch(`${host}/api/cron/line-inbound-dispatcher?key=manual-trigger`, {
           headers: { "x-vercel-cron": "1" },
         }).catch((e) => console.error("[webhook] dispatcher fire failed:", e));
