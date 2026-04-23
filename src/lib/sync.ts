@@ -55,7 +55,9 @@ export async function syncQuizScore(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, moduleId, score }),
     });
-  } catch {}
+  } catch {
+    // Non-blocking: don't break the UI if sync fails
+  }
 }
 
 /** Sync KPI entry to Supabase */
@@ -71,7 +73,9 @@ export async function syncKpiEntry(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, ...entry }),
     });
-  } catch {}
+  } catch {
+    // Non-blocking: don't break the UI if sync fails
+  }
 }
 
 /** Sync video watch progress to Supabase */
@@ -89,7 +93,9 @@ export async function syncVideoProgress(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, videoId, watchSeconds, totalSeconds }),
     });
-  } catch {}
+  } catch {
+    // Non-blocking: don't break the UI if sync fails
+  }
 }
 
 /** Register user in Supabase (called during registration) */

@@ -184,7 +184,10 @@ export async function getResumeFolder(city: string): Promise<string> {
 
   const cityFolderId = CITY_FOLDER_MAP[city];
   if (!cityFolderId) {
-    // Fallback: 用台北
+    console.warn(
+      `[google-api] getResumeFolder: no folder ID configured for city "${city}", falling back to 台北. ` +
+      `Set CITY_FOLDER_MAP["${city}"] to the correct Google Drive folder ID.`
+    );
     return CITY_FOLDER_MAP["台北"];
   }
 
