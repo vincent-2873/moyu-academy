@@ -171,6 +171,24 @@ export default function Sidebar({
               </li>
             ))}
           </ul>
+
+          <div className="px-4 py-2 mt-4 text-[10px] text-[var(--text3)] uppercase tracking-widest">
+            學習中心
+          </div>
+          <ul className="space-y-0.5">
+            <li className="mx-2">
+              <a
+                href="/training"
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm transition-all text-[var(--text2)] hover:bg-[rgba(245,158,11,0.1)] hover:text-[var(--text)]"
+              >
+                <span className="text-base">📚</span>
+                <span>新訓區域</span>
+                <span className="ml-auto bg-[rgba(245,158,11,0.2)] text-[#F59E0B] px-2 py-0.5 rounded text-[10px] font-bold">
+                  NEW
+                </span>
+              </a>
+            </li>
+          </ul>
         </nav>
 
         {/* User */}
