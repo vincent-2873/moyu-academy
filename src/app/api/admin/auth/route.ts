@@ -1,6 +1,16 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import { createHmac } from 'crypto';
+
+function buildAdminSessionCookie(email: string): string {
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const expiry = Date.now() + 24 * 60 * 60 * 1000; // 24h
+  const sig = createHmac('sha256', secret)
+    .update(`${email}|${expiry}`)
+    .digest('hex');
+  return `${email}|${expiry}|${sig}`;
+}
 
 // HQ roles 可看全部子公司；品牌層角色只看自己
 const ALLOWED_ROLES = ['super_admin', 'ceo', 'coo', 'cfo', 'director', 'brand_manager', 'team_leader', 'trainer', 'recruiter', 'hr'];
@@ -50,10 +60,19 @@ export async function POST(req: NextRequest) {
     const { password_hash, ...safeUser } = user;
     void password_hash;
 
-    return NextResponse.json({
+    const sessionValue = buildAdminSessionCookie(user.email);
+    const res = NextResponse.json({
       user: safeUser,
       mustChangePassword: password === '0000',
     }, { status: 200 });
+    res.cookies.set('moyu_admin_session', sessionValue, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60,
+      path: '/',
+    });
+    return res;
   } catch (err) {
     console.error('Admin auth error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
