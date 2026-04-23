@@ -17,7 +17,7 @@ import { linePush } from "@/lib/line-notify";
  *    3. 寫 v3_ai_insights 學習（下次迭代會參考）
  *    4. 寫 claude_actions log
  *
- *  設計原則：同一問題 30 分鐘內不重複產命令 — 用 ai_reasoning 作去重 key
+ *  設計原則：同一問題不重複產命令 — 用 ai_reasoning + owner 作去重 key（pending 未解決時不再新增）
  */
 
 export const maxDuration = 60;
@@ -36,9 +36,20 @@ async function dedupedInsert(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   cmd: GeneratedCmd
 ) {
-  // 查過去 1 小時有沒有同樣 reasoning + owner 的命令（避免洗版）
+  // Skip if there's already an unresolved (pending) command with the same reasoning.
+  // Also skip if the same command was created in the last hour (catches non-pending duplicates).
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { data: existing } = await supabase
+  const { data: existingPending } = await supabase
+    .from("v3_commands")
+    .select("id")
+    .eq("owner_email", cmd.owner_email)
+    .eq("ai_reasoning", cmd.ai_reasoning)
+    .eq("status", "pending")
+    .limit(1)
+    .maybeSingle();
+  if (existingPending) return { created: false, reason: "deduped-pending" };
+
+  const { data: existingRecent } = await supabase
     .from("v3_commands")
     .select("id")
     .eq("owner_email", cmd.owner_email)
@@ -46,7 +57,7 @@ async function dedupedInsert(
     .gte("created_at", oneHourAgo)
     .limit(1)
     .maybeSingle();
-  if (existing) return { created: false, reason: "deduped" };
+  if (existingRecent) return { created: false, reason: "deduped" };
 
   const { data, error } = await supabase.from("v3_commands").insert({
     owner_email: cmd.owner_email,
