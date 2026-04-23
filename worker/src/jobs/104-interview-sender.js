@@ -16,7 +16,8 @@ async function processOne(action) {
 
   try {
     // TODO: 實作 sendInterviewInvite (在 104 發面試訊息 + 下載履歷)
-    console.log(`[104-interview] ${action.candidate_name} (${action.account}): not yet implemented`);
+    // 尚未實作：拋例外讓 worker 標記為 failed（避免靜默吞掉 action 讓前台誤以為已送出）
+    throw new Error('sendInterviewInvite 尚未實作，請聯絡開發者');
 
     await supabase
       .from('pending_104_actions')
