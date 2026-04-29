@@ -200,13 +200,39 @@ function ModuleModal({ module, pathId, onSave, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }}>
-      <div className="w-full max-w-2xl rounded-md max-h-[90vh] overflow-y-auto" style={{ background: "var(--bg-paper)", border: "1px solid var(--border-soft)" }}>
-        <div className="p-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border-soft)" }}>
-          <div style={{ fontFamily: "var(--font-noto-serif-tc)", fontSize: 18, color: "var(--ink-deep)" }}>
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: "fixed",
+        top: 0, left: 0, right: 0, bottom: 0,
+        zIndex: 9999,
+        background: "rgba(15, 15, 15, 0.65)",
+        backdropFilter: "blur(2px)",
+        WebkitBackdropFilter: "blur(2px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <div
+        className="w-full max-w-2xl rounded-md"
+        style={{
+          background: "var(--bg-paper, #f7f1e3)",
+          border: "1px solid var(--border-soft, rgba(26,26,26,0.10))",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          position: "relative",
+          zIndex: 10000,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border-soft, rgba(26,26,26,0.10))", background: "var(--bg-paper, #f7f1e3)", position: "sticky", top: 0, zIndex: 1 }}>
+          <div style={{ fontFamily: "var(--font-noto-serif-tc, serif)", fontSize: 18, color: "var(--ink-deep, #1a1a1a)" }}>
             {module ? "編輯 module" : "新增 module"}
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full" style={{ color: "var(--ink-mid)" }}>✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-full" style={{ color: "var(--ink-mid, #4a4a4a)", background: "transparent", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))" }}>✕</button>
         </div>
         <div className="p-5 space-y-3">
           <div className="grid grid-cols-3 gap-3">
