@@ -8,7 +8,26 @@ const jobs = [
   { name: '104-poller', path: './jobs/104-poller', enabled: true },
   { name: '104-interview-sender', path: './jobs/104-interview-sender', enabled: true },
   { name: 'phone-call-sync', path: './jobs/phone-call-sync', enabled: true },
+  { name: 'metabase-sync', path: './jobs/metabase-sync', enabled: true },
 ];
+
+// metabase-sync 每 15 min 跑一次(連 Vincent Chrome via CDP)
+async function startMetabaseInterval() {
+  const { syncDay } = require('./jobs/metabase-sync');
+  function tpToday() { return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10); }
+
+  async function tick() {
+    try {
+      await syncDay(tpToday());
+    } catch (e) {
+      console.error('[metabase-sync tick]', e.message);
+    }
+  }
+
+  // 立即跑一次,之後每 15 min
+  await tick();
+  setInterval(tick, 15 * 60 * 1000);
+}
 
 const TZ_OFFSET_MS = 8 * 3600 * 1000;
 

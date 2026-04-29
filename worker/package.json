@@ -10,7 +10,9 @@
     "104-sender": "node src/jobs/104-sender.js",
     "104-poller": "node src/jobs/104-poller.js",
     "104-interview": "node src/jobs/104-interview-sender.js",
-    "phone-sync": "node src/jobs/phone-call-sync.js"
+    "phone-sync": "node src/jobs/phone-call-sync.js",
+    "metabase-sync": "node src/jobs/metabase-sync.js",
+    "metabase-backfill": "node src/jobs/metabase-sync.js backfill"
   },
   "engines": {
     "node": ">=20"

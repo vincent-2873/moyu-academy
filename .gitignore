@@ -16,3 +16,4 @@ next-env.d.ts
 
 # local dev only — training content lives in content/ for production
 training-system/
+.env
