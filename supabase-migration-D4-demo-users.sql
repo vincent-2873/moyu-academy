@@ -9,20 +9,20 @@ BEGIN
   -- bcrypt hash of '0000'
   v_pwd_hash := crypt('0000', gen_salt('bf', 10));
 
-  -- 8 demo user
-  INSERT INTO public.users (email, password_hash, name, role, module_role, capability_scope, brand, stage, stage_path, is_active, must_change_password)
+  -- 8 demo user (移除 must_change_password 欄位, 因 schema 沒有)
+  INSERT INTO public.users (email, password_hash, name, role, module_role, capability_scope, brand, stage, stage_path, is_active)
   VALUES
     -- 業務戰線 (3)
-    ('sales_rookie@demo.moyu',  v_pwd_hash, '業務新人 Demo',  'sales_rookie',   'sales_rookie',   'trainee',       'nschool', 'beginner',     'business', true, true),
-    ('sales_staff@demo.moyu',   v_pwd_hash, '業務人員 Demo',  'sales_rep',      'sales_rep',      'member',        'nschool', 'intermediate', 'business', true, true),
-    ('sales_manager@demo.moyu', v_pwd_hash, '業務主管 Demo',  'sales_manager',  'sales_manager',  'brand_manager', 'nschool', 'master',       'business', true, true),
+    ('sales_rookie@demo.moyu',  v_pwd_hash, '業務新人 Demo',  'sales_rookie',   'sales_rookie',   'trainee',       'nschool', 'beginner',     'business', true),
+    ('sales_staff@demo.moyu',   v_pwd_hash, '業務人員 Demo',  'sales_rep',      'sales_rep',      'member',        'nschool', 'intermediate', 'business', true),
+    ('sales_manager@demo.moyu', v_pwd_hash, '業務主管 Demo',  'sales_manager',  'sales_manager',  'brand_manager', 'nschool', 'master',       'business', true),
     -- 招募/人資戰線 (3)
-    ('hr_rookie@demo.moyu',     v_pwd_hash, '人資新人 Demo',  'recruit_rookie', 'recruit_rookie', 'trainee',       'moyuhunt', 'beginner',     'recruit',  true, true),
-    ('hr_staff@demo.moyu',      v_pwd_hash, '人資人員 Demo',  'recruiter',      'recruiter',      'member',        'moyuhunt', 'intermediate', 'recruit',  true, true),
-    ('hr_manager@demo.moyu',    v_pwd_hash, '人資主管 Demo',  'recruit_manager','recruit_manager','brand_manager', 'moyuhunt', 'master',       'recruit',  true, true),
+    ('hr_rookie@demo.moyu',     v_pwd_hash, '人資新人 Demo',  'recruit_rookie', 'recruit_rookie', 'trainee',       'moyuhunt', 'beginner',     'recruit',  true),
+    ('hr_staff@demo.moyu',      v_pwd_hash, '人資人員 Demo',  'recruiter',      'recruiter',      'member',        'moyuhunt', 'intermediate', 'recruit',  true),
+    ('hr_manager@demo.moyu',    v_pwd_hash, '人資主管 Demo',  'recruit_manager','recruit_manager','brand_manager', 'moyuhunt', 'master',       'recruit',  true),
     -- 法務戰線 (2)
-    ('legal_staff@demo.moyu',   v_pwd_hash, '法務人員 Demo',  'legal_staff',    'legal_staff',    'member',        'legal',   'intermediate', 'legal',    true, true),
-    ('legal_manager@demo.moyu', v_pwd_hash, '法務主管 Demo',  'legal_manager',  'legal_manager',  'brand_manager', 'legal',   'master',       'legal',    true, true)
+    ('legal_staff@demo.moyu',   v_pwd_hash, '法務人員 Demo',  'legal_staff',    'legal_staff',    'member',        'legal',   'intermediate', 'legal',    true),
+    ('legal_manager@demo.moyu', v_pwd_hash, '法務主管 Demo',  'legal_manager',  'legal_manager',  'brand_manager', 'legal',   'master',       'legal',    true)
   ON CONFLICT (email) DO UPDATE SET
     password_hash = EXCLUDED.password_hash,
     name          = EXCLUDED.name,
@@ -33,7 +33,6 @@ BEGIN
     stage         = EXCLUDED.stage,
     stage_path    = EXCLUDED.stage_path,
     is_active     = true,
-    must_change_password = true,
     updated_at    = NOW();
 END $$;
 
