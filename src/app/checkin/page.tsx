@@ -141,12 +141,16 @@ export default function CheckinPage() {
     <div style={{ minHeight: "100vh", background: "var(--bg, #0a0e1a)", color: "var(--text, #fff)", padding: "40px 20px" }}>
       <div style={{ maxWidth: 600, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontSize: 32, fontWeight: 800, background: "linear-gradient(135deg, #ef4444, #f97316, #fbbf24)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            🔥 每日狀態 Check-in
+          <div style={{ fontSize: 12, letterSpacing: 4, color: "var(--color-clay)", fontFamily: "var(--font-jetbrains-mono), monospace", fontWeight: 600, marginBottom: 8 }}>
+            DAILY · CHECK-IN
           </div>
-          <div style={{ color: "#94a3b8", fontSize: 14, marginTop: 6 }}>
+          <div style={{ fontSize: 32, fontWeight: 700, color: "var(--color-ink)", fontFamily: "var(--font-noto-serif-tc), serif", letterSpacing: "0.02em" }}>
+            每日狀態盤查
+          </div>
+          <div style={{ color: "var(--color-ink-2)", fontSize: 14, marginTop: 8 }}>
             不填完不能進系統 · 不接受敷衍 · 不接受「還可以」
           </div>
+          <div style={{ marginTop: 16, height: 1, width: "100%", background: "linear-gradient(90deg, var(--color-paper-3) 0%, var(--color-paper-3) 30%, var(--color-gold) 30%, var(--color-gold) 35%, var(--color-paper-3) 35%, var(--color-paper-3) 100%)" }} />
         </div>
 
         <form onSubmit={submit} style={{ background: "var(--card, #1a1f2e)", border: "1px solid var(--border, #2a2f3e)", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", gap: 22 }}>
@@ -205,19 +209,22 @@ export default function CheckinPage() {
           <button
             type="submit"
             disabled={submitting}
+            className="btn-ink-fill"
             style={{
-              background: submitting ? "#444" : "linear-gradient(135deg, #ef4444, #f97316)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 10,
+              background: submitting ? "var(--color-paper-2)" : "var(--color-paper-2)",
+              color: submitting ? "var(--color-ink-3)" : "var(--color-ink)",
+              border: "1px solid var(--color-ink)",
+              borderRadius: 4,
               padding: 14,
               fontSize: 15,
-              fontWeight: 700,
+              fontWeight: 600,
+              fontFamily: "var(--font-sans)",
               cursor: submitting ? "wait" : "pointer",
               marginTop: 4,
+              letterSpacing: "0.05em",
             }}
           >
-            {submitting ? "提交中..." : "提交 Check-in"}
+            {submitting ? "提交中..." : "提交盤查"}
           </button>
         </form>
       </div>
