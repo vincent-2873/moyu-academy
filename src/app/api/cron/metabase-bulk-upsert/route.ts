@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Metabase bulk upsert — 從 browser(Vincent's logged-in Metabase session)pre-fetch 後 POST 進來
@@ -74,7 +74,15 @@ const CORS_HEADERS = {
 };
 
 export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
+  const r = new NextResponse(null, { status: 204 });
+  Object.entries(CORS_HEADERS).forEach(([k, v]) => r.headers.set(k, v));
+  return r;
+}
+
+function withCors(json: unknown, init?: ResponseInit): NextResponse {
+  const r = NextResponse.json(json, init);
+  Object.entries(CORS_HEADERS).forEach(([k, v]) => r.headers.set(k, v));
+  return r;
 }
 
 export async function POST(req: NextRequest) {
@@ -82,13 +90,13 @@ export async function POST(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const bypassed = req.headers.get("x-zeabur-cron") || req.headers.get("x-cron-bypass");
   if (cronSecret && !bypassed && auth !== `Bearer ${cronSecret}`) {
-    return Response.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS });
+    return withCors({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await req.json() as { date: string; cols: string[]; rows: unknown[][] };
   const { date, cols, rows } = body;
   if (!date || !cols || !rows) {
-    return Response.json({ error: "missing date/cols/rows" }, { status: 400, headers: CORS_HEADERS });
+    return withCors({ error: "missing date/cols/rows" }, { status: 400 });
   }
 
   const supabase = getSupabaseAdmin();
@@ -145,7 +153,7 @@ export async function POST(req: NextRequest) {
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (normalised.length === 0) {
-    return Response.json({ ok: true, date, rows_received: rows.length, rows_normalised: 0, upserted: 0 }, { headers: CORS_HEADERS });
+    return withCors({ ok: true, date, rows_received: rows.length, rows_normalised: 0, upserted: 0 });
   }
 
   const { error } = await supabase
@@ -153,8 +161,8 @@ export async function POST(req: NextRequest) {
     .upsert(normalised, { onConflict: "date,salesperson_id,brand" });
 
   if (error) {
-    return Response.json({ ok: false, error: error.message, date, attempted: normalised.length }, { status: 500, headers: CORS_HEADERS });
+    return withCors({ ok: false, error: error.message, date, attempted: normalised.length }, { status: 500 });
   }
 
-  return Response.json({ ok: true, date, rows_received: rows.length, rows_normalised: normalised.length, upserted: normalised.length }, { headers: CORS_HEADERS });
+  return withCors({ ok: true, date, rows_received: rows.length, rows_normalised: normalised.length, upserted: normalised.length });
 }
