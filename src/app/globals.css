@@ -28,6 +28,35 @@
   --body-grad-2: rgba(13, 148, 136, 0.10);
   --body-grad-3: rgba(236, 72, 153, 0.07);
   --body-grad-4: rgba(124, 108, 240, 0.08);
+
+  /* ====================================================================
+   * 侘寂 OVERRIDE (PHASE 8 中段轉向 — 2026-04-29)
+   * 既有 SaaS 漸層色票被覆蓋為侘寂底色,既有 page className 自動套用
+   * ==================================================================== */
+  --bg:             #F5F1EA;
+  --bg2:            #EBE5DA;
+  --bg3:            #F5F1EA;
+  --card:           #F5F1EA;
+  --card2:          #EBE5DA;
+  --accent:         #B8474A;
+  --accent-light:   #B89968;
+  --teal:           #6B7A5A;
+  --gold:           #B89968;
+  --orange:         #B8654A;
+  --red:            #B8474A;
+  --green:          #6B7A5A;
+  --pink:           #B8654A;
+  --cyan:           #6B7E94;
+  --text:           #2A2622;
+  --text2:          #5C544A;
+  --text3:          #8A8276;
+  --border:         #DDD4C4;
+  --border-strong:  #8A8276;
+  --shadow-glow:    0 1px 0 rgba(42, 38, 34, 0.04), 0 0 0 1px rgba(42, 38, 34, 0.06);
+  --body-grad-1:    rgba(184, 153, 104, 0.04);
+  --body-grad-2:    rgba(107, 122, 90, 0.03);
+  --body-grad-3:    rgba(184, 71, 74, 0.02);
+  --body-grad-4:    rgba(138, 130, 118, 0.04);
 }
 
 /* 深色主題 — 覆蓋在 html[data-theme="dark"] 上 */
