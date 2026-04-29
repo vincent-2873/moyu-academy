@@ -22,12 +22,15 @@ ALTER TABLE public.sales_alert_rules
 
 CREATE INDEX IF NOT EXISTS idx_sales_alert_rules_active ON public.sales_alert_rules(is_active) WHERE is_active = true;
 
--- Seed default rules
-INSERT INTO public.sales_alert_rules (name, metric, threshold, comparator, severity, action, message_template) VALUES
-  ('業務 撥打不足',       'calls',             100,  '<',  'warning', 'notify_self',    '今日撥打 {value} 通,低於門檻 {threshold} 通,加油!'),
-  ('業務 接通率低',       'connected',         20,   '<',  'warning', 'notify_self',    '接通數 {value} 通,可能名單品質或時段問題'),
-  ('業務 邀約掛蛋',       'raw_appointments',  1,    '<',  'danger',  'notify_both',    '今日 0 邀約,主管請關心狀況'),
-  ('業務 連續 3 天 0 成交', 'closures',          0,    '<=', 'danger',  'notify_manager', '連續 3 天 0 成交,可能需要 1:1 對談')
+-- 既有 brand NOT NULL 欄位 - drop NOT NULL 以避免 INSERT 卡(既有 stub 設計約束)
+ALTER TABLE public.sales_alert_rules ALTER COLUMN brand DROP NOT NULL;
+
+-- Seed default rules (帶 brand 欄位避開既有 stub NOT NULL)
+INSERT INTO public.sales_alert_rules (name, metric, threshold, comparator, severity, action, message_template, brand) VALUES
+  ('業務 撥打不足',       'calls',             100,  '<',  'warning', 'notify_self',    '今日撥打 {value} 通,低於門檻 {threshold} 通,加油!', 'all'),
+  ('業務 接通率低',       'connected',         20,   '<',  'warning', 'notify_self',    '接通數 {value} 通,可能名單品質或時段問題', 'all'),
+  ('業務 邀約掛蛋',       'raw_appointments',  1,    '<',  'danger',  'notify_both',    '今日 0 邀約,主管請關心狀況', 'all'),
+  ('業務 連續 3 天 0 成交', 'closures',          0,    '<=', 'danger',  'notify_manager', '連續 3 天 0 成交,可能需要 1:1 對談', 'all')
 ON CONFLICT DO NOTHING;
 
 SELECT name, metric, threshold, severity, action FROM public.sales_alert_rules ORDER BY severity DESC, name;
