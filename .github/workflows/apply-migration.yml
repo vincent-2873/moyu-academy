@@ -22,29 +22,32 @@ jobs:
         with:
           version: latest
 
-      - name: Apply SQL via psql session
+      - name: Apply SQL via Supabase Management API
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           PROJECT_REF: nqegeidvsflkwllnfink
           SQL_FILE: ${{ inputs.sql_file }}
         run: |
           set -e
-          echo "Linking project $PROJECT_REF..."
-          supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
           echo "Verifying SQL file exists: $SQL_FILE"
           ls -la "$SQL_FILE"
           echo "================================================"
-          echo "Running SQL via supabase db push (uses ./supabase/migrations/) — fallback to psql"
-          # Use psql direct connection since SQL is at repo root, not in supabase/migrations/
-          # Build pooler URL and psql
-          DB_HOST="aws-0-ap-northeast-1.pooler.supabase.com"
-          DB_USER="postgres.${PROJECT_REF}"
-          DB_PORT=6543
-          DB_NAME=postgres
-          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
-          # Install psql if not present
-          which psql || sudo apt-get install -y postgresql-client
-          psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -p "$DB_PORT" -v ON_ERROR_STOP=1 -f "$SQL_FILE"
-          echo "================================================"
-          echo "DONE."
+          # Build JSON body using jq with raw SQL content
+          BODY=$(jq -Rs '{ query: . }' < "$SQL_FILE")
+          echo "Posting to Supabase Management API..."
+          HTTP_RESPONSE=$(curl -sS -w "\n___HTTP_STATUS=%{http_code}___" \
+            -X POST "https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
+          STATUS=$(echo "$HTTP_RESPONSE" | sed -n 's/.*___HTTP_STATUS=\([0-9]*\)___/\1/p')
+          BODY_RESPONSE=$(echo "$HTTP_RESPONSE" | sed 's/___HTTP_STATUS=.*___//')
+          echo "HTTP Status: $STATUS"
+          echo "Response: $BODY_RESPONSE"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
+            echo "================================================"
+            echo "SQL applied successfully."
+          else
+            echo "FAILED."
+            exit 1
+          fi
