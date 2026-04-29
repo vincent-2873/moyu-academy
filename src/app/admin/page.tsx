@@ -6,6 +6,7 @@ import TrainingEditor from "@/components/admin/TrainingEditor";
 import AnnouncementsEditor from "@/components/admin/AnnouncementsEditor";
 import SetupWizard from "@/components/admin/SetupWizard";
 import SalesRulesEditor from "@/components/admin/SalesRulesEditor";
+import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
@@ -352,9 +353,7 @@ export default function AdminPage() {
         <div style={{ padding: "24px 20px 18px", borderBottom: "1px solid var(--border-soft, rgba(26,26,26,0.10))", display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--accent-red, #b91c1c)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--bg-paper, #f7f1e3)", fontFamily: "var(--font-noto-serif-tc, serif)", fontSize: 20, fontWeight: 600 }}>墨</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--ink-deep, #1a1a1a)", fontFamily: "var(--font-noto-serif-tc, serif)", letterSpacing: 2 }}>
-              墨宇戰情中樞
-            </div>
+            <InkLogo text="墨宇戰情中樞" size={16} />
             <div style={{ color: "var(--ink-mid, #4a4a4a)", fontSize: 10, marginTop: 2, letterSpacing: 2 }}>MOYU OPS</div>
           </div>
           <button
