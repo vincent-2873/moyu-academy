@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: false, error: "queueId + byEmail required" }, { status: 400 });
   }
 
-  // 1. 讀 queue 取候選人資料
+  // 1. 讀 queue 取求職者資料
   const { data: queue } = await supabase
     .from("outreach_104_queue")
     .select("*")

@@ -40,8 +40,8 @@ const SALES_NAV: NavItem[] = [
 
 const RECRUIT_NAV: NavItem[] = [
   { id: "dashboard", icon: "🎯", label: "今日戰況" },
-  { id: "candidates", icon: "👥", label: "我的候選人" },
-  { id: "add_candidate", icon: "➕", label: "新增候選人" },
+  { id: "candidates", icon: "👥", label: "我的求職者" },
+  { id: "add_candidate", icon: "➕", label: "新增求職者" },
   { id: "funnel", icon: "🔻", label: "漏斗追蹤" },
   { id: "profile", icon: "👤", label: "個人檔案" },
 ];

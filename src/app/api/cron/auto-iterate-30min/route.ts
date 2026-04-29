@@ -172,7 +172,7 @@ async function scanRecruit(supabase: ReturnType<typeof getSupabaseAdmin>) {
     generated.push({
       owner_email: "lynn@xplatform.world",
       pillar_id: "recruit",
-      title: `🎯 招聘：${stale!.length} 位候選人超過 24h 未聯絡`,
+      title: `🎯 招聘：${stale!.length} 位求職者超過 24h 未聯絡`,
       detail: stale!.slice(0, 5).map((r) => `${r.candidate_name}（${r.account}）`).join("、"),
       severity: "high",
       ai_reasoning: `recruit_cold_lead_${new Date().toISOString().slice(0, 10)}`,
@@ -263,7 +263,7 @@ export async function GET(req: Request) {
   }
   if (pushes.recruit > 0) {
     const recruitCounts = "counts" in recruit ? recruit.counts as Record<string, number> : {};
-    await pushToPillarManagers(supabase, "recruit", `🎯 招聘：${recruitCounts.cold_leads || 0} 位候選人超過 24h 未打`);
+    await pushToPillarManagers(supabase, "recruit", `🎯 招聘：${recruitCounts.cold_leads || 0} 位求職者超過 24h 未打`);
   }
   if (pushes.sales > 0) {
     const salesCounts = "counts" in sales ? sales.counts as Record<string, number> : {};

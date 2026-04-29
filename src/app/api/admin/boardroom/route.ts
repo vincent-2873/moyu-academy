@@ -116,7 +116,7 @@ export async function GET() {
       name: "招聘漏斗",
       category: "P2 — 招不到人",
       status: recruits.length === 0 ? "unknown" : inFunnel < 5 ? "critical" : inFunnel < 10 ? "warning" : "healthy",
-      primary_metric: { label: "漏斗中候選人", value: inFunnel },
+      primary_metric: { label: "漏斗中求職者", value: inFunnel },
       secondary_metric: { label: "本月流失", value: droppedThisMonth },
       diagnosis:
         recruits.length === 0
@@ -124,7 +124,7 @@ export async function GET() {
           : inFunnel < 5
           ? "漏斗快空了，下個月會無人可用"
           : `各階段：${Object.entries(stageCount).map(([k, v]) => `${k}=${v}`).join(", ")}`,
-      next_action: recruits.length === 0 ? "貼第一批候選人進系統 (POST /api/admin/recruits)" : "補充廣告投放 + 加快面試節奏",
+      next_action: recruits.length === 0 ? "貼第一批求職者進系統 (POST /api/admin/recruits)" : "補充廣告投放 + 加快面試節奏",
     };
 
     // ─── 4. 人類狀態 (human_state) ─────────────────

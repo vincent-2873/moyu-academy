@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         endTime,
         attendees,
         description: [
-          `面試候選人：${candidateName}`,
+          `面試求職者：${candidateName}`,
           `據點：${location || "待定"}`,
           `面試主管：${interviewManager || "待定"}`,
           `第${round}面`,

@@ -200,7 +200,7 @@ export async function GET() {
     let recruitDiagnosis = "招聘漏斗運作中";
     if (recruits.length === 0) {
       recruitStatus = "unknown";
-      recruitDiagnosis = "招聘系統空的 — 沒任何候選人";
+      recruitDiagnosis = "招聘系統空的 — 沒任何求職者";
     } else if (funnelTotal < 5) {
       recruitStatus = "critical";
       recruitDiagnosis = "漏斗快空了，下個月會無人可用";

@@ -153,15 +153,53 @@ const BRAND_LABELS: Record<string, string> = {
   hq: "墨宇股份有限公司", nschool: "nSchool 財經", xuemi: "XUEMI 學米", ooschool: "OOschool 無限", aischool: "AIschool 智能", moyuhunt: "墨宇獵頭", legal: "法務顧問事務所",
 };
 
+// 角色順序 = 階級從高到低(集團 → 品牌 → 部門主管 → 一般員工 → 新人)
 const ROLE_LABELS: Record<string, string> = {
-  super_admin: "超級管理員", ceo: "總經理", coo: "營運長", cfo: "財務長", director: "總監",
-  brand_manager: "品牌主管", team_leader: "老祖宗",
-  trainer: "武公", reserve_cadre: "師傅", mentor: "師傅（帶訓）", sales_rep: "業務人員",
-  recruiter: "招聘專員", hr: "人資", intern: "實習生",
+  // 集團層
+  super_admin:    "超級管理員",
+  ceo:            "總經理",
+  coo:            "營運長",
+  cfo:            "財務長",
+  director:       "總監",
+  // 品牌層
+  brand_manager:  "品牌主管",
+  // 部門主管
+  sales_manager:   "業務主管",
+  recruit_manager: "招募主管",
+  legal_manager:   "法務主管",
+  // 帶訓 / 中層
+  team_leader:    "組長",
+  trainer:        "訓練師",
+  mentor:         "師傅",
+  hr:             "人資",
+  // 一般員工
+  legal_staff:    "法務人員",
+  sales_rep:      "業務員",
+  recruiter:      "招募員",
+  // 新人
+  sales_rookie:   "業務新人",
+  recruit_rookie: "招募新人",
+  intern:         "實習生",
 };
 
-/** 高階角色 — 可看到所有部門 + 所有數據 */
+/** 集團高階 — 可看所有部門 / 品牌 */
 const HQ_ROLES = ["super_admin", "ceo", "coo", "cfo", "director"];
+
+/** 主管(可進後台 + 看 team)*/
+const MANAGER_ROLES = [
+  ...HQ_ROLES,
+  "brand_manager",
+  "sales_manager", "recruit_manager", "legal_manager",
+  "team_leader",
+];
+
+/** 一般員工(只能用前台個人頁)*/
+const STAFF_ROLES = [
+  "trainer", "mentor", "hr",
+  "legal_staff", "sales_rep", "recruiter",
+  "sales_rookie", "recruit_rookie", "intern",
+];
+void STAFF_ROLES;
 
 const MODULE_TITLES: Record<number, string> = {
   1: "新人報到｜開發學習", 2: "架構對練｜後台學習", 3: "正式上機｜開發實戰",
@@ -2402,7 +2440,7 @@ function CompanyDrilldown({ brandId }: { brandId: CompanyScope }) {
       {/* TODO 置入該公司業務員列表 / KPI 趨勢 / 對練紀錄 */}
       <div style={{ marginTop: 24, padding: 18, background: "var(--bg2)", border: "1px dashed var(--border)", borderRadius: 12, color: "var(--text3)", fontSize: 13, lineHeight: 1.7 }}>
         <strong style={{ color: "var(--text2)" }}>下一步：</strong>
-        切到「人員管理」分頁可看到 {brand.name} 的所有業務員 / 候選人列表（自動套用此檢視範圍）。
+        切到「人員管理」分頁可看到 {brand.name} 的所有業務員 / 求職者列表（自動套用此檢視範圍）。
         點任一人可看深度資料：今日 KPI / 對練紀錄 / 突破日誌。
       </div>
     </div>
@@ -3535,7 +3573,7 @@ function AutomationTab() {
             <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
               <div style={{ fontSize: 12, color: "var(--text3)", fontWeight: 600, marginBottom: 10 }}>🎯 招聘 Funnel（近 7 天）</div>
               {[
-                { label: "新候選人", val: data.unified.recruit.funnel.new, color: "#3b82f6" },
+                { label: "新求職者", val: data.unified.recruit.funnel.new, color: "#3b82f6" },
                 { label: "聯繫中", val: data.unified.recruit.funnel.contacted, color: "#7c3aed" },
                 { label: "面試", val: data.unified.recruit.funnel.interview, color: "#f59e0b" },
                 { label: "Offer", val: data.unified.recruit.funnel.offer, color: "#dc2626" },
@@ -3628,7 +3666,7 @@ function AutomationTab() {
           <table style={{ width: "100%", fontSize: 13 }}>
             <thead>
               <tr style={{ color: "var(--text3)", textAlign: "left" }}>
-                <th>類型</th><th>候選人</th><th>帳號</th><th>狀態</th><th>建立時間</th>
+                <th>類型</th><th>求職者</th><th>帳號</th><th>狀態</th><th>建立時間</th>
               </tr>
             </thead>
             <tbody>
@@ -4023,7 +4061,7 @@ function RecruitsTab() {
   }
 
   async function removeRecruit(id: string) {
-    if (!confirm("確定刪除這位候選人？")) return;
+    if (!confirm("確定刪除這位求職者？")) return;
     try {
       const res = await fetch(`/api/admin/recruits?id=${id}`, { method: "DELETE" });
       const json = await res.json();
@@ -4068,11 +4106,11 @@ function RecruitsTab() {
             🎯 招聘漏斗
           </div>
           <div style={{ color: "var(--text3)", fontSize: 13 }}>
-            點擊任一候選人可查看完整資訊與時間軸
+            點擊任一求職者可查看完整資訊與時間軸
           </div>
         </div>
         <button onClick={() => setShowForm(true)} style={{ background: "linear-gradient(135deg, #fbbf24, #f97316)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(251,191,36,0.3)" }}>
-          + 新增候選人
+          + 新增求職者
         </button>
       </div>
 
@@ -4118,7 +4156,7 @@ function RecruitsTab() {
           <div style={{ fontSize: 48, marginBottom: 12 }}>🎯</div>
           <div style={{ color: "var(--text2)", marginBottom: 16, fontSize: 15 }}>招聘系統還沒有任何資料</div>
           <button onClick={() => setShowForm(true)} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-            新增第一位候選人
+            新增第一位求職者
           </button>
         </div>
       )}
@@ -4142,7 +4180,7 @@ function RecruitsTab() {
                   {/* Cards */}
                   <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 6, overflowY: "auto", flex: 1 }}>
                     {items.length === 0 && (
-                      <div style={{ color: "var(--text3)", fontSize: 11, padding: 14, textAlign: "center", fontStyle: "italic" }}>無候選人</div>
+                      <div style={{ color: "var(--text3)", fontSize: 11, padding: 14, textAlign: "center", fontStyle: "italic" }}>無求職者</div>
                     )}
                     {items.map((r) => (
                       <KanbanCard key={r.id} recruit={r} onClick={() => setSelectedRecruit(r)} />
@@ -4179,7 +4217,7 @@ function RecruitsTab() {
       {!loading && view === "list" && recruits.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.length === 0 && (
-            <div style={{ color: "var(--text3)", textAlign: "center", padding: 30 }}>沒有符合條件的候選人</div>
+            <div style={{ color: "var(--text3)", textAlign: "center", padding: 30 }}>沒有符合條件的求職者</div>
           )}
           {filtered.map((r) => {
             const stageInfo = RECRUIT_STAGES.find((s) => s.id === r.stage);
@@ -4406,7 +4444,7 @@ function RecruitDrawer({ recruit, onClose, onMove, onDelete }: { recruit: Recrui
         {/* Footer */}
         <div style={{ padding: "14px 24px", borderTop: "1px solid var(--border)", background: "var(--bg2)" }}>
           <button onClick={() => onDelete(recruit.id)} style={{ width: "100%", background: "transparent", border: "1px solid #ef4444", color: "#ef4444", borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            🗑 刪除候選人
+            🗑 刪除求職者
           </button>
         </div>
       </div>
@@ -4687,7 +4725,7 @@ function RecruitForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
       <div style={{ background: "var(--card)", borderRadius: 14, padding: 24, width: "100%", maxWidth: 480, border: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>新增候選人</div>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>新增求職者</div>
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
             <label style={{ fontSize: 12, color: "var(--text2)" }}>姓名 *</label>
@@ -5556,17 +5594,31 @@ function UsersTab({ token }: { token: string }) {
         <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>角色權限說明</h4>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, fontSize: 12 }}>
           {[
-            { role: "super_admin", label: "超級管理員", desc: "系統最高權限，可管理所有品牌、用戶、設定", perms: "全部功能", color: "var(--red)" },
-            { role: "ceo", label: "總經理", desc: "集團總經理，掌控所有部門與品牌的全局戰況", perms: "全部功能 + 所有部門數據", color: "var(--red)" },
-            { role: "coo", label: "營運長 COO", desc: "集團營運長，負責各品牌營運效率與流程優化", perms: "全部功能 + 所有部門數據", color: "#dc2626" },
-            { role: "cfo", label: "財務長 CFO", desc: "集團財務長，負責財務規劃與成本控制", perms: "全部功能 + 所有部門數據", color: "#dc2626" },
-            { role: "director", label: "總監", desc: "部門總監，跨品牌管理特定職能", perms: "全部功能 + 所有部門數據", color: "#ea580c" },
-            { role: "brand_manager", label: "品牌主管", desc: "管理所屬品牌的團隊、訓練進度、KPI 審核", perms: "品牌管理、審核、報表", color: "var(--gold)" },
-            { role: "team_leader", label: "老祖宗", desc: "據點最資深主管，負責整體帶隊方向與人員調配", perms: "團隊管理、師徒配對、KPI 審核", color: "var(--accent)" },
-            { role: "trainer", label: "武公", desc: "負責新人培訓課程授課、SOP 教學、技能考核", perms: "訓練內容管理、測驗管理", color: "var(--teal)" },
-            { role: "reserve_cadre", label: "師傅（儲幹）", desc: "儲備幹部，協助帶訓新人、示範實戰、精神領袖", perms: "師徒帶訓、回饋填寫、對練陪練", color: "var(--green)" },
-            { role: "mentor", label: "師傅（帶訓）", desc: "正式帶訓師父，負責每日 1:1 回饋與實戰陪跑", perms: "師徒帶訓、回饋填寫", color: "var(--green)" },
-            { role: "sales_rep", label: "業務人員", desc: "新進業務人員，接受培訓、對練、KPI 考核", perms: "學習、對練、KPI 填寫", color: "var(--text3)" },
+            // 集團層
+            { role: "super_admin",    label: "超級管理員", desc: "系統最高權限,管所有品牌、用戶、設定", perms: "全部功能", color: "var(--red)" },
+            { role: "ceo",            label: "總經理",     desc: "集團總經理,掌控所有部門與品牌的全局戰況", perms: "全部功能 + 全部門數據", color: "var(--red)" },
+            { role: "coo",            label: "營運長",     desc: "集團營運長,負責各品牌營運效率與流程", perms: "全部功能 + 全部門數據", color: "#dc2626" },
+            { role: "cfo",            label: "財務長",     desc: "集團財務長,負責財務規劃與成本控制", perms: "全部功能 + 全部門數據", color: "#dc2626" },
+            { role: "director",       label: "總監",       desc: "部門總監,跨品牌管理特定職能", perms: "全部功能 + 全部門數據", color: "#ea580c" },
+            // 品牌層
+            { role: "brand_manager",  label: "品牌主管",   desc: "管所屬品牌的團隊、訓練進度、KPI 審核", perms: "品牌管理、審核、報表", color: "var(--gold)" },
+            // 部門主管
+            { role: "sales_manager",  label: "業務主管",   desc: "管業務團隊 KPI、配額、突破預警", perms: "業務戰線後台 + 看 team", color: "#f59e0b" },
+            { role: "recruit_manager",label: "招募主管",   desc: "管招募漏斗、104 邀約、面試節點", perms: "招募戰線後台 + 看 team", color: "#fb923c" },
+            { role: "legal_manager",  label: "法務主管",   desc: "管法務案件、合約、合規 deadline", perms: "法務戰線後台 + 看 team", color: "#a78bfa" },
+            // 帶訓 / 中層
+            { role: "team_leader",    label: "組長",       desc: "帶 1 組業務,負責配對師傅、KPI 推進", perms: "team 管理、師徒配對", color: "var(--accent)" },
+            { role: "trainer",        label: "訓練師",     desc: "訓練課程授課、SOP 教學、技能考核", perms: "訓練內容、測驗管理", color: "var(--teal)" },
+            { role: "mentor",         label: "師傅",       desc: "1:1 帶訓,每日回饋 + 實戰陪跑", perms: "師徒帶訓、回饋", color: "var(--green)" },
+            { role: "hr",             label: "人資",       desc: "人事行政 + 招聘協助", perms: "人事檔案讀寫", color: "#10b981" },
+            // 一般員工
+            { role: "legal_staff",    label: "法務人員",   desc: "法務專員,處理案件 / 合約 / 文件", perms: "前台法務工作頁", color: "#9ca3af" },
+            { role: "sales_rep",      label: "業務員",     desc: "正式業務員,執行 KPI 目標", perms: "前台個人頁(/me, /today, /checkin)", color: "var(--text3)" },
+            { role: "recruiter",      label: "招募員",     desc: "正式招募員,經營 104 / 候選人漏斗", perms: "前台招募工作頁", color: "#94a3b8" },
+            // 新人
+            { role: "sales_rookie",   label: "業務新人",   desc: "新進業務,前 3 個月需走完訓練 SOP", perms: "前台 + 訓練系統", color: "#cbd5e1" },
+            { role: "recruit_rookie", label: "招募新人",   desc: "新進招募員,前 3 個月走 SOP", perms: "前台 + 訓練系統", color: "#cbd5e1" },
+            { role: "intern",         label: "實習生",     desc: "短期實習,只看訓練系統", perms: "/training only", color: "#e2e8f0" },
           ].map(r => (
             <div key={r.role} style={{ background: "var(--bg2)", borderRadius: 10, padding: "10px 12px", borderLeft: `3px solid ${r.color}` }}>
               <div style={{ fontWeight: 700, fontSize: 13, color: r.color, marginBottom: 2 }}>{r.label}</div>

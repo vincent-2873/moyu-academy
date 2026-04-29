@@ -2,9 +2,9 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
 
 /**
- * 招聘候選人原始資料儲存 API
+ * 招聘求職者原始資料儲存 API
  *
- * GET    /api/admin/recruit-documents?recruit_id=xxx   列出該候選人的所有原始資料
+ * GET    /api/admin/recruit-documents?recruit_id=xxx   列出該求職者的所有原始資料
  * POST   /api/admin/recruit-documents                  新增一筆原始資料
  * PATCH  /api/admin/recruit-documents                  更新（id 必填）
  * DELETE /api/admin/recruit-documents?id=xxx           刪除

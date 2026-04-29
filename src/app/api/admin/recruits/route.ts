@@ -4,10 +4,10 @@ import { NextRequest } from "next/server";
 /**
  * 招聘漏斗 API
  *
- * GET    /api/admin/recruits           列出所有候選人（可用 ?stage= ?brand= 過濾）
- * POST   /api/admin/recruits           新增候選人
- * PATCH  /api/admin/recruits           更新候選人 / 推進階段（會寫 recruit_events）
- * DELETE /api/admin/recruits?id=xxx    刪除候選人
+ * GET    /api/admin/recruits           列出所有求職者（可用 ?stage= ?brand= 過濾）
+ * POST   /api/admin/recruits           新增求職者
+ * PATCH  /api/admin/recruits           更新求職者 / 推進階段（會寫 recruit_events）
+ * DELETE /api/admin/recruits?id=xxx    刪除求職者
  *
  * 階段：applied → screening → interview_1 → interview_2 → offer → onboarded → probation → passed
  *       任何階段可轉 dropped / rejected
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
         recruit_id: data.id,
         from_stage: null,
         to_stage: stage,
-        reason: "新增候選人",
+        reason: "新增求職者",
       });
     }
 

@@ -12,8 +12,13 @@ function buildAdminSessionCookie(email: string): string {
   return `${email}|${expiry}|${sig}`;
 }
 
-// HQ roles 可看全部子公司；品牌層角色只看自己
-const ALLOWED_ROLES = ['super_admin', 'ceo', 'coo', 'cfo', 'director', 'brand_manager', 'team_leader', 'trainer', 'recruiter', 'hr'];
+// 主管以上才能進後台。一般員工 + 新人只能用前台。
+const ALLOWED_ROLES = [
+  'super_admin', 'ceo', 'coo', 'cfo', 'director',
+  'brand_manager',
+  'sales_manager', 'recruit_manager', 'legal_manager',
+  'team_leader', 'trainer', 'mentor', 'hr',
+];
 
 export async function POST(req: NextRequest) {
   try {

@@ -4,8 +4,8 @@ import { NextRequest } from "next/server";
 /**
  * 獵頭公司招聘員前台 API
  *
- * GET    /api/recruit-funnel?owner=email  招聘員查看自己負責的候選人
- * POST   /api/recruit-funnel              新增候選人（記錄 owner_email）
+ * GET    /api/recruit-funnel?owner=email  招聘員查看自己負責的求職者
+ * POST   /api/recruit-funnel              新增求職者（記錄 owner_email）
  * PATCH  /api/recruit-funnel              更新階段（需附 owner 檢查權限）
  *
  * 與 /api/admin/recruits 共用同一張 recruits 表，但前台受限於 owner_email。
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
           recruit_id: data.id,
           from_stage: null,
           to_stage: "applied",
-          reason: `招聘員 ${owner} 新增候選人`,
+          reason: `招聘員 ${owner} 新增求職者`,
         })
         .then(
           () => null,
@@ -155,7 +155,7 @@ export async function PATCH(request: NextRequest) {
     if (existing && (existing as { owner_email?: string }).owner_email) {
       if ((existing as { owner_email?: string }).owner_email !== owner) {
         return Response.json(
-          { ok: false, error: "無權修改他人的候選人" },
+          { ok: false, error: "無權修改他人的求職者" },
           { status: 403 }
         );
       }

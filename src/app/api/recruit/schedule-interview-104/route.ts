@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
         startTime: new Date(interviewTime).toISOString(),
         attendees: uniqueAttendees,
         description: [
-          `候選人：${queue.candidate_name}`,
+          `求職者：${queue.candidate_name}`,
           `104 帳號：${queue.account === "ruifu" ? "睿富" : "墨凡"} (${queue.candidate_104_id})`,
           `電話：${finalPhone || "未提供"}`,
           `面試地點：${location || "線上視訊"}`,

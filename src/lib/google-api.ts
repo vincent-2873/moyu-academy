@@ -423,7 +423,7 @@ export async function createCalendarEvent(opts: {
       start: { dateTime: start.toISOString(), timeZone: "Asia/Taipei" },
       end: { dateTime: end.toISOString(), timeZone: "Asia/Taipei" },
       attendees: (opts.attendees || []).map((email) => ({ email })),
-      description: opts.description || `面試候選人：${opts.candidateName}`,
+      description: opts.description || `面試求職者：${opts.candidateName}`,
       reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 30 }] },
     },
   });

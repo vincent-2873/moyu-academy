@@ -105,7 +105,7 @@ export function RecruiterDashboard({
     const h = now.getHours();
     if (h < 6) return "深夜還在顧漏斗";
     if (h < 12) return "早安，開始今日開發";
-    if (h < 14) return "中午了，繼續跟候選人";
+    if (h < 14) return "中午了，繼續跟求職者";
     if (h < 18) return "下午面試衝刺";
     if (h < 21) return "晚間最後一波聯繫";
     return "夜深了，明天繼續";
@@ -146,7 +146,7 @@ export function RecruiterDashboard({
               <span className="text-[var(--text2)] text-lg md:text-xl font-medium"> · 漏斗中 {inFunnel} 人</span>
             </h1>
             <p className="mt-2 text-sm md:text-base text-[var(--text2)]">
-              本週新增 <span className="text-[var(--text)] font-bold tabular-nums">{weekAdded}</span> 位候選人 · 轉換率{" "}
+              本週新增 <span className="text-[var(--text)] font-bold tabular-nums">{weekAdded}</span> 位求職者 · 轉換率{" "}
               <span className="text-[var(--text)] font-bold tabular-nums">{conversionRate}%</span>
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
@@ -155,13 +155,13 @@ export function RecruiterDashboard({
                 className="px-4 py-2 rounded-xl text-sm font-bold text-white shadow-lg hover:scale-105 transition-all"
                 style={{ background: `linear-gradient(135deg, ${ACCENT}, #f59e0b)` }}
               >
-                ➕ 新增候選人
+                ➕ 新增求職者
               </button>
               <button
                 onClick={() => onNavigate("candidates")}
                 className="px-4 py-2 rounded-xl text-sm font-semibold border border-[var(--border-strong)] bg-[var(--bg2)]/60 text-[var(--text)] hover:border-[var(--accent)] backdrop-blur"
               >
-                👥 我的候選人
+                👥 我的求職者
               </button>
               <button
                 onClick={() => onNavigate("funnel")}
@@ -250,13 +250,13 @@ export function RecruiterDashboard({
         ) : total === 0 ? (
           <div className="text-center py-8">
             <p className="text-4xl mb-2 opacity-60">🎯</p>
-            <p className="text-sm text-[var(--text2)] mb-3">還沒新增任何候選人</p>
+            <p className="text-sm text-[var(--text2)] mb-3">還沒新增任何求職者</p>
             <button
               onClick={() => onNavigate("add_candidate")}
               className="text-xs px-4 py-2 rounded-lg font-semibold text-white"
               style={{ background: `linear-gradient(135deg, ${ACCENT}, #f59e0b)` }}
             >
-              新增第一位候選人
+              新增第一位求職者
             </button>
           </div>
         ) : (
@@ -288,19 +288,19 @@ export function RecruiterDashboard({
         )}
       </div>
 
-      {/* 最近候選人 */}
+      {/* 最近求職者 */}
       <div className="surface-elevated p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(180deg, #06b6d4, var(--accent))" }} />
-            <h3 className="text-sm font-bold">最近候選人</h3>
+            <h3 className="text-sm font-bold">最近求職者</h3>
           </div>
           <button onClick={() => onNavigate("candidates")} className="text-xs text-[var(--accent)] hover:underline">
             查看全部 →
           </button>
         </div>
         {candidates.length === 0 ? (
-          <div className="text-center py-8 text-[var(--text3)] text-sm">還沒有候選人紀錄</div>
+          <div className="text-center py-8 text-[var(--text3)] text-sm">還沒有求職者紀錄</div>
         ) : (
           <div className="space-y-2">
             {candidates.slice(0, 5).map((c) => {
@@ -393,7 +393,7 @@ export function CandidatesPage({
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">我的候選人</h1>
+          <h1 className="text-2xl font-bold">我的求職者</h1>
           <p className="text-[var(--text2)] text-sm">共 {candidates.length} 位 · 顯示 {filtered.length} 位</p>
         </div>
         <button
@@ -401,7 +401,7 @@ export function CandidatesPage({
           className="px-4 py-2 rounded-xl text-sm font-bold text-white"
           style={{ background: `linear-gradient(135deg, ${ACCENT}, #f59e0b)` }}
         >
-          ➕ 新增候選人
+          ➕ 新增求職者
         </button>
       </div>
 
@@ -434,7 +434,7 @@ export function CandidatesPage({
         <div className="surface-elevated py-12 text-center">
           <p className="text-4xl mb-2 opacity-60">🎯</p>
           <p className="text-sm text-[var(--text2)]">
-            {candidates.length === 0 ? "尚無候選人" : "沒有符合條件的候選人"}
+            {candidates.length === 0 ? "尚無求職者" : "沒有符合條件的求職者"}
           </p>
         </div>
       ) : (
@@ -591,8 +591,8 @@ export function AddCandidatePage({ user, onDone }: { user: User; onDone: () => v
   return (
     <div className="animate-fade-in max-w-xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">新增候選人</h1>
-        <p className="text-[var(--text2)] text-sm">把新接觸到的候選人加入漏斗</p>
+        <h1 className="text-2xl font-bold">新增求職者</h1>
+        <p className="text-[var(--text2)] text-sm">把新接觸到的求職者加入漏斗</p>
       </div>
 
       <div className="surface-elevated p-6 space-y-4">
@@ -603,7 +603,7 @@ export function AddCandidatePage({ user, onDone }: { user: User; onDone: () => v
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] outline-none focus:border-[var(--accent)]"
-            placeholder="候選人姓名"
+            placeholder="求職者姓名"
           />
         </div>
 
@@ -668,7 +668,7 @@ export function AddCandidatePage({ user, onDone }: { user: User; onDone: () => v
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
             className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg2)] outline-none focus:border-[var(--accent)]"
-            placeholder="候選人背景 / 通電重點 / 意願評估"
+            placeholder="求職者背景 / 通電重點 / 意願評估"
           />
         </div>
 
@@ -720,7 +720,7 @@ export function FunnelPage({ user }: { user: User }) {
     <div className="animate-fade-in">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">漏斗追蹤</h1>
-        <p className="text-[var(--text2)] text-sm">按階段查看候選人流向</p>
+        <p className="text-[var(--text2)] text-sm">按階段查看求職者流向</p>
       </div>
 
       {loading ? (
