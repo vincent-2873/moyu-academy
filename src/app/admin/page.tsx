@@ -9,6 +9,7 @@ import SalesRulesEditor from "@/components/admin/SalesRulesEditor";
 import KpiTargetsEditor from "@/components/admin/KpiTargetsEditor";
 import UsersEditor from "@/components/admin/UsersEditor";
 import HealthDashboard from "@/components/admin/HealthDashboard";
+import HealthStrip from "@/components/admin/HealthStrip";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
@@ -469,6 +470,7 @@ export default function AdminPage() {
         <div style={{ padding: "28px 36px" }}>
           {tab === "pillars" && (
             <>
+              <HealthStrip />
               <CeoOverviewSection />
               <PillarManagersOverview />
               <V3PillarsBoard />
