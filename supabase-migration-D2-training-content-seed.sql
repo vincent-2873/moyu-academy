@@ -7,7 +7,7 @@
 -- ========================================
 -- 1. Seed training_paths (2 條主 path)
 -- ========================================
-INSERT INTO public.training_paths (code, path_type, brand, name, description, is_active) VALUES
+INSERT INTO public.training_paths (code, path_type, brand, name, description) VALUES
   ('business_default', 'business', NULL, '業務 14 天養成', '從報到 Day 0 到第二週畢業 — 逐字稿 → 架構 → 邀約 → Demo → 成交'),
   ('recruit_default',  'recruit',  NULL, '招聘 3 天養成', '濃縮 3 天 — HRBP 6 階段通話 → 一面三段 → 二面五項評估')
 ON CONFLICT (code) DO UPDATE SET
