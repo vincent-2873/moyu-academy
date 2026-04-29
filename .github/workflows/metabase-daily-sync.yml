@@ -98,9 +98,11 @@ jobs:
             fi
 
             # 3. 轉換成 bridge endpoint 格式
+            # 用 .name (SQL col 英文 e.g. salesperson_id) 優先, fallback display_name
+            # 因為 COL_MAP 寫死英文 + 中文 alias, .name 比較穩定
             BRIDGE_BODY=$(echo "$RESP" | jq -c --arg date "$D" '{
               date: $date,
-              cols: [.data.cols[].display_name // .data.cols[].name],
+              cols: [.data.cols[] | (.name // .display_name)],
               rows: .data.rows
             }')
 
