@@ -2,20 +2,23 @@
 -- Vincent 反饋「後台所有 tab 都要 CRUD」
 
 CREATE TABLE IF NOT EXISTS public.sales_alert_rules (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  metric text NOT NULL,                       -- 'calls' / 'connected' / 'raw_appointments' / 'closures'
-  threshold numeric NOT NULL,
-  comparator text NOT NULL DEFAULT '<' CHECK (comparator IN ('<', '<=', '>', '>=', '=', '!=')),
-  severity text NOT NULL DEFAULT 'warning' CHECK (severity IN ('info', 'warning', 'danger')),
-  action text NOT NULL DEFAULT 'notify_self' CHECK (action IN ('notify_self', 'notify_manager', 'notify_both', 'log_only')),
-  target_role text,
-  target_brand text,
-  message_template text,
-  is_active boolean DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT NOW(),
-  updated_at timestamptz NOT NULL DEFAULT NOW()
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid()
 );
+
+-- 既有表可能是 stub, ALTER 補欄位
+ALTER TABLE public.sales_alert_rules
+  ADD COLUMN IF NOT EXISTS name text,
+  ADD COLUMN IF NOT EXISTS metric text,
+  ADD COLUMN IF NOT EXISTS threshold numeric,
+  ADD COLUMN IF NOT EXISTS comparator text DEFAULT '<',
+  ADD COLUMN IF NOT EXISTS severity text DEFAULT 'warning',
+  ADD COLUMN IF NOT EXISTS action text DEFAULT 'notify_self',
+  ADD COLUMN IF NOT EXISTS target_role text,
+  ADD COLUMN IF NOT EXISTS target_brand text,
+  ADD COLUMN IF NOT EXISTS message_template text,
+  ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true,
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
 
 CREATE INDEX IF NOT EXISTS idx_sales_alert_rules_active ON public.sales_alert_rules(is_active) WHERE is_active = true;
 
