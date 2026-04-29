@@ -1,0 +1,50 @@
+name: Apply Supabase Migration
+
+# 透過 supabase CLI 一次性 apply 任意 SQL file (workflow_dispatch only)
+# 需要 secrets: SUPABASE_ACCESS_TOKEN + SUPABASE_DB_PASSWORD
+
+on:
+  workflow_dispatch:
+    inputs:
+      sql_file:
+        description: 'SQL file path (relative to repo root)'
+        required: true
+        default: 'supabase-migration-FIX-users-columns.sql'
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Apply SQL via psql session
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PROJECT_REF: nqegeidvsflkwllnfink
+          SQL_FILE: ${{ inputs.sql_file }}
+        run: |
+          set -e
+          echo "Linking project $PROJECT_REF..."
+          supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          echo "Verifying SQL file exists: $SQL_FILE"
+          ls -la "$SQL_FILE"
+          echo "================================================"
+          echo "Running SQL via supabase db push (uses ./supabase/migrations/) — fallback to psql"
+          # Use psql direct connection since SQL is at repo root, not in supabase/migrations/
+          # Build pooler URL and psql
+          DB_HOST="aws-0-ap-northeast-1.pooler.supabase.com"
+          DB_USER="postgres.${PROJECT_REF}"
+          DB_PORT=6543
+          DB_NAME=postgres
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          # Install psql if not present
+          which psql || sudo apt-get install -y postgresql-client
+          psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -p "$DB_PORT" -v ON_ERROR_STOP=1 -f "$SQL_FILE"
+          echo "================================================"
+          echo "DONE."
