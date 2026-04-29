@@ -7,6 +7,12 @@
 -- 其他 brand 等需要時再加(可在 admin UI 控制)
 -- ════════════════════════════════════════════════════════════════════════
 
+-- metabase_sources stub schema 較 narrow,先確保必要 columns 存在
+ALTER TABLE public.metabase_sources
+  ADD COLUMN IF NOT EXISTS name TEXT,
+  ADD COLUMN IF NOT EXISTS description TEXT,
+  ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'metabase';
+
 INSERT INTO public.metabase_sources (brand, question_id, enabled, name, description, status, type)
 VALUES
   ('xuemi',     1381, true,  'metabase_q1381_xuemi',     '業務即時數據 Q1381(墨宇)',         'active', 'metabase'),
