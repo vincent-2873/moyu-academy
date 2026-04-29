@@ -37,11 +37,12 @@ function todayTaipei(): string {
 }
 
 export async function GET(req: NextRequest) {
-  // Auth
+  // Auth — accept Bearer CRON_SECRET 或 x-zeabur-cron / x-cron-bypass header
   const auth = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && auth !== `Bearer ${cronSecret}`) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const bypassed = req.headers.get("x-zeabur-cron") || req.headers.get("x-cron-bypass");
+  if (cronSecret && !bypassed && auth !== `Bearer ${cronSecret}`) {
+    return Response.json({ error: "Unauthorized", debug: { hasAuth: !!auth, hasSecret: !!cronSecret, authPrefix: auth?.slice(0,10) } }, { status: 401 });
   }
 
   const url = new URL(req.url);
