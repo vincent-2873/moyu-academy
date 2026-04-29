@@ -1,0 +1,40 @@
+name: Fetch Supabase Auth Config
+
+# 一次性 query Supabase Auth provider config 看 Google client_id/secret 是否已設(早上 huance 設的可能還在)
+# 不會 print full secret(只 length / prefix),寫進 step output 給 follow-up workflow 用
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query Supabase Auth config
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: nqegeidvsflkwllnfink
+        run: |
+          set -e
+          RESP=$(curl -sS -w "\n___HTTP=%{http_code}___" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth")
+          STATUS=$(echo "$RESP" | sed -n 's/.*___HTTP=\([0-9]*\)___/\1/p')
+          BODY=$(echo "$RESP" | sed 's/___HTTP=.*___//')
+          echo "HTTP $STATUS"
+          # 不 echo full body(會 leak Secret)。只 jq 抓 google 相關 length / prefix
+          GID=$(echo "$BODY" | jq -r '.external_google_client_id // empty')
+          GSEC=$(echo "$BODY" | jq -r '.external_google_secret // empty')
+          GENA=$(echo "$BODY" | jq -r '.external_google_enabled // false')
+          echo "google_enabled=$GENA"
+          echo "google_client_id_len=${#GID}"
+          echo "google_client_id_prefix=$(echo $GID | cut -c1-12)"
+          echo "google_secret_len=${#GSEC}"
+          echo "google_secret_prefix=$(echo $GSEC | cut -c1-7)"
+          # 也看其他 provider 設了沒
+          DENA=$(echo "$BODY" | jq -r '.external_discord_enabled // false')
+          DSEC=$(echo "$BODY" | jq -r '.external_discord_secret // empty')
+          echo "discord_enabled=$DENA"
+          echo "discord_secret_len=${#DSEC}"
+          # 列所有 enabled providers (不 print value)
+          echo "$BODY" | jq -r 'to_entries[] | select(.key | startswith("external_") and endswith("_enabled")) | select(.value == true) | "enabled: \(.key)"'
