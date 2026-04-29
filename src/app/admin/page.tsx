@@ -7,13 +7,14 @@ import AnnouncementsEditor from "@/components/admin/AnnouncementsEditor";
 import SetupWizard from "@/components/admin/SetupWizard";
 import SalesRulesEditor from "@/components/admin/SalesRulesEditor";
 import KpiTargetsEditor from "@/components/admin/KpiTargetsEditor";
+import UsersEditor from "@/components/admin/UsersEditor";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "automation" | "training" | "messaging" | "setup" | "rules" | "kpi" | "system-hub";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "setup" | "rules" | "kpi" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -264,6 +265,7 @@ export default function AdminPage() {
     { id: "legal", label: "法務戰線", icon: "⚖️" },
     { id: "org", label: "組織架構", icon: "🏢" },
     { id: "people", label: "人員管理", icon: "👥" },
+    { id: "people-edit", label: "員工編輯", icon: "✏️" },
     { id: "training", label: "訓練管理", icon: "📚" },
     { id: "messaging", label: "通訊公告", icon: "📢" },
     { id: "setup", label: "Setup 設定", icon: "🛠️" },
@@ -276,7 +278,7 @@ export default function AdminPage() {
   const tabGroups: { label: string; children: AdminTab[] }[] = [
     { label: "戰況",   children: ["pillars", "commands"] },
     { label: "三大戰線", children: ["sales", "automation", "legal", "rules", "kpi"] },
-    { label: "養成",   children: ["training", "people"] },
+    { label: "養成",   children: ["training", "people", "people-edit"] },
     { label: "通訊",   children: ["messaging"] },
     { label: "系統",   children: ["setup", "org", "system-hub"] },
   ];
@@ -475,6 +477,7 @@ export default function AdminPage() {
           {tab === "commands" && <V3CommandsHub />}
           {tab === "org" && <V3OrgChartTab />}
           {tab === "people" && <PeopleHubTab token={session.token} scope={scope} />}
+          {tab === "people-edit" && <UsersEditor />}
           {tab === "automation" && <AutomationTab />}
           {tab === "training" && <TrainingEditor />}
           {tab === "messaging" && <AnnouncementsEditor />}
