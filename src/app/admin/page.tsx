@@ -550,8 +550,9 @@ function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
           <span style={{ fontSize: 20 }}>📱</span>
           <span>用 LINE 一鍵登入</span>
         </a>
+        {/* Google 登入 改走 Supabase Auth(huance 早上設好 Google provider) */}
         <a
-          href="/api/auth/google/start?mode=login"
+          href={`${process.env.NEXT_PUBLIC_SUPABASE_URL || "https://nqegeidvsflkwllnfink.supabase.co"}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent("https://moyusales.zeabur.app/api/auth/supabase-callback")}`}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             width: "100%", padding: 13, borderRadius: 10, marginTop: 10,
