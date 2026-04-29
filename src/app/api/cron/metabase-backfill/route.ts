@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   }
 
   const started = Date.now();
-  const results: Array<{ date: string; rows: number; status: string; brand: string }> = [];
+  const results: Array<{ date: string; rows: number; status: string; brand: string; error?: string }> = [];
   let totalRows = 0;
   let failed = 0;
 
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     try {
       const dayResults = await syncAllEnabledBrands(date, "manual");
       for (const r of dayResults) {
-        results.push({ date, rows: r.rows, status: r.status, brand: r.brand });
+        results.push({ date, rows: r.rows, status: r.status, brand: r.brand, error: r.error?.slice(0, 200) });
         totalRows += r.rows;
         if (r.status === "failed") failed++;
       }
