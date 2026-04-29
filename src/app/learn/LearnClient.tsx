@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Stamp } from "@/components/wabi/Stamp";
+import RecordingUploader from "@/components/training/RecordingUploader";
 
 const STAGE_NAMES: Record<string, string> = {
   beginner: "研墨者",
@@ -180,6 +181,7 @@ export default function LearnClient() {
                 dayModules={dayModules}
                 progressMap={progressMap}
                 index={di}
+                userEmail={email}
               />
             );
           })}
@@ -191,7 +193,7 @@ export default function LearnClient() {
   );
 }
 
-function DayBlock({ day, isCurrent, isPast, isFuture, dayModules, progressMap, index }: any) {
+function DayBlock({ day, isCurrent, isPast, isFuture, dayModules, progressMap, index, userEmail }: any) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
@@ -275,6 +277,10 @@ function DayBlock({ day, isCurrent, isPast, isFuture, dayModules, progressMap, i
                 <div style={{ fontSize: 12, color: "var(--ink-mid)", lineHeight: 1.7 }}>
                   {m.description}
                 </div>
+              )}
+              {/* 對練 / 任務 module: 上傳錄音 → Whisper 評估 */}
+              {(m.module_type === "sparring" || m.module_type === "task") && isCurrent && userEmail && (
+                <RecordingUploader moduleId={m.id} userEmail={userEmail} compact />
               )}
             </motion.div>
           );
