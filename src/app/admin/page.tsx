@@ -5,12 +5,13 @@ import LineBindBanner from "@/components/LineBindBanner";
 import TrainingEditor from "@/components/admin/TrainingEditor";
 import AnnouncementsEditor from "@/components/admin/AnnouncementsEditor";
 import SetupWizard from "@/components/admin/SetupWizard";
+import SalesRulesEditor from "@/components/admin/SalesRulesEditor";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "automation" | "training" | "messaging" | "setup" | "system-hub";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "automation" | "training" | "messaging" | "setup" | "rules" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -264,13 +265,14 @@ export default function AdminPage() {
     { id: "training", label: "訓練管理", icon: "📚" },
     { id: "messaging", label: "通訊公告", icon: "📢" },
     { id: "setup", label: "Setup 設定", icon: "🛠️" },
+    { id: "rules", label: "業務規則", icon: "📐" },
     { id: "system-hub", label: "系統管控", icon: "⚙️" },
   ];
 
   // 分組樹狀結構 — 取代 9 tab 平鋪
   const tabGroups: { label: string; children: AdminTab[] }[] = [
     { label: "戰況",   children: ["pillars", "commands"] },
-    { label: "三大戰線", children: ["sales", "automation", "legal"] },
+    { label: "三大戰線", children: ["sales", "automation", "legal", "rules"] },
     { label: "養成",   children: ["training", "people"] },
     { label: "通訊",   children: ["messaging"] },
     { label: "系統",   children: ["setup", "org", "system-hub"] },
@@ -476,6 +478,7 @@ export default function AdminPage() {
           {tab === "training" && <TrainingEditor />}
           {tab === "messaging" && <AnnouncementsEditor />}
           {tab === "setup" && <SetupWizard />}
+          {tab === "rules" && <SalesRulesEditor />}
           {tab === "system-hub" && <SystemHubTab token={session.token} />}
         </div>
       </main>
