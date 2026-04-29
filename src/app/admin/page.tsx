@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import LineBindBanner from "@/components/LineBindBanner";
 import TrainingEditor from "@/components/admin/TrainingEditor";
+import AnnouncementsEditor from "@/components/admin/AnnouncementsEditor";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "automation" | "training" | "system-hub";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "automation" | "training" | "messaging" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -260,6 +261,7 @@ export default function AdminPage() {
     { id: "org", label: "組織架構", icon: "🏢" },
     { id: "people", label: "人員管理", icon: "👥" },
     { id: "training", label: "訓練管理", icon: "📚" },
+    { id: "messaging", label: "通訊公告", icon: "📢" },
     { id: "system-hub", label: "系統管控", icon: "⚙️" },
   ];
 
@@ -268,6 +270,7 @@ export default function AdminPage() {
     { label: "戰況",   children: ["pillars", "commands"] },
     { label: "三大戰線", children: ["sales", "automation", "legal"] },
     { label: "養成",   children: ["training", "people"] },
+    { label: "通訊",   children: ["messaging"] },
     { label: "系統",   children: ["org", "system-hub"] },
   ];
 
@@ -469,6 +472,7 @@ export default function AdminPage() {
           {tab === "people" && <PeopleHubTab token={session.token} scope={scope} />}
           {tab === "automation" && <AutomationTab />}
           {tab === "training" && <TrainingEditor />}
+          {tab === "messaging" && <AnnouncementsEditor />}
           {tab === "system-hub" && <SystemHubTab token={session.token} />}
         </div>
       </main>
