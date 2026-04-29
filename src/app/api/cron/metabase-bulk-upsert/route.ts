@@ -19,31 +19,50 @@ const BRAND_ALIASES: Record<string, string> = {
   xlab: "aischool",
 };
 
-// Metabase 中文 display_name → DB col 對映
-// 從 browser fetch 看到 cols: salesperson_id / app_id / email / 機構 / 組別 / name / 等級 / 分機號碼 / 積分 / 通次 / ...
+// Metabase Q1381 中文 display_name → DB col 對映
+// 已根據真實 Metabase fetch 結果對齊(2026-04-30 verified)
 const COL_MAP: Record<string, string> = {
   salesperson_id: "salesperson_id",
   app_id: "app_id",
   email: "email",
   name: "name",
+  "分機號碼": "extension",
   "機構": "org",
   "組別": "team",
   "等級": "level",
+  "積分": "score",
   "通次": "calls",
-  "通話分鐘": "call_minutes",
-  "通話時長": "call_minutes",
-  "接通": "connected",
-  "約見": "raw_appointments",
-  "出席": "appointments_show",
-  "未出席": "raw_no_show",
-  "示範": "raw_demos",
-  "示範失敗": "demo_failed",
-  "成交": "closures",
-  "今日成交": "net_closures_daily",
-  "合約成交": "net_closures_contract",
-  "毛營收": "gross_revenue",
-  "今日營收": "net_revenue_daily",
-  "合約營收": "net_revenue_contract",
+  "通時": "call_minutes",
+  "通話分鐘": "call_minutes",            // legacy alias
+  "通話時長": "call_minutes",            // legacy alias
+  "接通數": "connected",
+  "接通": "connected",                    // legacy alias
+  "原始邀約數": "raw_appointments",
+  "約見": "raw_appointments",            // legacy alias
+  "邀約出席數": "appointments_show",
+  "出席": "appointments_show",           // legacy alias
+  "原始未出席數": "raw_no_show",
+  "未出席": "raw_no_show",                // legacy alias
+  "原始DEMO數": "raw_demos",
+  "示範": "raw_demos",                    // legacy alias
+  "DEMO失敗數": "demo_failed",
+  "示範失敗": "demo_failed",              // legacy alias
+  "分潤成交數": "closures",
+  "成交": "closures",                     // legacy alias
+  "按日期分潤退件數": "raw_returns_daily",
+  "按合約分潤退件數": "raw_returns_contract",
+  "按日期分潤淨成交數": "net_closures_daily",
+  "今日成交": "net_closures_daily",        // legacy alias
+  "按合約分潤淨成交數": "net_closures_contract",
+  "合約成交": "net_closures_contract",     // legacy alias
+  "分潤承攬業績": "gross_revenue",
+  "毛營收": "gross_revenue",               // legacy alias
+  "按日期分潤承攬退費業績": "raw_refund_daily",
+  "按合約分潤承攬退費業績": "raw_refund_contract",
+  "按日期分潤淨承攬業績": "net_revenue_daily",
+  "今日營收": "net_revenue_daily",         // legacy alias
+  "按合約分潤淨承攬業績": "net_revenue_contract",
+  "合約營收": "net_revenue_contract",      // legacy alias
 };
 
 function num(v: unknown): number {
