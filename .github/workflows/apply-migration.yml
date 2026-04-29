@@ -32,14 +32,15 @@ jobs:
           echo "Verifying SQL file exists: $SQL_FILE"
           ls -la "$SQL_FILE"
           echo "================================================"
-          # Build JSON body using jq with raw SQL content
-          BODY=$(jq -Rs '{ query: . }' < "$SQL_FILE")
+          # Build JSON body via file (avoids argument list too long for big SQL)
+          jq -Rs '{ query: . }' < "$SQL_FILE" > /tmp/body.json
+          echo "Body JSON size: $(wc -c < /tmp/body.json) bytes"
           echo "Posting to Supabase Management API..."
           HTTP_RESPONSE=$(curl -sS -w "\n___HTTP_STATUS=%{http_code}___" \
             -X POST "https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "$BODY")
+            --data-binary @/tmp/body.json)
           STATUS=$(echo "$HTTP_RESPONSE" | sed -n 's/.*___HTTP_STATUS=\([0-9]*\)___/\1/p')
           BODY_RESPONSE=$(echo "$HTTP_RESPONSE" | sed 's/___HTTP_STATUS=.*___//')
           echo "HTTP Status: $STATUS"
