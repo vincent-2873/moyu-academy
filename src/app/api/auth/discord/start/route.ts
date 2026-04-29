@@ -12,8 +12,8 @@ function randomToken(n = 32): string {
 }
 
 export async function GET(req: NextRequest) {
-  const clientId = process.env.DISCORD_OAUTH_CLIENT_ID;
-  if (!clientId) return new Response("DISCORD_OAUTH_CLIENT_ID not set", { status: 500 });
+  // Client ID 是 public(會出現在前端 URL),hardcode fallback 到既有 MoyuNotifier app
+  const clientId = process.env.DISCORD_OAUTH_CLIENT_ID || "1498878028095426713";
 
   const url = new URL(req.url);
   const mode = (url.searchParams.get("mode") || "login") as "login" | "bind";

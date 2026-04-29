@@ -60,9 +60,9 @@ export async function GET(req: NextRequest) {
     return new Response("state mismatch", { status: 400 });
   }
 
-  const clientId = process.env.DISCORD_OAUTH_CLIENT_ID;
+  const clientId = process.env.DISCORD_OAUTH_CLIENT_ID || "1498878028095426713";
   const clientSecret = process.env.DISCORD_OAUTH_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return new Response("Discord OAuth not configured", { status: 500 });
+  if (!clientSecret) return new Response("Discord OAuth secret not configured (DISCORD_OAUTH_CLIENT_SECRET)", { status: 500 });
 
   const redirectUri = `${origin}/api/auth/discord/callback`;
 

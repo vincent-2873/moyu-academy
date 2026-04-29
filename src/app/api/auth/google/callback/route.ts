@@ -75,10 +75,11 @@ export async function GET(req: NextRequest) {
     return new Response("state mismatch", { status: 400 });
   }
 
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+    || "68172491156-ibt265pv98phsbmb3dl2qqeegf2q6ccb.apps.googleusercontent.com";
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    return new Response("Google OAuth not configured", { status: 500 });
+  if (!clientSecret) {
+    return new Response("Google OAuth secret not configured (GOOGLE_OAUTH_CLIENT_SECRET)", { status: 500 });
   }
 
   const redirectUri = `${origin}/api/auth/google/callback`;

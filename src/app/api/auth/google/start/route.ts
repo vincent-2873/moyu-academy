@@ -17,10 +17,9 @@ function randomToken(n = 32): string {
 }
 
 export async function GET(req: NextRequest) {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  if (!clientId) {
-    return new Response("GOOGLE_OAUTH_CLIENT_ID not set", { status: 500 });
-  }
+  // Client ID 是 public(會出現在前端 JS / URL), hardcode fallback OK
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+    || "68172491156-ibt265pv98phsbmb3dl2qqeegf2q6ccb.apps.googleusercontent.com";
 
   const url = new URL(req.url);
   const mode = (url.searchParams.get("mode") || "login") as "login" | "bind";
