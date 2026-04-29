@@ -252,18 +252,23 @@ export default function AdminPage() {
   if (!session) return <LoginScreen onLogin={handleLogin} />;
 
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
-    // 戰況俯瞰
     { id: "pillars", label: "指揮中心", icon: "👁️" },
     { id: "commands", label: "命令中心", icon: "⚡" },
-    // 三大戰線
     { id: "sales", label: "業務戰線", icon: "📞" },
     { id: "automation", label: "招募 & 104", icon: "🤖" },
     { id: "legal", label: "法務戰線", icon: "⚖️" },
-    // 集團 / 系統
     { id: "org", label: "組織架構", icon: "🏢" },
     { id: "people", label: "人員管理", icon: "👥" },
     { id: "training", label: "訓練管理", icon: "📚" },
     { id: "system-hub", label: "系統管控", icon: "⚙️" },
+  ];
+
+  // 分組樹狀結構 — 取代 9 tab 平鋪
+  const tabGroups: { label: string; children: AdminTab[] }[] = [
+    { label: "戰況",   children: ["pillars", "commands"] },
+    { label: "三大戰線", children: ["sales", "automation", "legal"] },
+    { label: "養成",   children: ["training", "people"] },
+    { label: "系統",   children: ["org", "system-hub"] },
   ];
 
   const currentScope = COMPANY_OPTIONS.find((c) => c.id === scope) || COMPANY_OPTIONS[0];
@@ -335,48 +340,74 @@ export default function AdminPage() {
         className={`admin-sidebar-overlay${sidebarOpen ? " open" : ""}`}
         onClick={() => setSidebarOpen(false)}
       />
-      {/* Sidebar */}
-      <aside className={`admin-sidebar${sidebarOpen ? " open" : ""}`} style={{ width: 240, background: "var(--bg2)", borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 10, boxShadow: "2px 0 8px rgba(15,23,42,0.04)" }}>
-        <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center" }}>
+      {/* Sidebar — wabi 樹狀分組 */}
+      <aside className={`admin-sidebar${sidebarOpen ? " open" : ""}`} style={{ width: 260, background: "var(--bg-paper, #f7f1e3)", borderRight: "1px solid var(--border-soft, rgba(26,26,26,0.10))", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 10 }}>
+        <div style={{ padding: "24px 20px 18px", borderBottom: "1px solid var(--border-soft, rgba(26,26,26,0.10))", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--accent-red, #b91c1c)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--bg-paper, #f7f1e3)", fontFamily: "var(--font-noto-serif-tc, serif)", fontSize: 20, fontWeight: 600 }}>墨</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, background: "linear-gradient(135deg, var(--accent), var(--teal))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--ink-deep, #1a1a1a)", fontFamily: "var(--font-noto-serif-tc, serif)", letterSpacing: 2 }}>
               墨宇戰情中樞
             </div>
-            <div style={{ color: "var(--text3)", fontSize: 12, marginTop: 2 }}>指揮後台</div>
+            <div style={{ color: "var(--ink-mid, #4a4a4a)", fontSize: 10, marginTop: 2, letterSpacing: 2 }}>MOYU OPS</div>
           </div>
           <button
             className="admin-hamburger"
             onClick={() => setSidebarOpen(false)}
-            style={{ display: "none", background: "none", border: "none", fontSize: 22, color: "var(--text2)", cursor: "pointer", padding: 4, alignItems: "center", justifyContent: "center" }}
+            style={{ display: "none", background: "none", border: "none", fontSize: 18, color: "var(--ink-mid, #4a4a4a)", cursor: "pointer", padding: 4 }}
           >
             ✕
           </button>
         </div>
-        <nav style={{ flex: 1, padding: "8px 0" }}>
-          {tabs.map((t) => (
-            <button key={t.id} onClick={() => { setTab(t.id); setSidebarOpen(false); }} style={{
-              display: "flex", alignItems: "center", gap: 10, width: "calc(100% - 16px)", margin: "2px 8px",
-              padding: "10px 14px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 14,
-              background: tab === t.id ? "var(--accent)" : "transparent",
-              color: tab === t.id ? "#fff" : "var(--text2)",
-              fontWeight: tab === t.id ? 600 : 400,
-              transition: "all 0.15s",
-            }}>
-              <span style={{ fontSize: 16 }}>{t.icon}</span> {t.label}
-            </button>
+        <nav style={{ flex: 1, padding: "16px 12px", overflowY: "auto" }}>
+          {tabGroups.map((group, gi) => (
+            <div key={group.label} style={{ marginBottom: 18 }}>
+              <div style={{ padding: "6px 12px 4px", fontSize: 10, fontWeight: 700, color: "var(--ink-mid, #4a4a4a)", letterSpacing: 3, textTransform: "uppercase" }}>
+                {group.label}
+              </div>
+              {group.children.map((tabId) => {
+                const t = tabs.find(x => x.id === tabId);
+                if (!t) return null;
+                const active = tab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => { setTab(t.id); setSidebarOpen(false); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, width: "100%",
+                      padding: "9px 12px", borderRadius: 4, border: "none", cursor: "pointer", fontSize: 13,
+                      background: active ? "var(--ink-deep, #1a1a1a)" : "transparent",
+                      color: active ? "var(--bg-paper, #f7f1e3)" : "var(--ink-deep, #1a1a1a)",
+                      fontWeight: active ? 600 : 400,
+                      fontFamily: "var(--font-noto-serif-tc, serif)",
+                      letterSpacing: 1,
+                      transition: "all 0.18s",
+                      position: "relative",
+                    }}
+                  >
+                    {active && (
+                      <span style={{ position: "absolute", left: -12, top: "50%", transform: "translateY(-50%)", width: 4, height: 18, background: "var(--accent-red, #b91c1c)", borderRadius: "0 2px 2px 0" }} />
+                    )}
+                    <span style={{ fontSize: 14, opacity: active ? 1 : 0.6 }}>{t.icon}</span> {t.label}
+                  </button>
+                );
+              })}
+            </div>
           ))}
         </nav>
-        <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{session.name}</div>
-            <div style={{ fontSize: 11, color: "var(--text3)" }}>{session.email}</div>
+        <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border-soft, rgba(26,26,26,0.10))", display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--bg-elev, rgba(247,241,227,0.85))", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontFamily: "var(--font-noto-serif-tc, serif)", color: "var(--ink-deep, #1a1a1a)" }}>
+            {(session.name || "?")[0]}
           </div>
-          <button onClick={handleLogout} style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 12 }}>登出</button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-deep, #1a1a1a)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: "var(--font-noto-serif-tc, serif)" }}>{session.name}</div>
+            <div style={{ fontSize: 10, color: "var(--ink-mid, #4a4a4a)" }}>{session.email}</div>
+          </div>
+          <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))", color: "var(--ink-mid, #4a4a4a)", cursor: "pointer", fontSize: 11, padding: "4px 8px", borderRadius: 4, fontFamily: "var(--font-noto-serif-tc, serif)" }}>登出</button>
         </div>
       </aside>
 
       {/* Main content */}
-      <main className="admin-main" style={{ flex: 1, marginLeft: 240, padding: "0" }}>
+      <main className="admin-main" style={{ flex: 1, marginLeft: 260, padding: "0" }}>
         {/* Top bar — visible only when scope filter is meaningful (人員管理) */}
         {showScopeBar && (
           <div style={{
