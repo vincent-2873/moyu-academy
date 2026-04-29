@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import LineBindBanner from "@/components/LineBindBanner";
 import TrainingEditor from "@/components/admin/TrainingEditor";
 import AnnouncementsEditor from "@/components/admin/AnnouncementsEditor";
+import SetupWizard from "@/components/admin/SetupWizard";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "automation" | "training" | "messaging" | "system-hub";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "automation" | "training" | "messaging" | "setup" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -262,6 +263,7 @@ export default function AdminPage() {
     { id: "people", label: "人員管理", icon: "👥" },
     { id: "training", label: "訓練管理", icon: "📚" },
     { id: "messaging", label: "通訊公告", icon: "📢" },
+    { id: "setup", label: "Setup 設定", icon: "🛠️" },
     { id: "system-hub", label: "系統管控", icon: "⚙️" },
   ];
 
@@ -271,7 +273,7 @@ export default function AdminPage() {
     { label: "三大戰線", children: ["sales", "automation", "legal"] },
     { label: "養成",   children: ["training", "people"] },
     { label: "通訊",   children: ["messaging"] },
-    { label: "系統",   children: ["org", "system-hub"] },
+    { label: "系統",   children: ["setup", "org", "system-hub"] },
   ];
 
   const currentScope = COMPANY_OPTIONS.find((c) => c.id === scope) || COMPANY_OPTIONS[0];
@@ -473,6 +475,7 @@ export default function AdminPage() {
           {tab === "automation" && <AutomationTab />}
           {tab === "training" && <TrainingEditor />}
           {tab === "messaging" && <AnnouncementsEditor />}
+          {tab === "setup" && <SetupWizard />}
           {tab === "system-hub" && <SystemHubTab token={session.token} />}
         </div>
       </main>
