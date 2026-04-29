@@ -65,18 +65,30 @@ function str(v: unknown): string | null {
   return s.length ? s : null;
 }
 
+// CORS headers for browser-side calls from Metabase origin
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, x-zeabur-cron, Authorization",
+  "Access-Control-Max-Age": "86400",
+};
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   const bypassed = req.headers.get("x-zeabur-cron") || req.headers.get("x-cron-bypass");
   if (cronSecret && !bypassed && auth !== `Bearer ${cronSecret}`) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS });
   }
 
   const body = await req.json() as { date: string; cols: string[]; rows: unknown[][] };
   const { date, cols, rows } = body;
   if (!date || !cols || !rows) {
-    return Response.json({ error: "missing date/cols/rows" }, { status: 400 });
+    return Response.json({ error: "missing date/cols/rows" }, { status: 400, headers: CORS_HEADERS });
   }
 
   const supabase = getSupabaseAdmin();
@@ -133,7 +145,7 @@ export async function POST(req: NextRequest) {
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (normalised.length === 0) {
-    return Response.json({ ok: true, date, rows_received: rows.length, rows_normalised: 0, upserted: 0 });
+    return Response.json({ ok: true, date, rows_received: rows.length, rows_normalised: 0, upserted: 0 }, { headers: CORS_HEADERS });
   }
 
   const { error } = await supabase
@@ -141,8 +153,8 @@ export async function POST(req: NextRequest) {
     .upsert(normalised, { onConflict: "date,salesperson_id,brand" });
 
   if (error) {
-    return Response.json({ ok: false, error: error.message, date, attempted: normalised.length }, { status: 500 });
+    return Response.json({ ok: false, error: error.message, date, attempted: normalised.length }, { status: 500, headers: CORS_HEADERS });
   }
 
-  return Response.json({ ok: true, date, rows_received: rows.length, rows_normalised: normalised.length, upserted: normalised.length });
+  return Response.json({ ok: true, date, rows_received: rows.length, rows_normalised: normalised.length, upserted: normalised.length }, { headers: CORS_HEADERS });
 }
