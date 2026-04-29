@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import BreathingNumber from "@/components/wabi/BreathingNumber";
 
 const STAGE_NAMES: Record<string, string> = {
   beginner: "研墨者",
@@ -169,6 +170,7 @@ export default function WorkClient() {
 
 function MetricCard({ label, value, unit, big, delay = 0 }: { label: string; value: any; unit?: string; big?: boolean; delay?: number }) {
   const display = value == null || value === undefined ? "—" : (typeof value === "number" ? value.toLocaleString() : value);
+  const hasValue = value != null && value !== undefined && value !== "—";
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -186,21 +188,11 @@ function MetricCard({ label, value, unit, big, delay = 0 }: { label: string; val
         {label}
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-        <motion.span
-          key={display}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          style={{
-            fontFamily: "var(--font-jetbrains-mono)",
-            fontSize: big ? 44 : 32,
-            fontWeight: 600,
-            color: "var(--ink-deep)",
-            lineHeight: 1,
-          }}
-        >
-          {display}
-        </motion.span>
+        {hasValue ? (
+          <BreathingNumber size={big ? 44 : 32}>{display}</BreathingNumber>
+        ) : (
+          <span style={{ fontFamily: "var(--font-jetbrains-mono)", fontSize: big ? 44 : 32, fontWeight: 600, color: "var(--ink-deep)", lineHeight: 1 }}>{display}</span>
+        )}
         {unit && <span style={{ fontSize: big ? 14 : 12, color: "var(--ink-mid)" }}>{unit}</span>}
       </div>
     </motion.div>

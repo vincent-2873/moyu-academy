@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Stamp } from "@/components/wabi/Stamp";
 import Calendar from "@/components/Calendar";
+import StreakScroll from "@/components/wabi/StreakScroll";
 
 const STAGE_NAMES: Record<string, string> = {
   beginner: "研墨者",
@@ -34,6 +35,7 @@ export default function HomeClient() {
   const [showStamp, setShowStamp] = useState(false);
   const [greeting, setGreeting] = useState("早安");
   const [loading, setLoading] = useState(true);
+  const [streak, setStreak] = useState(0);
 
   useEffect(() => {
     const e = sessionStorage.getItem("moyu_current_user")
@@ -64,6 +66,17 @@ export default function HomeClient() {
 
     const todayKey = `checkin_${email}_${new Date().toISOString().slice(0, 10)}`;
     setCheckedIn(!!localStorage.getItem(todayKey));
+
+    // 算連續簽到天數
+    let count = 0;
+    for (let i = 0; i < 60; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const k = `checkin_${email}_${d.toISOString().slice(0, 10)}`;
+      if (localStorage.getItem(k)) count++;
+      else if (i > 0) break; // 今天沒簽不算斷,但昨天沒簽就斷
+    }
+    setStreak(count);
   }, [email]);
 
   function checkin() {
@@ -215,6 +228,13 @@ export default function HomeClient() {
             </div>
           </Card>
         </div>
+
+        {/* 連 7 天簽到捲軸動畫 */}
+        {streak >= 7 && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.05 }} style={{ marginBottom: 32, textAlign: "center" }}>
+            <StreakScroll days={streak} threshold={7} />
+          </motion.div>
+        )}
       </div>
 
       {/* 養成日曆 */}
