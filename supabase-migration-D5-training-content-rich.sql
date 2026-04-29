@@ -186,14 +186,13 @@ SET content = jsonb_build_object(
 )
 WHERE id IN (SELECT id FROM training_modules WHERE day_offset = 2 AND sequence = 1 AND path_id = (SELECT id FROM training_paths WHERE code = 'recruit_default'));
 
--- Verify
+-- Verify (用 jsonb_object_keys 取代 hstore)
 SELECT
   tp.code AS path_code,
   tm.day_offset,
   tm.sequence,
   tm.title,
-  jsonb_typeof(tm.content) AS content_type,
-  array_length(akeys(hstore(jsonb_each_text(tm.content)::record)), 1) AS content_keys_count_approx
+  (SELECT COUNT(*) FROM jsonb_object_keys(tm.content)) AS content_keys_count
 FROM public.training_modules tm
 JOIN public.training_paths tp ON tp.id = tm.path_id
 WHERE tp.code IN ('business_default', 'recruit_default')
