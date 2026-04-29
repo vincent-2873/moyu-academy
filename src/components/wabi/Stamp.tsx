@@ -7,13 +7,22 @@ interface StampProps {
   rotation?: number;
   /** 預設 red(朱紅,只此一處用紅);gray = 已修;gold = 達標 */
   variant?: "red" | "gray" | "gold";
+  /** 訓練系統印章稀有度: common(灰)/ rare(朱)/ epic(朱+雙環)/ legendary(金+雙環+尺寸) */
+  rarity?: "common" | "rare" | "epic" | "legendary";
   className?: string;
 }
 
 const VARIANTS = {
-  red:  { fill: "var(--color-stamp-red)",        stroke: "var(--color-stamp-red-stroke)" },
-  gray: { fill: "var(--color-ink-3)",            stroke: "var(--color-ink-2)" },
-  gold: { fill: "var(--color-gold)",             stroke: "#8E7548" },
+  red:  { fill: "var(--color-stamp-red, #b91c1c)",        stroke: "var(--color-stamp-red-stroke, #8e1414)" },
+  gray: { fill: "var(--color-ink-3, #4a4a4a)",            stroke: "var(--color-ink-2, #1a1a1a)" },
+  gold: { fill: "var(--color-gold, #c9a96e)",             stroke: "#8E7548" },
+};
+
+const RARITY_VARIANT: Record<NonNullable<StampProps["rarity"]>, "red" | "gray" | "gold"> = {
+  common: "gray",
+  rare: "red",
+  epic: "red",
+  legendary: "gold",
 };
 
 /**
@@ -30,34 +39,62 @@ export function Stamp({
   text,
   size = 64,
   rotation = -8,
-  variant = "red",
+  variant,
+  rarity,
   className,
 }: StampProps) {
-  const colors = VARIANTS[variant];
-  const fontSize = text.length <= 2 ? 22 : 16;
+  // rarity 優先(訓練系統用),否則用 variant
+  const finalVariant = rarity ? RARITY_VARIANT[rarity] : (variant || "red");
+  const colors = VARIANTS[finalVariant];
+  const fontSize = text.length <= 2 ? 22 : text.length <= 4 ? 14 : 10;
+  const finalSize = rarity === "legendary" ? size * 1.3 : size;
+  const showDoubleRing = rarity === "epic" || rarity === "legendary";
 
   return (
     <svg
-      width={size}
-      height={size}
+      width={finalSize}
+      height={finalSize}
       viewBox="0 0 64 64"
       style={{ transform: `rotate(${rotation}deg)` }}
       className={`stamp inline-block ${className ?? ""}`}
       aria-label={text}
       role="img"
     >
+      {/* 外圈(epic / legendary 才顯示)*/}
+      {showDoubleRing && (
+        <circle cx="32" cy="32" r="30" fill="none" stroke={colors.stroke} strokeWidth="0.8" opacity="0.7" />
+      )}
+      {/* 主章 */}
       <circle cx="32" cy="32" r="28" fill={colors.fill} stroke={colors.stroke} strokeWidth="2" />
+      {/* 篆刻紋路(epic / legendary)*/}
+      {showDoubleRing && (
+        <circle cx="32" cy="32" r="25" fill="none" stroke="var(--color-paper, #f7f1e3)" strokeWidth="0.5" opacity="0.4" />
+      )}
       <text
         x="32"
-        y="38"
+        y={text.length <= 2 ? 38 : text.length <= 4 ? 36 : 35}
         textAnchor="middle"
-        fill="var(--color-paper)"
+        fill="var(--color-paper, #f7f1e3)"
         fontSize={fontSize}
         fontFamily="var(--font-noto-serif-tc), serif"
         fontWeight="700"
       >
-        {text}
+        {text.length <= 4 ? text : text.slice(0, 4)}
       </text>
+      {/* legendary 多一行 */}
+      {rarity === "legendary" && text.length > 4 && (
+        <text
+          x="32"
+          y="46"
+          textAnchor="middle"
+          fill="var(--color-paper, #f7f1e3)"
+          fontSize="8"
+          fontFamily="var(--font-noto-serif-tc), serif"
+          fontWeight="700"
+        >
+          {text.slice(4, 10)}
+        </text>
+      )}
     </svg>
   );
 }
