@@ -8,6 +8,7 @@ import {
 } from "next/font/google";
 import "./globals.css";
 import ThemeToggle from "@/components/ThemeToggle";
+import ClaudeChatPanelMount from "@/components/ClaudeChatPanelMount";
 
 /**
  * 字型載入(設計系統 v0.1 §1.2 — 從 huance-copilot-app port，2026-04-29 中段轉向)
@@ -70,6 +71,7 @@ export default function RootLayout({
       <body>
         {children}
         <ThemeToggle />
+        <ClaudeChatPanelMount />
       </body>
     </html>
   );
