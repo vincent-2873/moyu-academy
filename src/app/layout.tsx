@@ -9,6 +9,7 @@ import {
 import "./globals.css";
 import ThemeToggle from "@/components/ThemeToggle";
 import ClaudeChatPanelMount from "@/components/ClaudeChatPanelMount";
+import InkCursor from "@/components/InkCursor";
 
 /**
  * 字型載入(設計系統 v0.1 §1.2 — 從 huance-copilot-app port，2026-04-29 中段轉向)
@@ -72,6 +73,7 @@ export default function RootLayout({
         {children}
         <ThemeToggle />
         <ClaudeChatPanelMount />
+        <InkCursor />
       </body>
     </html>
   );

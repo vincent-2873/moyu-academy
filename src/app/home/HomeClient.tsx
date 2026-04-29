@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Stamp } from "@/components/wabi/Stamp";
+import Calendar from "@/components/Calendar";
 
 const STAGE_NAMES: Record<string, string> = {
   beginner: "研墨者",
@@ -26,6 +27,9 @@ export default function HomeClient() {
   const [user, setUser] = useState<any>(null);
   const [todayModules, setTodayModules] = useState<any[]>([]);
   const [stamps, setStamps] = useState<any[]>([]);
+  const [allModules, setAllModules] = useState<any[]>([]);
+  const [progress, setProgress] = useState<any[]>([]);
+  const [assignment, setAssignment] = useState<any>(null);
   const [checkedIn, setCheckedIn] = useState(false);
   const [showStamp, setShowStamp] = useState(false);
   const [greeting, setGreeting] = useState("早安");
@@ -48,6 +52,9 @@ export default function HomeClient() {
         const today = (d.modules || []).filter((m: any) => m.day_offset === cd);
         setTodayModules(today);
         setStamps(d.stamps || []);
+        setAllModules(d.modules || []);
+        setProgress(d.progress || []);
+        setAssignment(d.assignment);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -210,9 +217,29 @@ export default function HomeClient() {
         </div>
       </div>
 
+      {/* 養成日曆 */}
+      {assignment && allModules.length > 0 && (
+        <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 32px 56px" }}>
+          <SectionLabel delay={1.05}>曆 · CALENDAR · {assignment.start_date} 起</SectionLabel>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.1, duration: 0.6 }}
+          >
+            <Calendar
+              modules={allModules}
+              progress={progress}
+              stamps={stamps}
+              startDate={assignment.start_date}
+              currentDay={assignment.current_day || 0}
+            />
+          </motion.div>
+        </div>
+      )}
+
       {/* 今日任務 */}
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 32px 80px" }}>
-        <SectionLabel delay={1.1}>今 · TODAY · {todayModules.length} 任務</SectionLabel>
+        <SectionLabel delay={1.2}>今 · TODAY · {todayModules.length} 任務</SectionLabel>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {todayModules.length === 0 ? (
             <motion.div
