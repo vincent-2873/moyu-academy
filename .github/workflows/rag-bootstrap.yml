@@ -20,46 +20,54 @@ jobs:
   bootstrap:
     runs-on: ubuntu-latest
     steps:
+      - name: Login admin + get cookie
+        id: login
+        env:
+          BASE: https://moyusales.zeabur.app
+        run: |
+          set -e
+          echo "=== admin login ==="
+          curl -sS -c /tmp/cookies.txt -X POST "$BASE/api/admin/auth" \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"vincent@xuemi.co","password":"0000"}' > /tmp/login.json
+          STATUS=$(jq -r '.user.email // empty' /tmp/login.json)
+          if [ -z "$STATUS" ]; then
+            echo "::error::admin login failed"
+            cat /tmp/login.json | head -c 300
+            exit 1
+          fi
+          echo "Login OK: $STATUS"
+          echo "Cookie file: $(wc -l < /tmp/cookies.txt) lines"
+
       - name: Ingest local training files
         env:
           BASE: https://moyusales.zeabur.app
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -e
           echo "=== ingest-local-training ==="
-          # local-training 是 Next.js fs 跑時讀 content/training/, 但 GitHub Actions 跑外部 endpoint, 它讀 prod server 的 fs
-          RESP=$(curl -sS -X POST "$BASE/api/admin/rag/ingest-local-training" \
-            -H "Authorization: Bearer $CRON_SECRET" \
-            -H 'Content-Type: application/json' \
-            -d '{}')
+          RESP=$(curl -sS -b /tmp/cookies.txt -X POST "$BASE/api/admin/rag/ingest-local-training" \
+            -H 'Content-Type: application/json' -d '{}')
           echo "$RESP" | head -c 500
           echo ""
 
       - name: Embed pending chunks
         env:
           BASE: https://moyusales.zeabur.app
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
           MAX_CHUNKS: ${{ github.event.inputs.max_chunks || '200' }}
         run: |
           set -e
           echo "=== embed-pending ==="
-          RESP=$(curl -sS -X POST "$BASE/api/admin/rag/embed-pending" \
-            -H "Authorization: Bearer $CRON_SECRET" \
+          RESP=$(curl -sS -b /tmp/cookies.txt -X POST "$BASE/api/admin/rag/embed-pending" \
             -H 'Content-Type: application/json' \
             -d "{\"max_chunks\": $MAX_CHUNKS, \"batch_size\": 50}")
           echo "$RESP" | head -c 500
           echo ""
-          NEXT=$(echo "$RESP" | jq -r '.next_step // ""')
-          echo "next_step: $NEXT"
 
       - name: Notion sync (skip if no token)
         env:
           BASE: https://moyusales.zeabur.app
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          echo "=== notion-sync (will skip if NOTION_INTEGRATION_TOKEN not set in Zeabur env) ==="
-          curl -sS -X POST "$BASE/api/admin/rag/ingest-notion" \
-            -H "Authorization: Bearer $CRON_SECRET" \
-            -H 'Content-Type: application/json' \
-            -d '{}' | head -c 500
+          echo "=== notion-sync (will skip if NOTION_INTEGRATION_TOKEN not set) ==="
+          curl -sS -b /tmp/cookies.txt -X POST "$BASE/api/admin/rag/ingest-notion" \
+            -H 'Content-Type: application/json' -d '{}' | head -c 500
           echo ""
