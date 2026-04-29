@@ -29,14 +29,14 @@ export async function GET() {
     freshness,
   ] = await Promise.all([
     sb.from("sales_metrics_daily").select("date, salesperson_id", { count: "exact", head: false }).limit(5000).then(r => r.data?.length || 0),
-    sb.rpc("query_sales_agg" as any).catch(() => null),
+    Promise.resolve(null),
     sb.from("knowledge_chunks").select("id", { count: "exact", head: true }).then(r => r.count || 0),
     sb.from("knowledge_chunks").select("id", { count: "exact", head: true }).not("embedding", "is", null).then(r => r.count || 0),
     sb.from("knowledge_chunks").select("source_type"),
     sb.from("training_assignments").select("status"),
     sb.from("training_stamps").select("id", { count: "exact", head: true }).then(r => r.count || 0),
     sb.from("system_run_log").select("status, source").gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
-    sb.from("system_table_freshness").select("*").catch(() => ({ data: [] })),
+    sb.from("system_table_freshness").select("*").then(r => r, () => ({ data: [] as any[] })),
   ]);
 
   // sales aggregations

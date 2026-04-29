@@ -19,9 +19,10 @@ export default function InkCursor() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const c = canvas; // narrow non-null
     function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      c.width = window.innerWidth;
+      c.height = window.innerHeight;
     }
     resize();
     window.addEventListener("resize", resize);
@@ -50,7 +51,7 @@ export default function InkCursor() {
     function render() {
       if (!ctx) return;
       const now = performance.now();
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, c.width, c.height);
       pointsRef.current = pointsRef.current.filter(p => now - p.t < 400);
       pointsRef.current.forEach(p => {
         const age = (now - p.t) / 400; // 0 → 1
