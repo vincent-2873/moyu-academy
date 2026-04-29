@@ -8,13 +8,14 @@ import SetupWizard from "@/components/admin/SetupWizard";
 import SalesRulesEditor from "@/components/admin/SalesRulesEditor";
 import KpiTargetsEditor from "@/components/admin/KpiTargetsEditor";
 import UsersEditor from "@/components/admin/UsersEditor";
+import HealthDashboard from "@/components/admin/HealthDashboard";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "setup" | "rules" | "kpi" | "system-hub";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "setup" | "rules" | "kpi" | "health" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -271,6 +272,7 @@ export default function AdminPage() {
     { id: "setup", label: "Setup 設定", icon: "🛠️" },
     { id: "rules", label: "業務規則", icon: "📐" },
     { id: "kpi", label: "KPI 標準", icon: "🎯" },
+    { id: "health", label: "系統健康度", icon: "❤️" },
     { id: "system-hub", label: "系統管控", icon: "⚙️" },
   ];
 
@@ -280,7 +282,7 @@ export default function AdminPage() {
     { label: "三大戰線", children: ["sales", "automation", "legal", "rules", "kpi"] },
     { label: "養成",   children: ["training", "people", "people-edit"] },
     { label: "通訊",   children: ["messaging"] },
-    { label: "系統",   children: ["setup", "org", "system-hub"] },
+    { label: "系統",   children: ["setup", "health", "org", "system-hub"] },
   ];
 
   const currentScope = COMPANY_OPTIONS.find((c) => c.id === scope) || COMPANY_OPTIONS[0];
@@ -484,6 +486,7 @@ export default function AdminPage() {
           {tab === "setup" && <SetupWizard />}
           {tab === "rules" && <SalesRulesEditor />}
           {tab === "kpi" && <KpiTargetsEditor />}
+          {tab === "health" && <HealthDashboard />}
           {tab === "system-hub" && <SystemHubTab token={session.token} />}
         </div>
       </main>
