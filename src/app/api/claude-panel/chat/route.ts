@@ -123,6 +123,49 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // RAG retrieval — 用最後 user message 當 query 撈 top-3 chunks
+    let ragContext = "";
+    let ragSources: any[] = [];
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (openaiKey && lastUserMsg?.role === "user" && lastUserMsg.content?.length > 5) {
+      try {
+        const embRes = await fetch("https://api.openai.com/v1/embeddings", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openaiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "text-embedding-3-small",
+            input: lastUserMsg.content.slice(0, 8000),
+          }),
+        });
+        if (embRes.ok) {
+          const embData = await embRes.json();
+          const qEmb = embData.data?.[0]?.embedding;
+          if (qEmb) {
+            const pathTypeFilter = (user as any).stage_path === "recruit" ? "recruit" : "business";
+            const { data: results } = await sb.rpc("search_knowledge", {
+              query_embedding: qEmb,
+              match_count: 3,
+              filter_brand: (user as any).brand || null,
+              filter_path_type: pathTypeFilter,
+              filter_stage_tag: null,
+            });
+            if (results && results.length > 0) {
+              ragSources = results;
+              ragContext = "\n\n# 相關知識(從訓練庫撈,自然引用,別貼路徑)\n" +
+                results.map((r: any, i: number) =>
+                  `[${i + 1}] ${r.title || r.source_id}\n${r.content?.slice(0, 800)}`
+                ).join("\n\n---\n\n");
+            }
+          }
+        }
+      } catch (e) {
+        // RAG 失敗不阻斷,繼續走無 retrieval 的對話
+      }
+    }
+
     // 呼叫 Anthropic
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
@@ -137,7 +180,7 @@ export async function POST(req: NextRequest) {
     const stream = await anthropic.messages.stream({
       model: "claude-sonnet-4-6",
       max_tokens: 1024,
-      system: `${SYSTEM_PROMPT}\n\n當前使用者: ${user.name || email}, 階段: ${user.stage || "?"}, 品牌: ${user.brand || "?"}`,
+      system: `${SYSTEM_PROMPT}\n\n當前使用者: ${user.name || email}, 階段: ${(user as any).stage || "?"}, 品牌: ${(user as any).brand || "?"}${ragContext}`,
       messages: anthropicMessages,
     });
 
@@ -154,12 +197,19 @@ export async function POST(req: NextRequest) {
               controller.enqueue(encoder.encode(chunk));
             }
           }
-          // 寫 assistant message
+          // 寫 assistant message + RAG 來源紀錄
           await sb.from("claude_conversations").insert({
             user_id: user.id,
             session_id,
             role: "assistant",
             content: assistantText,
+            context_sources: ragSources.map((r: any) => ({
+              id: r.id,
+              source_type: r.source_type,
+              source_id: r.source_id,
+              title: r.title,
+              similarity: r.similarity,
+            })),
             metadata: metadata || {},
           });
           // log
