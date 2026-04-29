@@ -509,12 +509,12 @@ function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
   }
 
   return (
-    <div className="admin-light" style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: "48px 40px", width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(15,23,42,0.08)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-paper, #f7f1e3)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ background: "var(--bg-paper, #f7f1e3)", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))", borderRadius: 6, padding: "48px 40px", width: "100%", maxWidth: 420, boxShadow: "0 4px 20px rgba(26,26,26,0.06)" }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg, var(--accent), var(--teal))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 14px" }}>⚔️</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>墨宇戰情中樞</div>
-          <div style={{ color: "var(--text3)", fontSize: 14, marginTop: 4 }}>指揮後台登入</div>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--accent-red, #b91c1c)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontFamily: "var(--font-noto-serif-tc, serif)", fontSize: 30, fontWeight: 600, color: "var(--bg-paper, #f7f1e3)" }}>墨</div>
+          <div style={{ fontSize: 24, fontWeight: 600, color: "var(--ink-deep, #1a1a1a)", fontFamily: "var(--font-noto-serif-tc, serif)", letterSpacing: 4 }}>墨宇戰情中樞</div>
+          <div style={{ color: "var(--ink-mid, #4a4a4a)", fontSize: 12, marginTop: 6, letterSpacing: 2 }}>MOYU OPS · COMMAND</div>
         </div>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
@@ -529,8 +529,8 @@ function LoginScreen({ onLogin }: { onLogin: (s: AdminSession) => void }) {
             忘記密碼？請聯繫超級管理員重置
           </div>
           {error && <div style={{ background: "rgba(248,113,113,0.13)", border: "1px solid rgba(248,113,113,0.27)", borderRadius: 8, padding: "10px 14px", color: "#f87171", fontSize: 13 }}>{error}</div>}
-          <button type="submit" disabled={loading} style={{ background: loading ? "var(--border)" : "linear-gradient(135deg, var(--accent), var(--teal))", color: "#fff", border: "none", borderRadius: 10, padding: 13, fontSize: 15, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", marginTop: 4 }}>
-            {loading ? "登入中..." : "登入"}
+          <button type="submit" disabled={loading} style={{ background: loading ? "var(--border-soft, rgba(26,26,26,0.10))" : "var(--ink-deep, #1a1a1a)", color: "var(--bg-paper, #f7f1e3)", border: "none", borderRadius: 6, padding: 13, fontSize: 15, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", marginTop: 4, fontFamily: "var(--font-noto-serif-tc, serif)", letterSpacing: 4 }}>
+            {loading ? "登入中…" : "登 入"}
           </button>
         </form>
 
