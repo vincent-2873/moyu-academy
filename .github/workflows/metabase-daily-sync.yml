@@ -1,0 +1,119 @@
+name: Metabase Daily Sync
+
+# 每天台北 09:00 自動跑(UTC 01:00),把當日 Q1381 業務指標撈進 sales_metrics_daily
+# 也可以 workflow_dispatch 手動跑指定日期 / 全月 backfill
+
+on:
+  schedule:
+    - cron: '0 1 * * *'    # UTC 01:00 = 台北 09:00
+    - cron: '0 9 * * *'    # UTC 09:00 = 台北 17:00 (下班前再 sync 一次)
+  workflow_dispatch:
+    inputs:
+      date_start:
+        description: 'YYYY-MM-DD (預設今天 TPE; backfill 起點)'
+        required: false
+      date_end:
+        description: 'YYYY-MM-DD (預設同 date_start; backfill 終點)'
+        required: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute date range
+        id: dates
+        run: |
+          DS="${{ github.event.inputs.date_start }}"
+          DE="${{ github.event.inputs.date_end }}"
+          if [ -z "$DS" ]; then DS=$(TZ='Asia/Taipei' date +%Y-%m-%d); fi
+          if [ -z "$DE" ]; then DE="$DS"; fi
+          echo "date_start=$DS" >> $GITHUB_OUTPUT
+          echo "date_end=$DE"   >> $GITHUB_OUTPUT
+          echo "Sync range: $DS -> $DE"
+
+      - name: Login Metabase + sync each date
+        env:
+          METABASE_HOST: https://mb.kolable.com
+          METABASE_USER: ${{ secrets.METABASE_USER }}
+          METABASE_PASS: ${{ secrets.METABASE_PASS }}
+          CRON_SECRET:    ${{ secrets.CRON_SECRET }}
+          BRIDGE_URL:     https://moyusales.zeabur.app/api/cron/metabase-bulk-upsert
+          DATE_START:     ${{ steps.dates.outputs.date_start }}
+          DATE_END:       ${{ steps.dates.outputs.date_end }}
+        run: |
+          set -e
+
+          if [ -z "$METABASE_USER" ] || [ -z "$METABASE_PASS" ]; then
+            echo "::error::METABASE_USER / METABASE_PASS secrets 沒設定"
+            exit 1
+          fi
+
+          # 1. Login → 取 session id
+          echo "Logging in to $METABASE_HOST..."
+          SESSION=$(curl -sS -X POST "$METABASE_HOST/api/session" \
+            -H 'Content-Type: application/json' \
+            -d "{\"username\":\"$METABASE_USER\",\"password\":\"$METABASE_PASS\"}" \
+            | jq -r '.id // empty')
+
+          if [ -z "$SESSION" ]; then
+            echo "::error::Metabase login failed"
+            exit 1
+          fi
+          echo "Session OK (length=${#SESSION})"
+
+          # 2. Loop 每個日期 query + POST bridge
+          TOTAL_ROWS=0
+          DATE_LIST=$(python3 -c "
+          import datetime, sys
+          ds = datetime.date.fromisoformat('$DATE_START')
+          de = datetime.date.fromisoformat('$DATE_END')
+          d = ds
+          while d <= de:
+            print(d.isoformat())
+            d += datetime.timedelta(days=1)
+          ")
+
+          for D in $DATE_LIST; do
+            echo "--- $D ---"
+
+            QUERY_BODY=$(jq -nc --arg d "$D" '{
+              parameters: [
+                { type: "date/single", target: ["variable", ["template-tag", "startDate"]], value: $d },
+                { type: "date/single", target: ["variable", ["template-tag", "endDate"]],   value: $d }
+              ]
+            }')
+
+            RESP=$(curl -sS -X POST "$METABASE_HOST/api/card/1381/query" \
+              -H "X-Metabase-Session: $SESSION" \
+              -H 'Content-Type: application/json' \
+              -d "$QUERY_BODY")
+
+            ROWS_COUNT=$(echo "$RESP" | jq '(.data.rows // []) | length')
+            COLS_COUNT=$(echo "$RESP" | jq '(.data.cols // []) | length')
+            echo "  cols=$COLS_COUNT rows=$ROWS_COUNT"
+
+            if [ "$ROWS_COUNT" = "0" ] || [ "$ROWS_COUNT" = "null" ]; then
+              echo "  (no rows for $D, skip)"
+              continue
+            fi
+
+            # 3. 轉換成 bridge endpoint 格式
+            BRIDGE_BODY=$(echo "$RESP" | jq -c --arg date "$D" '{
+              date: $date,
+              cols: [.data.cols[].display_name // .data.cols[].name],
+              rows: .data.rows
+            }')
+
+            BRIDGE_RESP=$(curl -sS -X POST "$BRIDGE_URL" \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              -H "x-zeabur-cron: github-actions" \
+              -H 'Content-Type: application/json' \
+              -d "$BRIDGE_BODY")
+
+            UPSERTED=$(echo "$BRIDGE_RESP" | jq -r '.upserted // .rows_normalised // 0')
+            echo "  bridge: $UPSERTED upserted"
+            TOTAL_ROWS=$((TOTAL_ROWS + ROWS_COUNT))
+          done
+
+          echo "================================================="
+          echo "✓ Sync done. total_rows=$TOTAL_ROWS"
