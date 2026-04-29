@@ -44,6 +44,13 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/admin/') &&
     pathname !== '/api/admin/auth'
   ) {
+    // CRON_SECRET bypass for RAG / setup endpoints (GitHub Actions / internal cron)
+    const auth = req.headers.get('authorization');
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret && auth === `Bearer ${cronSecret}`) {
+      return NextResponse.next();
+    }
+
     const sessionCookie = req.cookies.get('moyu_admin_session')?.value;
     if (!sessionCookie || !(await verifyAdminSession(sessionCookie))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

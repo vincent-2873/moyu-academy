@@ -1,0 +1,65 @@
+name: RAG Bootstrap
+
+# 一次性跑:
+#   1. POST /api/admin/rag/ingest-local-training (掃 content/training/ .md/.txt -> knowledge_chunks)
+#   2. POST /api/admin/rag/embed-pending (補 embedding 給沒做的 chunks)
+#
+# 之後可加 schedule 定期跑
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_chunks:
+        description: 'embed 一次最多 N chunks (default 200)'
+        required: false
+        default: '200'
+  schedule:
+    - cron: '0 4 * * *'  # UTC 04:00 = 台北 12:00 (午餐後 sync)
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ingest local training files
+        env:
+          BASE: https://moyusales.zeabur.app
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -e
+          echo "=== ingest-local-training ==="
+          # local-training 是 Next.js fs 跑時讀 content/training/, 但 GitHub Actions 跑外部 endpoint, 它讀 prod server 的 fs
+          RESP=$(curl -sS -X POST "$BASE/api/admin/rag/ingest-local-training" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H 'Content-Type: application/json' \
+            -d '{}')
+          echo "$RESP" | head -c 500
+          echo ""
+
+      - name: Embed pending chunks
+        env:
+          BASE: https://moyusales.zeabur.app
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          MAX_CHUNKS: ${{ github.event.inputs.max_chunks || '200' }}
+        run: |
+          set -e
+          echo "=== embed-pending ==="
+          RESP=$(curl -sS -X POST "$BASE/api/admin/rag/embed-pending" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H 'Content-Type: application/json' \
+            -d "{\"max_chunks\": $MAX_CHUNKS, \"batch_size\": 50}")
+          echo "$RESP" | head -c 500
+          echo ""
+          NEXT=$(echo "$RESP" | jq -r '.next_step // ""')
+          echo "next_step: $NEXT"
+
+      - name: Notion sync (skip if no token)
+        env:
+          BASE: https://moyusales.zeabur.app
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          echo "=== notion-sync (will skip if NOTION_INTEGRATION_TOKEN not set in Zeabur env) ==="
+          curl -sS -X POST "$BASE/api/admin/rag/ingest-notion" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H 'Content-Type: application/json' \
+            -d '{}' | head -c 500
+          echo ""
