@@ -123,16 +123,16 @@ export default function Sidebar({
             </span>
           </div>
           <h2
-            className="text-xl font-bold"
+            className="text-xl font-bold leading-tight"
             style={{
-              background: `linear-gradient(135deg, ${accent}, var(--teal))`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
+              fontFamily: "var(--font-noto-serif-tc), var(--font-source-serif), serif",
+              color: "var(--color-ink)",
+              letterSpacing: "0.02em",
             }}
           >
             {headline}
           </h2>
-          <p className="text-xs text-[var(--text3)] mt-1">數據蒐集前台</p>
+          <p className="text-xs text-[var(--text3)] mt-1 font-mono tracking-wider">數據蒐集前台</p>
         </div>
 
         {/* Navigation */}
@@ -153,9 +153,9 @@ export default function Sidebar({
                   style={
                     currentPage === item.id
                       ? {
-                          background: accent,
-                          boxShadow: `0 4px 20px ${accent}40`,
-                          color: isLightAccent ? "#0a0a10" : "#fff",
+                          background: "var(--color-ink)",
+                          color: "var(--color-paper)",
+                          boxShadow: "inset 3px 0 0 var(--color-stamp-red)",
                         }
                       : undefined
                   }
@@ -194,10 +194,13 @@ export default function Sidebar({
         {/* User */}
         <div className="px-4 py-3 border-t border-[var(--border)] flex items-center gap-3">
           <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm"
+            className="w-9 h-9 flex items-center justify-center font-bold text-sm"
             style={{
-              background: `linear-gradient(135deg, ${accent}, var(--teal))`,
-              color: isLightAccent ? "#0a0a10" : "#fff",
+              background: "var(--color-paper-2)",
+              border: "1px solid var(--color-ink)",
+              borderRadius: "4px",
+              color: "var(--color-ink)",
+              fontFamily: "var(--font-noto-serif-tc), serif",
             }}
           >
             {userName.charAt(0)}
