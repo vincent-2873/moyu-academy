@@ -1,0 +1,27 @@
+-- sales_metrics_daily ON CONFLICT 需要 unique constraint on (date, salesperson_id, brand)
+ALTER TABLE public.sales_metrics_daily
+  ADD COLUMN IF NOT EXISTS salesperson_id TEXT,
+  ADD COLUMN IF NOT EXISTS brand TEXT,
+  ADD COLUMN IF NOT EXISTS date DATE,
+  ADD COLUMN IF NOT EXISTS team TEXT,
+  ADD COLUMN IF NOT EXISTS org TEXT,
+  ADD COLUMN IF NOT EXISTS level TEXT,
+  ADD COLUMN IF NOT EXISTS calls INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS call_minutes INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS connected INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS raw_appointments INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS appointments_show INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS raw_no_show INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS raw_demos INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS demo_failed INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS closures INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS net_closures_daily NUMERIC,
+  ADD COLUMN IF NOT EXISTS net_closures_contract NUMERIC,
+  ADD COLUMN IF NOT EXISTS gross_revenue NUMERIC,
+  ADD COLUMN IF NOT EXISTS net_revenue_daily NUMERIC,
+  ADD COLUMN IF NOT EXISTS net_revenue_contract NUMERIC,
+  ADD COLUMN IF NOT EXISTS raw JSONB,
+  ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ;
+
+CREATE UNIQUE INDEX IF NOT EXISTS sales_metrics_daily_date_sp_brand_idx
+  ON public.sales_metrics_daily (date, salesperson_id, brand);
