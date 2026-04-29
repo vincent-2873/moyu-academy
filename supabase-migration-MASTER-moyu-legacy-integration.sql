@@ -123,6 +123,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- ── 3. 17 sql verbatim append (search_path = moyu_legacy 已 set,所有 unprefixed tables 進 moyu_legacy) ──
 
 
+
 -- ============================================================
 -- BLOCK: claude.sql
 -- ============================================================
@@ -1407,6 +1408,16 @@ UNION ALL SELECT 'phone_call_log', count(*) FROM phone_call_log
 UNION ALL SELECT 'outreach_104_queue', count(*) FROM outreach_104_queue;
 
 -- ============================================================
+-- BLOCK: reply-columns.sql
+-- ============================================================
+-- outreach_104_queue 加 reply_status + reply_received_at
+ALTER TABLE outreach_104_queue
+  ADD COLUMN IF NOT EXISTS reply_status TEXT,
+  ADD COLUMN IF NOT EXISTS reply_received_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_outreach_104_reply ON outreach_104_queue (reply_received_at DESC) WHERE reply_received_at IS NOT NULL;
+
+-- ============================================================
 -- BLOCK: recruit-ops.sql
 -- ============================================================
 -- 招聘營運流程欄位 (2026-04-16)
@@ -1425,16 +1436,6 @@ ALTER TABLE outreach_104_queue
 CREATE INDEX IF NOT EXISTS idx_outreach_owner ON outreach_104_queue (owner_email);
 CREATE INDEX IF NOT EXISTS idx_outreach_interested ON outreach_104_queue (reply_status, phone_contacted_at)
   WHERE reply_status = 'interested';
-
--- ============================================================
--- BLOCK: reply-columns.sql
--- ============================================================
--- outreach_104_queue 加 reply_status + reply_received_at
-ALTER TABLE outreach_104_queue
-  ADD COLUMN IF NOT EXISTS reply_status TEXT,
-  ADD COLUMN IF NOT EXISTS reply_received_at TIMESTAMPTZ;
-
-CREATE INDEX IF NOT EXISTS idx_outreach_104_reply ON outreach_104_queue (reply_received_at DESC) WHERE reply_received_at IS NOT NULL;
 
 -- ============================================================
 -- BLOCK: 104-rls.sql

@@ -1,0 +1,56 @@
+name: Metabase Backfill (one-shot)
+
+# 用法:gh workflow run "Metabase Backfill (one-shot)" --ref main -f from=2025-01-01
+# 從 from 日期回測到今天,每 chunk 30 天,自動 loop
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'Start date YYYY-MM-DD'
+        required: true
+        default: '2025-01-01'
+      chunk_days:
+        description: 'Days per chunk (1-60)'
+        required: false
+        default: '30'
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240 # 4hr 上限
+    steps:
+      - name: Loop backfill
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          BASE_URL: https://moyusales.zeabur.app
+        run: |
+          set -e
+          NEXT="${{ inputs.from }}"
+          CHUNK="${{ inputs.chunk_days }}"
+          ITER=0
+          MAX_ITER=30 # 30 chunks × 30 days = 900 days 上限,足夠 2 年
+          while [ -n "$NEXT" ] && [ "$NEXT" != "null" ] && [ $ITER -lt $MAX_ITER ]; do
+            ITER=$((ITER+1))
+            echo ""
+            echo "===== Iteration $ITER: from=$NEXT chunk=$CHUNK days ====="
+            RESP=$(curl -sS -m 290 \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "${BASE_URL}/api/admin/metabase-backfill?from=${NEXT}&days=${CHUNK}")
+            echo "Response: $RESP" | head -c 2000
+            echo ""
+            DONE=$(echo "$RESP" | jq -r '.done // false')
+            NEXT=$(echo "$RESP" | jq -r '.next // empty')
+            ROWS=$(echo "$RESP" | jq -r '.summary.total_rows // 0')
+            FAILED=$(echo "$RESP" | jq -r '.summary.failed // 0')
+            echo "Iter $ITER summary: rows=$ROWS failed=$FAILED done=$DONE next=$NEXT"
+            if [ "$DONE" = "true" ]; then
+              echo "✅ Backfill done."
+              break
+            fi
+            sleep 3
+          done
+          if [ $ITER -ge $MAX_ITER ]; then
+            echo "⚠️ Hit MAX_ITER, may have unfinished work"
+            exit 1
+          fi
