@@ -6,13 +6,14 @@ import TrainingEditor from "@/components/admin/TrainingEditor";
 import AnnouncementsEditor from "@/components/admin/AnnouncementsEditor";
 import SetupWizard from "@/components/admin/SetupWizard";
 import SalesRulesEditor from "@/components/admin/SalesRulesEditor";
+import KpiTargetsEditor from "@/components/admin/KpiTargetsEditor";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "automation" | "training" | "messaging" | "setup" | "rules" | "system-hub";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "automation" | "training" | "messaging" | "setup" | "rules" | "kpi" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -267,13 +268,14 @@ export default function AdminPage() {
     { id: "messaging", label: "通訊公告", icon: "📢" },
     { id: "setup", label: "Setup 設定", icon: "🛠️" },
     { id: "rules", label: "業務規則", icon: "📐" },
+    { id: "kpi", label: "KPI 標準", icon: "🎯" },
     { id: "system-hub", label: "系統管控", icon: "⚙️" },
   ];
 
   // 分組樹狀結構 — 取代 9 tab 平鋪
   const tabGroups: { label: string; children: AdminTab[] }[] = [
     { label: "戰況",   children: ["pillars", "commands"] },
-    { label: "三大戰線", children: ["sales", "automation", "legal", "rules"] },
+    { label: "三大戰線", children: ["sales", "automation", "legal", "rules", "kpi"] },
     { label: "養成",   children: ["training", "people"] },
     { label: "通訊",   children: ["messaging"] },
     { label: "系統",   children: ["setup", "org", "system-hub"] },
@@ -478,6 +480,7 @@ export default function AdminPage() {
           {tab === "messaging" && <AnnouncementsEditor />}
           {tab === "setup" && <SetupWizard />}
           {tab === "rules" && <SalesRulesEditor />}
+          {tab === "kpi" && <KpiTargetsEditor />}
           {tab === "system-hub" && <SystemHubTab token={session.token} />}
         </div>
       </main>
