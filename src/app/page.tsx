@@ -153,12 +153,12 @@ export default function Home() {
 
   if (typeof window !== "undefined" && !isAdmin) {
     sessionStorage.setItem("moyu_current_user", user.email);
-    // 一律先導去 /today（統一今日待辦）— 用戶自己再點到對應系統
-    const dest = "/today";
+    // spec v1: 一律導去 /home(早晨儀式) — 4 主場 /home /work /learn /account
+    const dest = "/home";
     window.location.replace(dest);
     return (
       <div className="h-screen flex items-center justify-center">
-        <div className="text-lg text-[var(--text2)] animate-pulse">載入今日待辦…</div>
+        <div className="text-lg text-[var(--text2)] animate-pulse">載入主場…</div>
       </div>
     );
   }
