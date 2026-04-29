@@ -37,7 +37,7 @@ jobs:
             RESP=$(curl -sS -m 290 \
               -H "Authorization: Bearer $CRON_SECRET" \
               -H "x-zeabur-cron: 1" \
-              "${BASE_URL}/api/admin/metabase-backfill?from=${NEXT}&days=${CHUNK}")
+              "${BASE_URL}/api/cron/metabase-backfill?from=${NEXT}&days=${CHUNK}")
             echo "Response: $RESP" | head -c 2000
             echo ""
             DONE=$(echo "$RESP" | jq -r '.done // false')
