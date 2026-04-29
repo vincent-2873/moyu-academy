@@ -36,6 +36,7 @@ jobs:
             echo "===== Iteration $ITER: from=$NEXT chunk=$CHUNK days ====="
             RESP=$(curl -sS -m 290 \
               -H "Authorization: Bearer $CRON_SECRET" \
+              -H "x-zeabur-cron: 1" \
               "${BASE_URL}/api/admin/metabase-backfill?from=${NEXT}&days=${CHUNK}")
             echo "Response: $RESP" | head -c 2000
             echo ""
