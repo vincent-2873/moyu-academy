@@ -1,6 +1,41 @@
 import type { Metadata } from "next";
+import {
+  Inter,
+  Noto_Sans_TC,
+  Source_Serif_4,
+  Noto_Serif_TC,
+  JetBrains_Mono,
+} from "next/font/google";
 import "./globals.css";
 import ThemeToggle from "@/components/ThemeToggle";
+
+/**
+ * 字型載入(設計系統 v0.1 §1.2 — 從 huance-copilot-app port，2026-04-29 中段轉向)
+ * 5 family，全用 next/font/google，display:swap + subset
+ */
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const notoSansTC = Noto_Sans_TC({
+  subsets: ["latin"],
+  variable: "--font-noto-sans-tc",
+  display: "swap",
+  weight: ["400", "500", "700"],
+});
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  variable: "--font-source-serif",
+  display: "swap",
+});
+const notoSerifTC = Noto_Serif_TC({
+  subsets: ["latin"],
+  variable: "--font-noto-serif-tc",
+  display: "swap",
+  weight: ["400", "700"],
+});
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "墨宇戰情中樞 | MOYU OPS",
@@ -24,7 +59,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-TW" suppressHydrationWarning>
+    <html
+      lang="zh-TW"
+      suppressHydrationWarning
+      className={`${inter.variable} ${notoSansTC.variable} ${sourceSerif.variable} ${notoSerifTC.variable} ${jetbrainsMono.variable}`}
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

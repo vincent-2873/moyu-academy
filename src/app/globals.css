@@ -464,3 +464,220 @@ html[data-theme="dark"] .admin-light .metric-tile {
   background: var(--card);
   box-shadow: 0 4px 18px -8px rgba(0,0,0,0.5);
 }
+
+/* ===========================================================================
+ * 寰策業訓 Copilot — 設計系統 v0.1 (port from huance-copilot-app)
+ * 2026-04-29 中段轉向 moyusales 整合 PHASE 2
+ * 侘寂色票 + 5 字型 + 金繕分隔線 + 朱紅印章 + 紙紋 noise
+ * 不覆蓋既有 SaaS 漸層色票 / dark theme — 並存,PHASE 8 逐 page 套用
+ * =========================================================================== */
+
+
+/* ============================================================
+ * 寰策業訓 Copilot — design tokens(設計系統 v0.1)
+ *
+ * 配色哲學:「侘寂底 + 機能突出」混搭
+ *  - 侘寂底:整體呼吸感、留白、低飽和(paper / ink / moss / clay / sky)
+ *  - 機能突出:北極星數字 / CTA / 達標印章只用 gold + accent
+ *
+ * 對應:
+ *   huance-copilot-memory/architecture/design-system-v0.1.md §1
+ *
+ * Tailwind 4 雙寫(顧問 1 次 review #5 採納):
+ *   主用 @theme(本檔 — Tailwind 4 native),
+ *   雙寫 tailwind.config.ts(給 shadcn / IDE plugin 等第三方讀)。
+ * ============================================================ */
+
+:root {
+  /* 侘寂底色系(紙、墨、苔、土) */
+  --color-paper:    #F5F1EA;
+  --color-paper-2:  #EBE5DA;
+  --color-paper-3:  #DDD4C4;
+  --color-ink:      #2A2622;
+  --color-ink-2:    #5C544A;
+  --color-ink-3:    #8A8276;
+
+  /* 機能色(飽和度刻意壓低,呼應侘寂)*/
+  --color-moss:     #6B7A5A;  /* success / 正面 */
+  --color-clay:     #B8654A;  /* warning / CTA */
+  --color-gold:     #B89968;  /* 突出 / 重點 — 金繕(kintsugi)色 */
+  --color-sky:      #6B7E94;  /* info */
+
+  /* 突出色(只用於關鍵數字 / 北極星指標)*/
+  --color-accent:    #1A1816;
+  --color-accent-bg: #E8DFD0;
+
+  /* 朱紅落款印章(Stamp 元件主色,只此一處用紅)*/
+  --color-stamp-red:        #B8474A;
+  --color-stamp-red-stroke: #8E2F32;
+}
+
+@theme inline {
+  /* 顏色 — Tailwind 4 自動產出 bg- / text- / border- utilities */
+  --color-paper:           var(--color-paper);
+  --color-paper-2:         var(--color-paper-2);
+  --color-paper-3:         var(--color-paper-3);
+  --color-ink:             var(--color-ink);
+  --color-ink-2:           var(--color-ink-2);
+  --color-ink-3:           var(--color-ink-3);
+  --color-moss:            var(--color-moss);
+  --color-clay:            var(--color-clay);
+  --color-gold:            var(--color-gold);
+  --color-sky:             var(--color-sky);
+  --color-accent:          var(--color-accent);
+  --color-accent-bg:       var(--color-accent-bg);
+  --color-stamp-red:       var(--color-stamp-red);
+  --color-stamp-red-stroke:var(--color-stamp-red-stroke);
+
+  /* 字體 — 透過 next/font/google 在 layout.tsx 注入 CSS variable */
+  --font-sans:  var(--font-inter), var(--font-noto-sans-tc), system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), var(--font-noto-serif-tc), Georgia, serif;
+  --font-mono:  var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+
+  /* 圓角 — 大圓角不侘寂 / 直角太冷 / 微圓最對 */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  /* 陰影 — outline + 微陰影,卡片貼地不浮 */
+  --shadow-paper: 0 1px 0 rgba(42, 38, 34, 0.04), 0 0 0 1px rgba(42, 38, 34, 0.06);
+  --shadow-hover: 0 2px 0 rgba(42, 38, 34, 0.08), 0 0 0 1px rgba(42, 38, 34, 0.10);
+}
+
+/* ============================================================
+ * Base styles
+ * ============================================================ */
+
+html, body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.7;
+}
+
+body {
+  font-feature-settings: "kern", "liga", "calt";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  line-height: 1.3;
+  color: var(--color-ink);
+}
+
+/* 數字欄位等寬(KPI / 北極星數字)*/
+.font-mono,
+[data-numeric="true"] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+ * 紙紋 noise(設計系統 v0.1 §1.4 a)
+ * SVG filter inline,opacity 0.04,模擬和紙質感
+ * ============================================================ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/></svg>");
+}
+
+/* ============================================================
+ * 金繕線進場動畫(設計系統 v0.1 §1.4 b)
+ * Used by app/components/ui/KintsugiDivider.tsx
+ * ============================================================ */
+@keyframes kintsugi-draw {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.kintsugi-draw {
+  animation: kintsugi-draw 0.8s cubic-bezier(0.4, 0, 0.2, 1) both;
+  transform-origin: left;
+}
+
+/* ============================================================
+ * 一鍵發送墨水滲入 hover(設計系統 v0.1 §1.4 d)
+ * Used by app/components/ui/Button.tsx variant="primary"
+ * inset shadow 從一邊滲入,模擬墨水滴在紙上擴散
+ * ============================================================ */
+.btn-ink-fill {
+  position: relative;
+  overflow: hidden;
+  transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-ink-fill:hover {
+  box-shadow: inset 400px 0 0 var(--color-ink);
+  color: var(--color-paper);
+  transition: box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.4s 0.1s;
+}
+
+.btn-ink-fill:active {
+  transform: translateY(1px);
+}
+
+/* ============================================================
+ * 一鍵發送序列動畫(設計系統 v0.1 §3.1)
+ * Used by app/components/training/TrainingCard.tsx data-state
+ * ============================================================ */
+.training-card {
+  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.training-card[data-state="fading-bg"],
+.training-card[data-state="fading-text"],
+.training-card[data-state="stamping"],
+.training-card[data-state="done"] {
+  background: var(--color-paper-2);
+}
+
+.training-card[data-state="fading-text"] .card-content,
+.training-card[data-state="stamping"] .card-content,
+.training-card[data-state="done"] .card-content {
+  color: var(--color-ink-3);
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.training-card .stamp {
+  opacity: 0;
+  transform: scale(0) rotate(-8deg);
+  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.training-card[data-state="stamping"] .stamp,
+.training-card[data-state="done"] .stamp {
+  opacity: 1;
+  transform: scale(1) rotate(-8deg);
+}
+
+/* ============================================================
+ * iOS safe-area 支援(設計系統 v0.1 §3.2 手機 sticky bottom bar)
+ * ============================================================ */
+.sticky-bottom-bar {
+  position: sticky;
+  bottom: 0;
+  height: calc(56px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--color-paper);
+  border-top: 1px solid var(--color-paper-3);
+}
+
+/* ============================================================
+ * 反 SaaS / 反現代化的明確規範(設計系統 v0.1 附錄 B)
+ *
+ * ❌ 不要漸層按鈕
+ * ❌ 不要 elevation 飄起來的卡片
+ * ❌ 不要 hover scale 放大
+ * ❌ 不要圓形大頭貼帶 ring
+ * ❌ 不要 toast 從右上角彈
+ * ❌ 不要 emoji 線條 icon(改用 lucide-react stroke-1.5)
+ *
+ * Components 寫的時候對照 architecture/design-system-v0.1.md
+ * ============================================================ */
