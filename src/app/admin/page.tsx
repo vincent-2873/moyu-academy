@@ -251,13 +251,16 @@ export default function AdminPage() {
   if (!session) return <LoginScreen onLogin={handleLogin} />;
 
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
+    // 戰況俯瞰
     { id: "pillars", label: "指揮中心", icon: "👁️" },
-    { id: "sales", label: "業務數據", icon: "📞" },
-    { id: "legal", label: "法務案件", icon: "⚖️" },
     { id: "commands", label: "命令中心", icon: "⚡" },
+    // 三大戰線
+    { id: "sales", label: "業務戰線", icon: "📞" },
+    { id: "automation", label: "招募 & 104", icon: "🤖" },
+    { id: "legal", label: "法務戰線", icon: "⚖️" },
+    // 集團 / 系統
     { id: "org", label: "組織架構", icon: "🏢" },
     { id: "people", label: "人員管理", icon: "👥" },
-    { id: "automation", label: "104 & 電話", icon: "🤖" },
     { id: "system-hub", label: "系統管控", icon: "⚙️" },
   ];
 
