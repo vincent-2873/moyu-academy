@@ -1,0 +1,107 @@
+name: moyu-academy cron jobs
+
+# 17 cron schedule via GitHub Actions (Zeabur 免費 tier 無 builtin cron)
+# 透過 curl 觸發 prod /api/cron/* endpoints
+# Wave 2 接真資料前,大部分 cron 是 NOOP placeholder
+#
+# 環境設定:
+#   GitHub repo Settings → Secrets → Actions:
+#     CRON_SECRET = (Vincent set,跟 prod env CRON_SECRET 同值)
+#     PROD_BASE_URL = https://moyusales.zeabur.app
+
+on:
+  schedule:
+    # 台北時區是 UTC+8,GitHub Actions cron 用 UTC
+    # 每 30 分(00, 30 of each hour)
+    - cron: '*/30 * * * *'      # auto-iterate-30min
+    # 每 15 分(metabase-sync)
+    - cron: '*/15 * * * *'
+    # 每日定時(UTC 換算為台北時間)
+    - cron: '0 0 * * *'         # 台北 08:00 — daily-automation
+    - cron: '0 1 * * *'         # 台北 09:00 — daily-briefing-push
+    - cron: '0 1 * * 1-5'       # 台北 09:00 工作日 — daily-todo-push + rookie-training-push
+    - cron: '0 10 * * *'        # 台北 18:00 — manager-care-push
+    - cron: '0 1 * * 1'         # 週一 台北 09:00 — weekly-report
+    - cron: '0 4 * * *'         # 台北 12:00 — recruiter-briefing-push
+    - cron: '0 */2 * * *'       # 每 2 小時 — breakthrough-engine
+    - cron: '0 */3 * * *'       # 每 3 小時 — system-health-3h + claude-autoscan
+    - cron: '0 0 * * 0'         # 週日 台北 08:00 — update-articles
+    - cron: '*/10 * * * *'      # 每 10 分 — line-inbound-dispatcher
+  workflow_dispatch:  # 允許 manual trigger
+
+jobs:
+  trigger-cron-endpoints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute current UTC schedule
+        id: schedule
+        run: |
+          echo "Current UTC: $(date -u)"
+          echo "Triggered by: ${{ github.event.schedule || 'manual' }}"
+
+      - name: Trigger cron endpoints
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          BASE_URL: https://moyusales.zeabur.app
+        run: |
+          # Map schedule to endpoints (best-effort,multiple endpoints per schedule OK)
+          SCHEDULE="${{ github.event.schedule }}"
+          MANUAL=${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+          echo "Schedule: $SCHEDULE / manual: $MANUAL"
+
+          # Helper to curl an endpoint with auth (best-effort,fail OK for NOOP placeholders)
+          call_cron() {
+            local endpoint="$1"
+            local url="${BASE_URL}/api/cron/${endpoint}"
+            echo ">>> Trigger: $endpoint"
+            curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" "$url" -m 60 || echo "(NOOP or unreachable: $endpoint)"
+            echo ""
+          }
+
+          if [ "$SCHEDULE" = "*/30 * * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron auto-iterate-30min
+          fi
+          if [ "$SCHEDULE" = "*/15 * * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron metabase-sync
+          fi
+          if [ "$SCHEDULE" = "*/10 * * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron line-inbound-dispatcher
+          fi
+          if [ "$SCHEDULE" = "0 0 * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron daily-automation
+          fi
+          if [ "$SCHEDULE" = "0 1 * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron daily-briefing-push
+          fi
+          if [ "$SCHEDULE" = "0 1 * * 1-5" ] || [ "$MANUAL" = "true" ]; then
+            call_cron daily-todo-push
+            call_cron rookie-training-push
+          fi
+          if [ "$SCHEDULE" = "0 10 * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron manager-care-push
+          fi
+          if [ "$SCHEDULE" = "0 1 * * 1" ] || [ "$MANUAL" = "true" ]; then
+            call_cron weekly-report
+          fi
+          if [ "$SCHEDULE" = "0 4 * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron recruiter-briefing-push
+          fi
+          if [ "$SCHEDULE" = "0 */2 * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron breakthrough-engine
+          fi
+          if [ "$SCHEDULE" = "0 */3 * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron system-health-3h
+            call_cron claude-autoscan
+          fi
+          if [ "$SCHEDULE" = "0 0 * * 0" ] || [ "$MANUAL" = "true" ]; then
+            call_cron update-articles
+          fi
+
+          # Wave 2 待接的 cron (現在 NOOP placeholder)
+          if [ "$MANUAL" = "true" ]; then
+            call_cron auto-attention-push
+            call_cron recruit-auto-outreach
+            call_cron sales-metrics-rules
+          fi
+
+          echo "Done."

@@ -372,25 +372,26 @@ body:has(.admin-light) {
   color: #0f172a !important;
 }
 .admin-light {
-  --bg: #f4f6fb;
-  --bg2: #ffffff;
-  --bg3: #f8fafc;
-  --card: #ffffff;
-  --card2: #f8fafc;
-  --accent: #4f46e5;
-  --accent-light: #6366f1;
-  --teal: #0d9488;
-  --gold: #d97706;
-  --orange: #ea580c;
-  --red: #dc2626;
-  --green: #16a34a;
-  --pink: #db2777;
-  --cyan: #0891b2;
-  --text: #0f172a;
-  --text2: #475569;
-  --text3: #94a3b8;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  /* PHASE 8.6 — admin-light scope wabi override (中段轉向) */
+  --bg: #F5F1EA;        /* paper */
+  --bg2: #EBE5DA;       /* paper-2 */
+  --bg3: #F5F1EA;
+  --card: #F5F1EA;
+  --card2: #EBE5DA;
+  --accent: #B8474A;    /* stamp-red */
+  --accent-light: #B89968;  /* gold (金繕)*/
+  --teal: #6B7A5A;      /* moss */
+  --gold: #B89968;
+  --orange: #B8654A;    /* clay */
+  --red: #B8474A;
+  --green: #6B7A5A;
+  --pink: #B8654A;
+  --cyan: #6B7E94;      /* sky */
+  --text: #2A2622;      /* ink */
+  --text2: #5C544A;     /* ink-2 */
+  --text3: #8A8276;     /* ink-3 */
+  --border: #DDD4C4;    /* paper-3 */
+  --border-strong: #8A8276;
   background: var(--bg) !important;
   color: var(--text) !important;
   min-height: 100vh;
