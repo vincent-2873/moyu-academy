@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
       .select("date, email, name, team, brand, calls, raw_appointments, appointments_show, closures")
       .gte("date", start)
       .order("date", { ascending: false })
+      .not("is_monthly_rollup", "is", true)
   );
 
   // Group by email

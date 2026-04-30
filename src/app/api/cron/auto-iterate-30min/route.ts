@@ -186,12 +186,12 @@ async function scanSales(supabase: ReturnType<typeof getSupabaseAdmin>) {
 
   // 今日撥打次數 0 但本月有撥打紀錄的人 → 異常靜默
   const { data: recent } = await supabase
-    .from("sales_metrics_daily").select("*").eq("date", tpToday);
+    .from("sales_metrics_daily").select("*").eq("date", tpToday).not("is_monthly_rollup", "is", true);
   const todayReps = new Set((recent || []).map((r) => r.salesperson_id));
   // 本月有撥但今天零撥
   const monthStart = tpToday.slice(0, 8) + "01";
   const { data: thisMonth } = await supabase
-    .from("sales_metrics_daily").select("salesperson_id, email, name").gte("date", monthStart).gt("calls", 0);
+    .from("sales_metrics_daily").select("salesperson_id, email, name").gte("date", monthStart).gt("calls", 0).not("is_monthly_rollup", "is", true);
   const monthReps: Map<string, { email: string; name: string }> = new Map();
   for (const r of thisMonth || []) {
     if (!monthReps.has(r.salesperson_id) && r.email) {

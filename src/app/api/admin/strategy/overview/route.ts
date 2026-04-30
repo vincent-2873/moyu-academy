@@ -20,6 +20,7 @@ export async function GET() {
     sb.from("sales_metrics_daily")
       .select("net_revenue_daily, raw_appointments, closures, calls")
       .gte("date", monthStart)
+      .not("is_monthly_rollup", "is", true)
   );
   const monthRevenue = (thisMonth || []).reduce((s, r: any) => s + (Number(r.net_revenue_daily) || 0), 0);
   const monthClosures = (thisMonth || []).reduce((s, r: any) => s + (Number(r.closures) || 0), 0);
@@ -32,6 +33,7 @@ export async function GET() {
       .select("net_revenue_daily")
       .gte("date", lastMonthStart)
       .lte("date", lastMonthEnd)
+      .not("is_monthly_rollup", "is", true)
   );
   const lastMonthRevenue = (lastMonth || []).reduce((s, r: any) => s + (Number(r.net_revenue_daily) || 0), 0);
 
@@ -71,6 +73,7 @@ export async function GET() {
     sb.from("sales_metrics_daily")
       .select("net_revenue_daily, closures")
       .gte("date", sixMonthsAgo)
+      .not("is_monthly_rollup", "is", true)
   );
   const halfRev = (half || []).reduce((s, r: any) => s + (Number(r.net_revenue_daily) || 0), 0);
   const halfClosures = (half || []).reduce((s, r: any) => s + (Number(r.closures) || 0), 0);

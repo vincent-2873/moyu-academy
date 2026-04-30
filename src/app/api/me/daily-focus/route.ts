@@ -37,12 +37,13 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
   if (!user) return NextResponse.json({ error: "user not found" }, { status: 404 });
 
-  // 1. 今日 metrics
+  // 1. 今日 metrics(過濾 is_monthly_rollup)
   const { data: todayRow } = await sb
     .from("sales_metrics_daily")
     .select("calls, raw_appointments, closures, net_revenue_daily")
     .eq("email", email)
     .eq("date", today)
+    .not("is_monthly_rollup", "is", true)
     .maybeSingle();
 
   const todayCalls = Number(todayRow?.calls || 0);
@@ -50,23 +51,25 @@ export async function GET(req: NextRequest) {
   const todayCloses = Number(todayRow?.closures || 0);
   const todayRev = Number(todayRow?.net_revenue_daily || 0);
 
-  // 2. 7d 累計
+  // 2. 7d 累計(過濾 is_monthly_rollup)
   const week = await fetchAllRows<{ date: string; calls: number; raw_appointments: number; closures: number; net_revenue_daily: number }>(() =>
     sb.from("sales_metrics_daily")
       .select("date, calls, raw_appointments, closures, net_revenue_daily")
       .eq("email", email)
       .gte("date", weekAgo)
+      .not("is_monthly_rollup", "is", true)
   );
   const weekCalls = week.reduce((s, r) => s + Number(r.calls || 0), 0);
   const weekAppts = week.reduce((s, r) => s + Number(r.raw_appointments || 0), 0);
   const weekCloses = week.reduce((s, r) => s + Number(r.closures || 0), 0);
   const weekRev = week.reduce((s, r) => s + Number(r.net_revenue_daily || 0), 0);
 
-  // 3. brand 內排名
+  // 3. brand 內排名(過濾 is_monthly_rollup)
   const brandWeek = await fetchAllRows<{ email: string; name: string; calls: number; net_revenue_daily: number }>(() => {
     let q = sb.from("sales_metrics_daily")
       .select("email, name, calls, net_revenue_daily")
-      .gte("date", weekAgo);
+      .gte("date", weekAgo)
+      .not("is_monthly_rollup", "is", true);
     if (user.brand) q = q.eq("brand", user.brand);
     return q;
   });

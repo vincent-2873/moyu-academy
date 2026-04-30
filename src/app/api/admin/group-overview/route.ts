@@ -24,11 +24,12 @@ export async function GET() {
   const monthStart = taipeiMonthStart(now);
   const { start: lastMonthStart, end: lastMonthEnd } = taipeiLastMonthRange(now);
 
-  // 各品牌本月營收 + closures (fetchAllRows 分頁繞 1000 hard cap)
+  // 2026-04-30 末段 critical fix:過濾 is_monthly_rollup → 防 sum 翻倍
   const thisMonth = await fetchAllRows<{ brand: string; net_revenue_daily: number; closures: number; raw_appointments: number; calls: number }>(() =>
     sb.from("sales_metrics_daily")
       .select("brand, net_revenue_daily, closures, raw_appointments, calls")
       .gte("date", monthStart)
+      .not("is_monthly_rollup", "is", true)
   );
 
   const lastMonth = await fetchAllRows<{ brand: string; net_revenue_daily: number }>(() =>
@@ -36,6 +37,7 @@ export async function GET() {
       .select("brand, net_revenue_daily")
       .gte("date", lastMonthStart)
       .lte("date", lastMonthEnd)
+      .not("is_monthly_rollup", "is", true)
   );
 
   // 各品牌 user 計數

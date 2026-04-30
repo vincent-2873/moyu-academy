@@ -23,6 +23,7 @@ export async function GET() {
     sb.from("sales_metrics_daily")
       .select("date, net_revenue_daily, closures, raw_appointments, brand, email")
       .gte("date", monthStart)
+      .not("is_monthly_rollup", "is", true)
   );
 
   const monthRev = (thisMonth || []).reduce((s, r: any) => s + Number(r.net_revenue_daily || 0), 0);
@@ -39,6 +40,7 @@ export async function GET() {
     sb.from("sales_metrics_daily")
       .select("date, net_revenue_daily")
       .gte("date", taipeiDaysAgo(7, now))
+      .not("is_monthly_rollup", "is", true)
   );
   const dailyValues = (lastWeek || []).map((r: any) => Number(r.net_revenue_daily || 0));
   const mean = dailyValues.length > 0 ? dailyValues.reduce((s, v) => s + v, 0) / dailyValues.length : 0;

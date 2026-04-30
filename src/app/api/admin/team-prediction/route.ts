@@ -55,7 +55,8 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("sales_metrics_daily")
       .select("date, email, name, brand, team, calls, closures, net_revenue_daily")
-      .gte("date", startDate);
+      .gte("date", startDate)
+      .not("is_monthly_rollup", "is", true);
     if (brand) query = query.eq("brand", brand);
     return query;
   });

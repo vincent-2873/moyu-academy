@@ -104,7 +104,8 @@ export async function GET(req: NextRequest) {
   const { data: salesRows } = await supabase
     .from("sales_metrics_daily")
     .select("email")
-    .eq("date", today);
+    .eq("date", today)
+    .not("is_monthly_rollup", "is", true);
   const salesEmails = new Set<string>();
   for (const r of salesRows || []) {
     if (r.email) salesEmails.add(r.email as string);

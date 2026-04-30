@@ -26,21 +26,25 @@ export async function GET() {
   const monthStart = taipeiMonthStart();
 
   // 1. 本週 + 上週 metrics(全 brand 聚合)
+  // 2026-04-30 末段 critical fix:過濾 is_monthly_rollup → 防 sum 翻倍
   const thisWeekData = await fetchAllRows<{ email: string; name: string; brand: string; calls: number; raw_appointments: number; closures: number; net_revenue_daily: number; date: string }>(() =>
     sb.from("sales_metrics_daily")
       .select("email, name, brand, calls, raw_appointments, closures, net_revenue_daily, date")
       .gte("date", weekAgo)
+      .not("is_monthly_rollup", "is", true)
   );
   const lastWeekData = await fetchAllRows<{ calls: number; raw_appointments: number; closures: number; net_revenue_daily: number }>(() =>
     sb.from("sales_metrics_daily")
       .select("calls, raw_appointments, closures, net_revenue_daily, date")
       .gte("date", twoWeekAgo)
       .lt("date", weekAgo)
+      .not("is_monthly_rollup", "is", true)
   );
   const monthData = await fetchAllRows<{ net_revenue_daily: number }>(() =>
     sb.from("sales_metrics_daily")
       .select("net_revenue_daily, date")
       .gte("date", monthStart)
+      .not("is_monthly_rollup", "is", true)
   );
 
   const sumWeek = (rows: any[], col: string) => rows.reduce((s, r) => s + Number(r[col] || 0), 0);
@@ -117,6 +121,7 @@ export async function GET() {
       .select("net_revenue_daily, date")
       .gte("date", lastMonthAgo)
       .lt("date", monthStart)
+      .not("is_monthly_rollup", "is", true)
   );
   const lastMonthRev = lastMonthData.reduce((s, r: any) => s + Number(r.net_revenue_daily || 0), 0);
   const monthDelta = deltaPct(monthRev, lastMonthRev);

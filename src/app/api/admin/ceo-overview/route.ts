@@ -108,6 +108,7 @@ export async function GET(req: NextRequest) {
   // Pull all data: date >= prevMonthStart
   // 用 fetchAllRows 分頁繞過 Supabase Postgrest db-max-rows=1000 hard cap
   // (Vincent 2026-04-30 反饋:thisMonth 顯示 14k 通但 Strategy 顯示 60k 通 = 截斷 bug)
+  // 2026-04-30 末段 critical fix:過濾 is_monthly_rollup → 防 sum 翻倍
   const allRows = await fetchAllRows<any>(() =>
     supabase
       .from("sales_metrics_daily")
@@ -115,6 +116,7 @@ export async function GET(req: NextRequest) {
         "date, email, salesperson_id, name, team, brand, calls, connected, raw_appointments, appointments_show, closures, net_revenue_daily, level"
       )
       .gte("date", prevMonthStart)
+      .not("is_monthly_rollup", "is", true)
   ) as Array<Record<string, unknown>>;
 
   // Partition by period

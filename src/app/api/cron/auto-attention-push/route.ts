@@ -163,7 +163,8 @@ export async function GET(req: NextRequest) {
   const { data: rows, error } = await supabase
     .from("sales_metrics_daily")
     .select("email, name, team, brand, calls, raw_appointments, appointments_show, closures")
-    .eq("date", today);
+    .eq("date", today)
+    .not("is_monthly_rollup", "is", true);
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
   const hits = detectAttention(rows || []);

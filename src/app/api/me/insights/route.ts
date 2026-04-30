@@ -34,23 +34,25 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
   if (!user) return NextResponse.json({ error: "user not found" }, { status: 404 });
 
-  // 1. 我自己過去 7d 的 sales metrics
+  // 1. 我自己過去 7d 的 sales metrics(過濾 is_monthly_rollup 防 sum 翻倍)
   const myMetrics = await fetchAllRows<{ calls: number; raw_appointments: number; closures: number; net_revenue_daily: number }>(() =>
     sb.from("sales_metrics_daily")
       .select("calls, raw_appointments, closures, net_revenue_daily")
       .eq("email", email)
       .gte("date", weekAgo)
+      .not("is_monthly_rollup", "is", true)
   );
   const myCalls = myMetrics.reduce((s, r) => s + Number(r.calls || 0), 0);
   const myAppts = myMetrics.reduce((s, r) => s + Number(r.raw_appointments || 0), 0);
   const myCloses = myMetrics.reduce((s, r) => s + Number(r.closures || 0), 0);
   const myRevenue = myMetrics.reduce((s, r) => s + Number(r.net_revenue_daily || 0), 0);
 
-  // 2. 同 brand 員工 7d ranking
+  // 2. 同 brand 員工 7d ranking — 過濾 is_monthly_rollup
   const brandMetrics = await fetchAllRows<{ email: string; name: string; calls: number; raw_appointments: number; closures: number; net_revenue_daily: number; brand: string }>(() => {
     let q = sb.from("sales_metrics_daily")
       .select("email, name, calls, raw_appointments, closures, net_revenue_daily, brand")
-      .gte("date", weekAgo);
+      .gte("date", weekAgo)
+      .not("is_monthly_rollup", "is", true);
     if (user.brand) q = q.eq("brand", user.brand);
     return q;
   });

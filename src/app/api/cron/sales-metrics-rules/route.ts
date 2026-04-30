@@ -169,7 +169,7 @@ export async function GET(req: NextRequest) {
   // Load rules + today's metrics
   const [{ data: rulesData }, { data: metricsData }] = await Promise.all([
     supabase.from("sales_alert_rules").select("*").eq("enabled", true),
-    supabase.from("sales_metrics_daily").select("*").eq("date", today),
+    supabase.from("sales_metrics_daily").select("*").eq("date", today).not("is_monthly_rollup", "is", true),
   ]);
 
   const rules = (rulesData || []) as AlertRule[];

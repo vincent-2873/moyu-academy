@@ -35,12 +35,13 @@ export async function GET(req: NextRequest) {
     .eq("brand", brand)
     .eq("status", "active");
 
-  // 2. 7d KPI per employee
+  // 2. 7d KPI per employee — 過濾 is_monthly_rollup
   const empMetrics = await fetchAllRows<{ email: string; date: string; calls: number; raw_appointments: number; closures: number; net_revenue_daily: number }>(() =>
     sb.from("sales_metrics_daily")
       .select("email, date, calls, raw_appointments, closures, net_revenue_daily")
       .eq("brand", brand)
       .gte("date", weekAgo)
+      .not("is_monthly_rollup", "is", true)
   );
 
   const perEmail: Record<string, { calls: number; appts: number; closes: number; revenue: number; days: Set<string> }> = {};
