@@ -55,6 +55,12 @@ export async function GET(req: NextRequest) {
   const state = decodeState(stateStr);
   if (!state) return new Response("invalid state", { status: 400 });
 
+  // 2026-04-30 Wave E:state ts 過期檢查(5 min) — 防重放
+  const STATE_MAX_AGE_MS = 5 * 60 * 1000;
+  if (typeof state.ts !== "number" || Date.now() - state.ts > STATE_MAX_AGE_MS) {
+    return new Response("state expired (replay protection — 重新發起 OAuth)", { status: 400 });
+  }
+
   const cookies = parseCookies(req);
   if (!cookies["moyu_discord_oauth_state"] || cookies["moyu_discord_oauth_state"] !== state.csrf) {
     return new Response("state mismatch", { status: 400 });
@@ -148,6 +154,8 @@ export async function GET(req: NextRequest) {
   res.cookies.set("moyu_session_email", user!.email, {
     path: "/", maxAge: 24 * 60 * 60, httpOnly: false, secure: true, sameSite: "lax",
   });
+  // 清掉 oauth_state cookie 防重放
+  res.cookies.set("moyu_discord_oauth_state", "", { path: "/", maxAge: 0 });
   if (ADMIN_ROLES.includes(user!.role)) {
     res.cookies.set("moyu_admin_session", buildAdminSessionCookie(user!.email), {
       path: "/", maxAge: 24 * 60 * 60, httpOnly: true, secure: true, sameSite: "lax",
