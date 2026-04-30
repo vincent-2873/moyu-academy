@@ -100,23 +100,15 @@ export default function GroupOverviewTab() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-        {/* 跨品牌人才流動 */}
+        {/* 跨品牌人才流動 — SVG Sankey-like flow chart (Vincent 2026-04-30 反饋#13) */}
         <div>
           <div style={labelStyle}>跨品牌人才流動 (近 3 月)</div>
           <div style={{ marginTop: 12, background: "var(--bg-elev, rgba(247,241,227,0.85))", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))", borderRadius: 6, padding: 16 }}>
             {d.talent_flows.length === 0 ? (
               <div style={{ textAlign: "center", color: "var(--ink-mid)", fontSize: 12, padding: 24 }}>近 3 月無跨品牌調動</div>
-            ) : d.talent_flows.map((f, idx) => (
-              <motion.div key={f.flow} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.04 }}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: idx < d.talent_flows.length - 1 ? "1px dashed var(--border-soft, rgba(26,26,26,0.06))" : "none" }}>
-                <div style={{ flex: 1, fontSize: 12, color: "var(--ink-deep)", fontFamily: "var(--font-jetbrains-mono)" }}>{f.flow}</div>
-                <div style={{ flex: 1, height: 6, background: "rgba(26,26,26,0.04)", borderRadius: 1 }}>
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${(f.count / maxFlow) * 100}%` }} transition={{ duration: 0.8, delay: idx * 0.05 }}
-                    style={{ height: "100%", background: "var(--gold-thread, #c9a96e)" }} />
-                </div>
-                <div style={{ width: 32, textAlign: "right", fontFamily: "var(--font-jetbrains-mono)", fontSize: 13, color: "var(--ink-deep)" }}>{f.count}</div>
-              </motion.div>
-            ))}
+            ) : (
+              <TalentFlowSankey flows={d.talent_flows} />
+            )}
           </div>
         </div>
 
@@ -154,3 +146,116 @@ export default function GroupOverviewTab() {
 
 const labelStyle: React.CSSProperties = { fontSize: 11, color: "var(--ink-mid)", letterSpacing: 3, fontWeight: 600, textTransform: "uppercase" };
 const cardOuterStyle: React.CSSProperties = { background: "var(--bg-elev, rgba(247,241,227,0.85))", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))", borderRadius: 6, padding: "20px 24px" };
+
+const BRAND_LABEL_MAP: Record<string, string> = {
+  nschool: "nSchool", xuemi: "XUEMI", ooschool: "OOschool", aischool: "AIschool", moyuhunt: "墨宇獵頭", hq: "墨宇 HQ", legal: "法務", common: "其他",
+};
+
+/**
+ * SVG Sankey-like talent flow chart
+ * - Source brands 在左,Target brands 在右
+ * - Curved Bezier path 連接,寬度 = flow count(min 1.5 / max 12 px)
+ * - Hover 顯示 count
+ */
+function TalentFlowSankey({ flows }: { flows: { flow: string; count: number }[] }) {
+  // Parse flows: "from→to" → { from, to, count }
+  const parsed = flows.map(f => {
+    const [from, to] = f.flow.split("→");
+    return { from: (from || "").trim(), to: (to || "").trim(), count: f.count };
+  }).filter(f => f.from && f.to);
+
+  // Aggregate by source / target
+  const sources = new Map<string, number>();
+  const targets = new Map<string, number>();
+  for (const f of parsed) {
+    sources.set(f.from, (sources.get(f.from) || 0) + f.count);
+    targets.set(f.to, (targets.get(f.to) || 0) + f.count);
+  }
+  const sourceList = Array.from(sources.entries()).sort((a, b) => b[1] - a[1]);
+  const targetList = Array.from(targets.entries()).sort((a, b) => b[1] - a[1]);
+
+  const W = 480, H = Math.max(180, Math.max(sourceList.length, targetList.length) * 32 + 40);
+  const PAD_TOP = 20, PAD_BOTTOM = 20;
+  const COL_X_LEFT = 96, COL_X_RIGHT = W - 96;
+  const NODE_W = 8;
+  const PLOT_H = H - PAD_TOP - PAD_BOTTOM;
+
+  // Compute Y position for each node (proportional to total count)
+  const totalSrc = sourceList.reduce((s, [, c]) => s + c, 0);
+  const totalTgt = targetList.reduce((s, [, c]) => s + c, 0);
+  const srcPos = new Map<string, { y: number; h: number }>();
+  let yCur = PAD_TOP;
+  for (const [name, count] of sourceList) {
+    const h = totalSrc > 0 ? (count / totalSrc) * PLOT_H * 0.9 : 0;
+    srcPos.set(name, { y: yCur + h / 2, h: Math.max(h, 6) });
+    yCur += h + 4;
+  }
+  const tgtPos = new Map<string, { y: number; h: number }>();
+  yCur = PAD_TOP;
+  for (const [name, count] of targetList) {
+    const h = totalTgt > 0 ? (count / totalTgt) * PLOT_H * 0.9 : 0;
+    tgtPos.set(name, { y: yCur + h / 2, h: Math.max(h, 6) });
+    yCur += h + 4;
+  }
+
+  // Path width scale
+  const maxC = Math.max(1, ...parsed.map(f => f.count));
+  const strokeFor = (c: number) => 1.5 + (c / maxC) * 10;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }} role="img" aria-label="跨品牌人才流動">
+      <defs>
+        <linearGradient id="flowGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#c9a96e" stopOpacity="0.6" />
+          <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.4" />
+        </linearGradient>
+      </defs>
+      {/* Flow paths (drawn first, behind nodes) */}
+      {parsed.map((f, i) => {
+        const s = srcPos.get(f.from);
+        const t = tgtPos.get(f.to);
+        if (!s || !t) return null;
+        const x1 = COL_X_LEFT + NODE_W / 2;
+        const x2 = COL_X_RIGHT - NODE_W / 2;
+        const cx1 = x1 + (x2 - x1) * 0.4;
+        const cx2 = x1 + (x2 - x1) * 0.6;
+        return (
+          <path
+            key={i}
+            d={`M ${x1},${s.y} C ${cx1},${s.y} ${cx2},${t.y} ${x2},${t.y}`}
+            stroke="url(#flowGrad)"
+            strokeWidth={strokeFor(f.count)}
+            fill="none"
+            opacity={0.7}
+          >
+            <title>{`${BRAND_LABEL_MAP[f.from] || f.from} → ${BRAND_LABEL_MAP[f.to] || f.to}: ${f.count} 人`}</title>
+          </path>
+        );
+      })}
+      {/* Source nodes (left) */}
+      {Array.from(srcPos.entries()).map(([name, p]) => (
+        <g key={`s-${name}`}>
+          <rect x={COL_X_LEFT - NODE_W / 2} y={p.y - p.h / 2} width={NODE_W} height={p.h} fill="#1a1a1a" rx={1} />
+          <text x={COL_X_LEFT - NODE_W / 2 - 6} y={p.y + 3} textAnchor="end" fontSize={11} fill="var(--ink-deep)" fontFamily="var(--font-noto-serif-tc, serif)">
+            {BRAND_LABEL_MAP[name] || name}
+          </text>
+          <text x={COL_X_LEFT - NODE_W / 2 - 6} y={p.y + 16} textAnchor="end" fontSize={9} fill="var(--ink-mid)" fontFamily="var(--font-jetbrains-mono, monospace)">
+            -{sources.get(name)}
+          </text>
+        </g>
+      ))}
+      {/* Target nodes (right) */}
+      {Array.from(tgtPos.entries()).map(([name, p]) => (
+        <g key={`t-${name}`}>
+          <rect x={COL_X_RIGHT - NODE_W / 2} y={p.y - p.h / 2} width={NODE_W} height={p.h} fill="#b91c1c" rx={1} />
+          <text x={COL_X_RIGHT + NODE_W / 2 + 6} y={p.y + 3} textAnchor="start" fontSize={11} fill="var(--ink-deep)" fontFamily="var(--font-noto-serif-tc, serif)">
+            {BRAND_LABEL_MAP[name] || name}
+          </text>
+          <text x={COL_X_RIGHT + NODE_W / 2 + 6} y={p.y + 16} textAnchor="start" fontSize={9} fill="var(--ink-mid)" fontFamily="var(--font-jetbrains-mono, monospace)">
+            +{targets.get(name)}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}

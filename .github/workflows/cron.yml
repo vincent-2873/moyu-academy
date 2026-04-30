@@ -33,6 +33,8 @@ on:
     - cron: '15 1 * * 1-5'      # 工作日 台北 09:15 — recruit-auto-outreach (招募 outreach)
     # 2026-04-30 加 daily-employee-sync(自動把 metabase 新 email 加入 users 表)
     - cron: '30 0 * * *'        # 台北 08:30 — daily-employee-sync
+    # 2026-04-30 加 daily-stamp-detect(下班後掃 first_action + streak_days 印章)
+    - cron: '0 15 * * *'        # 台北 23:00 — daily-stamp-detect
   workflow_dispatch:  # 允許 manual trigger
 
 jobs:
@@ -139,6 +141,10 @@ jobs:
           # daily-employee-sync — 每日 08:30 TPE = UTC 00:30
           if [ "$SCHEDULE" = "30 0 * * *" ] || [ "$MANUAL" = "true" ]; then
             call_cron daily-employee-sync
+          fi
+          # daily-stamp-detect — 每日 23:00 TPE = UTC 15:00 (下班後)
+          if [ "$SCHEDULE" = "0 15 * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron daily-stamp-detect
           fi
 
           echo "Done."
