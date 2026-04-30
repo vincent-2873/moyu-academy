@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { getAdminScope, enforceWriteAccess } from "@/lib/admin-scope";
 
 export async function GET() {
   try {
@@ -21,6 +22,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(request);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, request.method); if (_ro) return _ro; }
   try {
     const supabase = getSupabaseAdmin();
     const body = await request.json();

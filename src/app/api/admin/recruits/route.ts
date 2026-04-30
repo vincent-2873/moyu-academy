@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { getAdminScope, enforceWriteAccess } from "@/lib/admin-scope";
 
 /**
  * 招聘漏斗 API
@@ -64,6 +65,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(request);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, request.method); if (_ro) return _ro; }
   try {
     const supabase = getSupabaseAdmin();
     const body = await request.json();
@@ -126,6 +130,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(request);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, request.method); if (_ro) return _ro; }
   try {
     const supabase = getSupabaseAdmin();
     const body = await request.json();
@@ -180,6 +187,9 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(request);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, request.method); if (_ro) return _ro; }
   try {
     const supabase = getSupabaseAdmin();
     const url = new URL(request.url);

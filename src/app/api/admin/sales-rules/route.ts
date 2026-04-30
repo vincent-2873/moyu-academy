@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminScope, enforceWriteAccess } from "@/lib/admin-scope";
 
 /**
  * /api/admin/sales-rules — 業務 KPI 規則 CRUD
@@ -29,6 +30,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(req);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, req.method); if (_ro) return _ro; }
   const body = await req.json();
   const { name, metric, threshold, comparator, severity, action, target_role, target_brand, message_template, is_active } = body;
   if (!name || !metric || threshold == null) {
@@ -48,6 +52,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(req);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, req.method); if (_ro) return _ro; }
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
@@ -64,6 +71,9 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(req);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, req.method); if (_ro) return _ro; }
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });

@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminScope, enforceWriteAccess } from "@/lib/admin-scope";
 
 /**
  * /api/admin/cron-config — 17 個 cron 配置 + 健康度
@@ -73,6 +74,9 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(req);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, req.method); if (_ro) return _ro; }
   const body = await req.json();
   const { code, is_enabled, schedule } = body;
   if (!code) return NextResponse.json({ error: "missing code" }, { status: 400 });

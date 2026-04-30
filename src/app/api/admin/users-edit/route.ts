@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminScope, enforceWriteAccess } from "@/lib/admin-scope";
 
 /**
  * /api/admin/users-edit
@@ -21,6 +22,9 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(req);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, req.method); if (_ro) return _ro; }
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });

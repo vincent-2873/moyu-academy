@@ -12,8 +12,25 @@ type Chunk = {
   content_preview: string;
   token_count: number | null;
   has_embedding: boolean;
+  pillar?: string;
+  allowed_roles?: string[] | null;
   created_at: string;
   updated_at: string;
+};
+
+type Pillar = "hr" | "legal" | "sales" | "common";
+
+const PILLAR_LABEL: Record<string, string> = {
+  hr: "HR 招聘",
+  legal: "法務",
+  sales: "業務",
+  common: "通用",
+};
+const PILLAR_COLOR: Record<string, string> = {
+  hr: "#0891b2",       // 青
+  legal: "#b91c1c",    // 朱
+  sales: "#c9a96e",    // 金
+  common: "#4a4a4a",   // 灰
 };
 
 export default function KnowledgeEngineEditor() {
@@ -22,8 +39,10 @@ export default function KnowledgeEngineEditor() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("");
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  const [pillarFilter, setPillarFilter] = useState<Pillar | null>(null);
   const [triggering, setTriggering] = useState<string | null>(null);
   const [triggerResult, setTriggerResult] = useState<any>(null);
+  const [autoClassifying, setAutoClassifying] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -54,6 +73,7 @@ export default function KnowledgeEngineEditor() {
   const chunks: Chunk[] = data?.chunks || [];
   const filtered = chunks.filter((c) => {
     if (sourceFilter && c.source_type !== sourceFilter) return false;
+    if (pillarFilter && (c.pillar || "common") !== pillarFilter) return false;
     if (filter) {
       const lf = filter.toLowerCase();
       return (
@@ -64,6 +84,20 @@ export default function KnowledgeEngineEditor() {
     }
     return true;
   });
+
+  async function autoClassify() {
+    setAutoClassifying(true);
+    setTriggerResult(null);
+    const r = await fetch("/api/admin/rag/auto-classify-pillar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dry_run: false, only_common: true }),
+    });
+    const d = await r.json();
+    setTriggerResult(d);
+    setAutoClassifying(false);
+    await refresh();
+  }
 
   const active = chunks.find((c) => c.id === activeId);
 
@@ -84,12 +118,35 @@ export default function KnowledgeEngineEditor() {
           <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="搜:title / id / 內容" style={{ ...inputStyle, marginBottom: 8 }} />
 
           {/* source filter */}
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1 mb-2">
             <SourceChip label="全部" active={sourceFilter === null} onClick={() => setSourceFilter(null)} count={data?.total_chunks || 0} />
             {Object.entries(data?.source_counts || {}).map(([k, v]: any) => (
               <SourceChip key={k} label={k} active={sourceFilter === k} onClick={() => setSourceFilter(k)} count={v.total} />
             ))}
           </div>
+
+          {/* RAG 三池 pillar filter (Vincent 2026-04-30 反饋#1) */}
+          {data?.pillar_counts && (
+            <div>
+              <div style={{ ...labelStyle, fontSize: 9, marginBottom: 4 }}>池 PILLAR</div>
+              <div className="flex flex-wrap gap-1">
+                <SourceChip label="全部" active={pillarFilter === null} onClick={() => setPillarFilter(null)} count={data?.total_chunks || 0} />
+                {(["hr", "legal", "sales", "common"] as Pillar[]).map((p) => {
+                  const stats = data.pillar_counts[p] || { total: 0, embedded: 0 };
+                  return (
+                    <SourceChip
+                      key={p}
+                      label={PILLAR_LABEL[p]}
+                      active={pillarFilter === p}
+                      onClick={() => setPillarFilter(p)}
+                      count={stats.total}
+                      colorAccent={PILLAR_COLOR[p]}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="p-2 space-y-1">
@@ -117,6 +174,9 @@ export default function KnowledgeEngineEditor() {
               >
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 9, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase" }}>{c.source_type}</span>
+                  {c.pillar && (
+                    <span style={{ fontSize: 9, color: isActive ? "rgba(255,255,255,0.85)" : PILLAR_COLOR[c.pillar] || "var(--ink-mid)", fontWeight: 600 }}>{PILLAR_LABEL[c.pillar] || c.pillar}</span>
+                  )}
                   {c.has_embedding && <span style={{ fontSize: 9, color: isActive ? "rgba(201,169,110,1)" : "var(--gold-thread, #c9a96e)" }}>✓ embed</span>}
                   <span style={{ fontSize: 9, opacity: 0.5, marginLeft: "auto" }}>{c.token_count || 0} tk</span>
                 </div>
@@ -142,6 +202,7 @@ export default function KnowledgeEngineEditor() {
             <TriggerButton label="📚 Ingest Notion" onClick={() => trigger("ingest_notion")} loading={triggering === "ingest_notion"} />
             <TriggerButton label="🧠 Embed pending" onClick={() => trigger("embed_pending")} loading={triggering === "embed_pending"} primary />
             <TriggerButton label="⚡ All in one" onClick={() => trigger("all")} loading={triggering === "all"} primary />
+            <TriggerButton label="🏛️ Auto 分 Pillar" onClick={autoClassify} loading={autoClassifying} />
           </div>
           {triggerResult && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 12, padding: 12, background: "var(--bg-paper)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-jetbrains-mono)", color: "var(--ink-mid)", whiteSpace: "pre-wrap", maxHeight: 200, overflow: "auto" }}>
@@ -189,14 +250,14 @@ function Stat({ label, value, warning }: { label: string; value: number; warning
   );
 }
 
-function SourceChip({ label, active, onClick, count }: { label: string; active: boolean; onClick: () => void; count: number }) {
+function SourceChip({ label, active, onClick, count, colorAccent }: { label: string; active: boolean; onClick: () => void; count: number; colorAccent?: string }) {
   return (
     <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.95 }} onClick={onClick} style={{
       padding: "3px 8px",
       borderRadius: 3,
-      background: active ? "var(--ink-deep)" : "transparent",
-      color: active ? "var(--bg-paper)" : "var(--ink-deep)",
-      border: `1px solid ${active ? "var(--ink-deep)" : "var(--border-soft, rgba(26,26,26,0.10))"}`,
+      background: active ? (colorAccent || "var(--ink-deep)") : "transparent",
+      color: active ? "var(--bg-paper)" : (colorAccent || "var(--ink-deep)"),
+      border: `1px solid ${active ? (colorAccent || "var(--ink-deep)") : "var(--border-soft, rgba(26,26,26,0.10))"}`,
       fontSize: 10,
       fontFamily: "var(--font-noto-serif-tc)",
       cursor: "pointer",

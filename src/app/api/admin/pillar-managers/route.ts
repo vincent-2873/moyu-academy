@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { getAdminScope, enforceWriteAccess } from "@/lib/admin-scope";
 
 /**
  * Pillar Managers Management API
@@ -22,6 +23,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(req);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, req.method); if (_ro) return _ro; }
   const supabase = getSupabaseAdmin();
   const body = await req.json();
   const { pillar_id, email, display_name, line_user_id, role, priority, notes } = body;
@@ -43,6 +47,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(req);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, req.method); if (_ro) return _ro; }
   const supabase = getSupabaseAdmin();
   const body = await req.json();
   const { id, ...updates } = body;
@@ -54,6 +61,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(req);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, req.method); if (_ro) return _ro; }
   const supabase = getSupabaseAdmin();
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return Response.json({ ok: false, error: "id required" }, { status: 400 });

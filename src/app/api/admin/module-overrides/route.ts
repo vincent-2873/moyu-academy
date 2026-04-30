@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { getAdminScope, enforceWriteAccess } from "@/lib/admin-scope";
 
 let brandColumnExists: boolean | null = null;
 
@@ -38,6 +39,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/admin/module-overrides
 export async function POST(req: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(req);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, req.method); if (_ro) return _ro; }
   const body = await req.json();
   const { moduleId, brand, ...fields } = body;
   if (!moduleId) return Response.json({ error: "moduleId required" }, { status: 400 });
@@ -76,6 +80,9 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/admin/module-overrides?moduleId=...&brand=...
 export async function DELETE(req: NextRequest) {
+  // Vincent 2026-04-30 安全 #4: trainer/mentor read-only block
+  const _scope = await getAdminScope(req);
+  if (_scope) { const _ro = enforceWriteAccess(_scope, req.method); if (_ro) return _ro; }
   const moduleIdRaw = req.nextUrl.searchParams.get("moduleId");
   const brand = req.nextUrl.searchParams.get("brand");
   const moduleId = Number(moduleIdRaw);
