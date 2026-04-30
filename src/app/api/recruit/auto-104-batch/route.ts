@@ -19,7 +19,6 @@ import { NextRequest } from "next/server";
  */
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
 
 const BRAND_DAILY_QUOTA: Record<string, { weekday: number; weekend: number }> = {
   ruifu: { weekday: 200, weekend: 300 },

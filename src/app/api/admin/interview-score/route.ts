@@ -18,7 +18,6 @@ import { NextRequest } from "next/server";
  * Claude 會根據面試筆記做出客觀打分 + 錄取建議
  */
 
-export const maxDuration = 60;
 
 const SCORING_PROMPT = `你是墨宇戰情中樞的「面試評分官」，根據面試筆記為求職者評分。
 

@@ -17,7 +17,6 @@ import { NextRequest } from "next/server";
  * 認證:CRON_SECRET(避免外人觸發)
  */
 
-export const maxDuration = 300; // Zeabur ignore but legacy
 
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + "T00:00:00Z");

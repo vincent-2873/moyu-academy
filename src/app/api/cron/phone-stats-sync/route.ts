@@ -19,7 +19,6 @@ import { NextRequest } from "next/server";
  */
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
 
 const PBX_HOST = process.env.PBX_HOST || "https://122.147.213.44:8080";
 const PBX_USER = process.env.PBX_USER || "599";

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Stamp } from "@/components/wabi/Stamp";
 import RecordingUploader from "@/components/training/RecordingUploader";
+import QuizPanel from "@/components/training/QuizPanel";
 
 const STAGE_NAMES: Record<string, string> = {
   beginner: "研墨者",
@@ -281,6 +282,10 @@ function DayBlock({ day, isCurrent, isPast, isFuture, dayModules, progressMap, i
               {/* 對練 / 任務 module: 上傳錄音 → Whisper 評估 */}
               {(m.module_type === "sparring" || m.module_type === "task") && isCurrent && userEmail && (
                 <RecordingUploader moduleId={m.id} userEmail={userEmail} compact />
+              )}
+              {/* Quiz module: 直接答題 */}
+              {m.module_type === "quiz" && isCurrent && userEmail && (
+                <QuizPanel moduleId={m.id} userEmail={userEmail} content={m.content || {}} />
               )}
             </motion.div>
           );

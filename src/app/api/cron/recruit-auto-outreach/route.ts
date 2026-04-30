@@ -16,7 +16,6 @@ import { NextRequest } from "next/server";
  * 重點：不再用 Claude 猜任務，直接從 Google Sheet 的真實資料產出
  */
 
-export const maxDuration = 60;
 
 function todayTaipei(): string {
   const now = new Date();

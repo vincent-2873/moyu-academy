@@ -81,7 +81,6 @@ function aggregate(rows: Array<Record<string, unknown>>): Metric {
   return m;
 }
 
-export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   // Basic auth: super_admin or ceo role. Simple check via header fallback.

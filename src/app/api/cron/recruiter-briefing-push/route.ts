@@ -23,7 +23,6 @@ import { NextRequest } from "next/server";
  * 全部寫進 v3_commands (pillar=recruit) + LINE 推播
  */
 
-export const maxDuration = 60;
 
 function todayTaipei(): string {
   const now = new Date();

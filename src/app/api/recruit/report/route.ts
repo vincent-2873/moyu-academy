@@ -25,7 +25,6 @@ import { NextRequest } from "next/server";
  *   - 求職者只需要被追蹤，不需要管 — Claude 幫忙管
  */
 
-export const maxDuration = 60;
 
 const RECRUIT_ANALYST_PROMPT = `你是墨宇戰情中樞的「招聘分析師」。你的工作是幫助招聘員做出更好的招聘決策。
 

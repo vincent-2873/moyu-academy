@@ -26,7 +26,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const startTs = Date.now();
@@ -172,7 +171,7 @@ ${transcript.slice(0, 8000)}
       progressRow = data;
     }
 
-    // 5. 觸發印章(如果 module 有 reward.stamp 且 first time complete)
+    // 5a. 觸發 module reward stamp(legacy: module 自帶 reward 欄位)
     if (overallScore && overallScore >= 60 && (mod.reward as any)?.stamp && !existing?.attempts) {
       await sb.from("training_stamps").insert({
         user_id: user.id,
@@ -181,6 +180,27 @@ ${transcript.slice(0, 8000)}
         rarity: (mod.reward as any).rarity || "common",
         source_module_id: moduleId,
       });
+    }
+
+    // 5b. 觸發 stamp_rules 引擎 (whisper_score trigger)
+    if (overallScore != null) {
+      try {
+        const proto = req.headers.get("x-forwarded-proto") || "https";
+        const host = req.headers.get("host") || "";
+        if (host) {
+          await fetch(`${proto}://${host}/api/me/training/auto-stamp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${process.env.CRON_SECRET || ""}` },
+            body: JSON.stringify({
+              user_email: email,
+              trigger_type: "whisper_score",
+              context: { score: overallScore, module_id: moduleId },
+            }),
+          });
+        }
+      } catch {
+        // best-effort,不影響主回覆
+      }
     }
 
     // 6. log

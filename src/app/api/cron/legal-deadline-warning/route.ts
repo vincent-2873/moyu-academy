@@ -17,7 +17,6 @@ import { NextRequest } from "next/server";
  */
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
 
 function tpDaysAhead(days: number): string {
   const d = new Date(Date.now() + days * 24 * 60 * 60 * 1000);

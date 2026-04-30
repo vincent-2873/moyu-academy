@@ -17,7 +17,6 @@ import { NextRequest } from "next/server";
  */
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
 
 const SHEET_ID = process.env.RECRUIT_SHEET_ID || "1APzwwNIpoOZfqkxdHKXZqkzYkxpu1a6eQdw56T2tsFw";
 const SHEET_TAB_RECRUITS = "求職者紀錄!A2:N"; // 求職者列表 row 起 2

@@ -20,7 +20,6 @@ import { NextRequest } from "next/server";
  */
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
 
 const LYNN_SHEET_ID = process.env.LYNN_TEMPLATE_SHEET_ID || "1gDztawLJIsbWVxQOVfA_BXYSbdNJy0W5DDfAgA5mwUY";
 

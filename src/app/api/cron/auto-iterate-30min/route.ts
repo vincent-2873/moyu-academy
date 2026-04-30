@@ -20,7 +20,6 @@ import { linePush } from "@/lib/line-notify";
  *  設計原則：同一問題不重複產命令 — 用 ai_reasoning + owner 作去重 key（pending 未解決時不再新增）
  */
 
-export const maxDuration = 60;
 
 interface GeneratedCmd {
   owner_email: string;

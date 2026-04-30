@@ -23,7 +23,6 @@ import {
  * }
  */
 
-export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   const supabase = getSupabaseAdmin();

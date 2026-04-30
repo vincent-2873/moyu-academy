@@ -107,7 +107,6 @@ interface Briefing {
   cached?: boolean;
 }
 
-export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const email = req.nextUrl.searchParams.get("email");

@@ -191,7 +191,6 @@ function todayTaipei(): string {
   return tp.toISOString().slice(0, 10);
 }
 
-export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");

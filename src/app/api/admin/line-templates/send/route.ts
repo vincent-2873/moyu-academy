@@ -87,10 +87,10 @@ export async function POST(req: NextRequest) {
 
     if (!r.ok) {
       const err = await r.text();
-      return NextResponse.json({ ok: false, ...log, error: err.slice(0, 200) }, { status: 502 });
+      return NextResponse.json({ ...log, ok: false, error: err.slice(0, 200) }, { status: 502 });
     }
 
-    return NextResponse.json({ ok: true, ...log });
+    return NextResponse.json({ ...log, ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }

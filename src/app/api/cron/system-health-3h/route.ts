@@ -19,7 +19,6 @@ import { linePush } from "@/lib/line-notify";
  * 全部寫 claude_actions log
  */
 
-export const maxDuration = 60;
 
 interface CheckResult {
   name: string;

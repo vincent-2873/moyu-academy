@@ -65,8 +65,6 @@ function todayTaipei(): string {
   return tp.toISOString().slice(0, 10);
 }
 
-// Vercel Hobby: extend function timeout for Claude API calls
-export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const email = req.nextUrl.searchParams.get("email");

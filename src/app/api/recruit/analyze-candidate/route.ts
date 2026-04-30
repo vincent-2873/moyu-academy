@@ -27,7 +27,6 @@ import { NextRequest } from "next/server";
  *   - 跟其他求職者比較 (如果 DB 有歷史)
  */
 
-export const maxDuration = 60;
 
 const CANDIDATE_ANALYSIS_PROMPT = `你是墨宇戰情中樞的「求職者分析師」。你要像資深獵頭一樣精準判斷這個人值不值得錄。
 

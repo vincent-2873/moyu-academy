@@ -14,13 +14,19 @@ import CronConfigEditor from "@/components/admin/CronConfigEditor";
 import KnowledgeEngineEditor from "@/components/admin/KnowledgeEngineEditor";
 import LineTemplatesEditor from "@/components/admin/LineTemplatesEditor";
 import SidebarSetupProgress from "@/components/admin/SidebarSetupProgress";
+import StrategyTab from "@/components/admin/StrategyTab";
+import GroupOverviewTab from "@/components/admin/GroupOverviewTab";
+import PredictionTab from "@/components/admin/PredictionTab";
+import CommandCenterPanel from "@/components/admin/CommandCenterTab";
+import StampRulesEditor from "@/components/admin/StampRulesEditor";
+import AssetsUploader from "@/components/admin/AssetsUploader";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "line-templates" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "line-templates" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub" | "strategy" | "group" | "predict" | "command-center" | "stamp-rules" | "assets";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -282,13 +288,20 @@ export default function AdminPage() {
     { id: "cron", label: "排程管理", icon: "⏰" },
     { id: "knowledge", label: "知識引擎", icon: "🧠" },
     { id: "system-hub", label: "系統管控", icon: "⚙️" },
+    { id: "strategy", label: "戰略指標", icon: "🌟" },
+    { id: "group", label: "集團總覽", icon: "🏛️" },
+    { id: "predict", label: "Claude 預測", icon: "🔮" },
+    { id: "command-center", label: "指揮台", icon: "🎯" },
+    { id: "stamp-rules", label: "印章規則", icon: "🪶" },
+    { id: "assets", label: "資產上傳", icon: "🎬" },
   ];
 
   // 分組樹狀結構 — 取代 9 tab 平鋪
   const tabGroups: { label: string; children: AdminTab[] }[] = [
-    { label: "戰況",   children: ["pillars", "commands"] },
+    { label: "戰況",   children: ["pillars", "strategy", "predict", "commands", "command-center"] },
+    { label: "集團",   children: ["group"] },
     { label: "三大戰線", children: ["sales", "automation", "legal", "rules", "kpi"] },
-    { label: "養成",   children: ["training", "people", "people-edit"] },
+    { label: "養成",   children: ["training", "stamp-rules", "assets", "people", "people-edit"] },
     { label: "通訊",   children: ["messaging", "line-templates"] },
     { label: "系統",   children: ["setup", "health", "cron", "knowledge", "org", "system-hub"] },
   ];
@@ -503,6 +516,12 @@ export default function AdminPage() {
           {tab === "cron" && <CronConfigEditor />}
           {tab === "knowledge" && <KnowledgeEngineEditor />}
           {tab === "system-hub" && <SystemHubTab token={session.token} />}
+          {tab === "strategy" && <StrategyTab />}
+          {tab === "group" && <GroupOverviewTab />}
+          {tab === "predict" && <PredictionTab />}
+          {tab === "command-center" && <CommandCenterPanel />}
+          {tab === "stamp-rules" && <StampRulesEditor />}
+          {tab === "assets" && <AssetsUploader />}
         </div>
       </main>
     </div>
