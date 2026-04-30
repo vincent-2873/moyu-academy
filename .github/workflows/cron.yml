@@ -35,6 +35,10 @@ on:
     - cron: '30 0 * * *'        # 台北 08:30 — daily-employee-sync
     # 2026-04-30 加 daily-stamp-detect(下班後掃 first_action + streak_days 印章)
     - cron: '0 15 * * *'        # 台北 23:00 — daily-stamp-detect
+    # 2026-04-30 第三輪 — F1 embedding refresh 每 30 分掃 stale chunks
+    - cron: '*/30 * * * *'      # 已存在,共用 — embedding-refresh
+    # 2026-04-30 第三輪 — N7 cron failure alert 每小時掃 fail rate 推 LINE
+    - cron: '15 * * * *'        # 每小時 :15 — cron-failure-alert
   workflow_dispatch:  # 允許 manual trigger
 
 jobs:
@@ -145,6 +149,14 @@ jobs:
           # daily-stamp-detect — 每日 23:00 TPE = UTC 15:00 (下班後)
           if [ "$SCHEDULE" = "0 15 * * *" ] || [ "$MANUAL" = "true" ]; then
             call_cron daily-stamp-detect
+          fi
+          # 2026-04-30 第三輪 — embedding-refresh 共用 */30(stale chunk 自動重 embed)
+          if [ "$SCHEDULE" = "*/30 * * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron embedding-refresh
+          fi
+          # 2026-04-30 第三輪 — cron-failure-alert 每小時 :15(連續 fail 推 LINE)
+          if [ "$SCHEDULE" = "15 * * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron cron-failure-alert
           fi
 
           echo "Done."

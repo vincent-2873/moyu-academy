@@ -34,13 +34,38 @@ export async function POST(req: NextRequest) {
     const batchSize = Math.min(body.batch_size || 100, 100);
     const maxChunks = Math.min(body.max_chunks || 200, 500);
 
-    const { data: pending } = await sb
+    // F1 (2026-04-30): refresh stale embedding 也撈進來
+    //   - embedding IS NULL  → 從沒 embed
+    //   - embedded_at IS NULL OR updated_at > embedded_at → content 改過但 embedding 沒更新
+    const refreshStale = req.nextUrl?.searchParams?.get("refresh_stale") === "1";
+    let q = sb
       .from("knowledge_chunks")
       .select("id, content, title")
-      .is("embedding", null)
       .is("deprecated_at", null)
       .order("created_at", { ascending: true })
       .limit(maxChunks);
+    if (refreshStale) {
+      // embedding IS NULL OR (embedded_at IS NULL AND embedding IS NOT NULL) OR updated_at > embedded_at
+      // Supabase 不支援這種複合 OR 直接寫,改用 RPC 或 fetchAll then filter
+      // 簡化:撈出全部 chunks 由 client filter
+      q = q;  // no extra filter, will filter below
+    } else {
+      q = q.is("embedding", null);
+    }
+    const pendingRaw = await q;
+    let pending = pendingRaw.data || [];
+    if (refreshStale) {
+      // 撈完整 column for filter
+      const all = await sb.from("knowledge_chunks")
+        .select("id, content, title, embedding, embedded_at, updated_at")
+        .is("deprecated_at", null)
+        .limit(maxChunks);
+      pending = (all.data || []).filter((c: any) => {
+        const noEmbed = c.embedding === null;
+        const stale = c.embedding !== null && (c.embedded_at === null || (c.updated_at && c.embedded_at && new Date(c.updated_at).getTime() > new Date(c.embedded_at).getTime()));
+        return noEmbed || stale;
+      }).map((c: any) => ({ id: c.id, content: c.content, title: c.title }));
+    }
 
     if (!pending || pending.length === 0) {
       return NextResponse.json({
@@ -84,11 +109,13 @@ export async function POST(req: NextRequest) {
         for (let j = 0; j < batch.length; j++) {
           const emb = embeddings[j]?.embedding;
           if (!emb) continue;
+          const nowIso = new Date().toISOString();
           const { error } = await sb
             .from("knowledge_chunks")
             .update({
               embedding: emb,
-              updated_at: new Date().toISOString(),
+              embedded_at: nowIso,                  // F1: 標記 embedding 生成時刻
+              updated_at: nowIso,
             })
             .eq("id", batch[j].id);
           if (error) {

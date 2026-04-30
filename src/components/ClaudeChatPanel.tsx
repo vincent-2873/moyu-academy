@@ -16,12 +16,36 @@ import { useEffect, useRef, useState } from "react";
  * 使用方式: <ClaudeChatPanel userEmail={...} stage={...} brand={...} /> 放 layout.tsx
  */
 
+type Source = {
+  id: string;
+  source_type: string;
+  source_id: string;
+  title: string | null;
+  similarity: number | null;
+};
+
 type Msg = {
   id?: string;
   role: "user" | "assistant" | "system";
   content: string;
   created_at?: string;
+  sources?: Source[];                  // O7 (2026-04-30):RAG 來源 chip
 };
+
+// O7 sentinel — chat endpoint stream 末尾追加 [__SOURCES__]<json>
+const SOURCES_SENTINEL = "\n\n[__SOURCES__]";
+
+function splitContentAndSources(raw: string): { content: string; sources: Source[] } {
+  const idx = raw.indexOf(SOURCES_SENTINEL);
+  if (idx < 0) return { content: raw, sources: [] };
+  const content = raw.slice(0, idx);
+  const tail = raw.slice(idx + SOURCES_SENTINEL.length).trim();
+  try {
+    const parsed = JSON.parse(tail);
+    if (Array.isArray(parsed)) return { content, sources: parsed as Source[] };
+  } catch {}
+  return { content, sources: [] };
+}
 
 interface Props {
   userEmail: string | null;
@@ -105,10 +129,10 @@ export default function ClaudeChatPanel({ userEmail, stage, brand }: Props) {
         const { value, done } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
-        const text = acc;
+        const { content, sources } = splitContentAndSources(acc);
         setMessages((m) => {
           const copy = [...m];
-          copy[copy.length - 1] = { role: "assistant", content: text };
+          copy[copy.length - 1] = { role: "assistant", content, sources };
           return copy;
         });
       }
@@ -210,24 +234,52 @@ export default function ClaudeChatPanel({ userEmail, stage, brand }: Props) {
                 key={m.id || i}
                 className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div
-                  className="max-w-[85%] px-4 py-2.5 rounded-md"
-                  style={{
-                    background:
-                      m.role === "user"
-                        ? "var(--ink-deep, #1a1a1a)"
-                        : "var(--bg-elev, rgba(247,241,227,0.85))",
-                    color:
-                      m.role === "user"
-                        ? "var(--bg-paper, #f7f1e3)"
-                        : "var(--ink-deep, #1a1a1a)",
-                    fontSize: "14px",
-                    lineHeight: 1.7,
-                    whiteSpace: "pre-wrap",
-                    border: m.role === "assistant" ? "1px solid var(--border-soft, rgba(26,26,26,0.10))" : undefined,
-                  }}
-                >
-                  {m.content}
+                <div className="max-w-[85%] flex flex-col gap-1.5">
+                  <div
+                    className="px-4 py-2.5 rounded-md"
+                    style={{
+                      background:
+                        m.role === "user"
+                          ? "var(--ink-deep, #1a1a1a)"
+                          : "var(--bg-elev, rgba(247,241,227,0.85))",
+                      color:
+                        m.role === "user"
+                          ? "var(--bg-paper, #f7f1e3)"
+                          : "var(--ink-deep, #1a1a1a)",
+                      fontSize: "14px",
+                      lineHeight: 1.7,
+                      whiteSpace: "pre-wrap",
+                      border: m.role === "assistant" ? "1px solid var(--border-soft, rgba(26,26,26,0.10))" : undefined,
+                    }}
+                  >
+                    {m.content}
+                  </div>
+                  {/* O7: RAG 來源 chip */}
+                  {m.role === "assistant" && m.sources && m.sources.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span style={{ fontSize: 10, color: "var(--ink-mid, #4a4a4a)", letterSpacing: 1, fontWeight: 600 }}>
+                        來源:
+                      </span>
+                      {m.sources.map((s, si) => (
+                        <span
+                          key={s.id || si}
+                          title={`${s.source_type} · ${s.source_id}${s.similarity ? ` · sim=${s.similarity.toFixed(2)}` : ""}`}
+                          style={{
+                            fontSize: 10,
+                            padding: "2px 7px",
+                            background: "var(--bg-paper, #f7f1e3)",
+                            border: "1px solid var(--border-soft, rgba(26,26,26,0.15))",
+                            borderRadius: 3,
+                            color: "var(--ink-mid, #4a4a4a)",
+                            fontFamily: "var(--font-noto-serif-tc, serif)",
+                            cursor: "default",
+                          }}
+                        >
+                          [{si + 1}] {(s.title || s.source_id || "").slice(0, 28)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

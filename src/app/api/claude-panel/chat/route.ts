@@ -203,6 +203,17 @@ export async function POST(req: NextRequest) {
               controller.enqueue(encoder.encode(chunk));
             }
           }
+          // O7 (2026-04-30 第三輪):stream 末尾送 source citations 給前端顯示
+          if (ragSources.length > 0) {
+            const sourcesPayload = ragSources.map((r: any) => ({
+              id: r.id,
+              source_type: r.source_type,
+              source_id: r.source_id,
+              title: r.title,
+              similarity: typeof r.similarity === "number" ? Number(r.similarity.toFixed(3)) : null,
+            }));
+            controller.enqueue(encoder.encode(`\n\n[__SOURCES__]${JSON.stringify(sourcesPayload)}`));
+          }
           // 寫 assistant message + RAG 來源紀錄
           await sb.from("claude_conversations").insert({
             user_id: user.id,

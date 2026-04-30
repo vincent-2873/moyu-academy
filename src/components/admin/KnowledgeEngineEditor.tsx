@@ -43,13 +43,73 @@ export default function KnowledgeEngineEditor() {
   const [triggering, setTriggering] = useState<string | null>(null);
   const [triggerResult, setTriggerResult] = useState<any>(null);
   const [autoClassifying, setAutoClassifying] = useState(false);
+  const [savingPillar, setSavingPillar] = useState(false);
+  const [notionConfig, setNotionConfig] = useState<any[]>([]);
+  const [notionConfigEdits, setNotionConfigEdits] = useState<Record<string, string>>({});
+  const [notionConfigSaving, setNotionConfigSaving] = useState<string | null>(null);
+  const [pillarIngesting, setPillarIngesting] = useState<string | null>(null);
 
   async function refresh() {
     setLoading(true);
-    const r = await fetch("/api/admin/knowledge-stats");
-    const d = await r.json();
+    const [statsR, cfgR] = await Promise.all([
+      fetch("/api/admin/knowledge-stats"),
+      fetch("/api/admin/rag/notion-config"),
+    ]);
+    const d = await statsR.json();
     setData(d);
+    try {
+      const cfg = await cfgR.json();
+      setNotionConfig(cfg.rows || []);
+    } catch {}
     setLoading(false);
+  }
+
+  async function updateChunkPillar(id: string, newPillar: Pillar) {
+    setSavingPillar(true);
+    try {
+      await fetch("/api/admin/rag/update-chunk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, pillar: newPillar }),
+      });
+      await refresh();
+    } finally {
+      setSavingPillar(false);
+    }
+  }
+
+  async function saveNotionDbId(pillar: string) {
+    const dbId = notionConfigEdits[pillar];
+    if (!dbId) return;
+    setNotionConfigSaving(pillar);
+    try {
+      await fetch("/api/admin/rag/notion-config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pillar, notion_database_id: dbId, enabled: true }),
+      });
+      setNotionConfigEdits((prev) => { const c = { ...prev }; delete c[pillar]; return c; });
+      await refresh();
+    } finally {
+      setNotionConfigSaving(null);
+    }
+  }
+
+  async function ingestPillar(pillar: string) {
+    setPillarIngesting(pillar);
+    setTriggerResult(null);
+    try {
+      const r = await fetch("/api/admin/rag/ingest-notion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pillar, max_pages: 100 }),
+      });
+      const d = await r.json();
+      setTriggerResult(d);
+      await refresh();
+    } finally {
+      setPillarIngesting(null);
+    }
   }
 
   useEffect(() => { refresh(); }, []);
@@ -199,14 +259,84 @@ export default function KnowledgeEngineEditor() {
           <div style={labelStyle}>觸 TRIGGER</div>
           <div className="flex flex-wrap gap-2 mt-3">
             <TriggerButton label="📁 Ingest 本機 training/" onClick={() => trigger("ingest_local")} loading={triggering === "ingest_local"} />
-            <TriggerButton label="📚 Ingest Notion" onClick={() => trigger("ingest_notion")} loading={triggering === "ingest_notion"} />
+            <TriggerButton label="📚 Ingest Notion (common)" onClick={() => trigger("ingest_notion")} loading={triggering === "ingest_notion"} />
             <TriggerButton label="🧠 Embed pending" onClick={() => trigger("embed_pending")} loading={triggering === "embed_pending"} primary />
             <TriggerButton label="⚡ All in one" onClick={() => trigger("all")} loading={triggering === "all"} primary />
             <TriggerButton label="🏛️ Auto 分 Pillar" onClick={autoClassify} loading={autoClassifying} />
           </div>
+
+          {/* F2 (2026-04-30 第三輪):Notion DB per-pillar config + ingest trigger */}
+          <div style={{ marginTop: 24 }}>
+            <div style={labelStyle}>池 PILLAR · NOTION DB</div>
+            <div style={{ marginTop: 8, fontSize: 11, color: "var(--ink-mid)", lineHeight: 1.6 }}>
+              填 Notion database_id 後 → 「同步」會撈該 DB 全部 page 進對應 pillar
+            </div>
+            <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+              {(["hr", "sales", "legal"] as Pillar[]).map((p) => {
+                const cfg = notionConfig.find((c) => c.id === p);
+                const editing = notionConfigEdits[p] !== undefined;
+                const dbIdVal = editing ? notionConfigEdits[p] : (cfg?.notion_database_id || "");
+                const lastSync = cfg?.last_synced_at ? new Date(cfg.last_synced_at).toISOString().slice(0, 16).replace("T", " ") : "—";
+                return (
+                  <div key={p} style={{
+                    display: "grid",
+                    gridTemplateColumns: "60px 1fr auto auto",
+                    gap: 8,
+                    alignItems: "center",
+                    padding: "6px 10px",
+                    background: "var(--bg-paper)",
+                    border: `1px solid ${cfg?.notion_database_id ? PILLAR_COLOR[p] : "var(--border-soft, rgba(26,26,26,0.10))"}`,
+                    borderRadius: 4,
+                  }}>
+                    <div style={{ fontFamily: "var(--font-noto-serif-tc)", fontSize: 12, color: PILLAR_COLOR[p], fontWeight: 600 }}>
+                      {PILLAR_LABEL[p]}
+                    </div>
+                    <input
+                      value={dbIdVal}
+                      onChange={(e) => setNotionConfigEdits((prev) => ({ ...prev, [p]: e.target.value }))}
+                      placeholder="Notion database_id (32-hex,Notion URL 末段)"
+                      style={{ ...inputStyle, fontSize: 11, padding: "4px 8px", fontFamily: "var(--font-jetbrains-mono)" }}
+                    />
+                    <button
+                      onClick={() => saveNotionDbId(p)}
+                      disabled={!editing || notionConfigSaving === p}
+                      style={{
+                        padding: "4px 10px",
+                        background: editing ? "var(--ink-deep)" : "transparent",
+                        color: editing ? "var(--bg-paper)" : "var(--ink-mid)",
+                        border: "1px solid var(--border-soft, rgba(26,26,26,0.10))",
+                        borderRadius: 3,
+                        fontSize: 11,
+                        cursor: editing ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {notionConfigSaving === p ? "..." : "存"}
+                    </button>
+                    <button
+                      onClick={() => ingestPillar(p)}
+                      disabled={!cfg?.notion_database_id || pillarIngesting === p}
+                      style={{
+                        padding: "4px 10px",
+                        background: cfg?.notion_database_id ? PILLAR_COLOR[p] : "var(--border-soft, rgba(26,26,26,0.10))",
+                        color: cfg?.notion_database_id ? "var(--bg-paper)" : "var(--ink-mid)",
+                        border: "none",
+                        borderRadius: 3,
+                        fontSize: 11,
+                        cursor: cfg?.notion_database_id ? "pointer" : "not-allowed",
+                      }}
+                      title={`最後同步:${lastSync}`}
+                    >
+                      {pillarIngesting === p ? "..." : "同步"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {triggerResult && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 12, padding: 12, background: "var(--bg-paper)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-jetbrains-mono)", color: "var(--ink-mid)", whiteSpace: "pre-wrap", maxHeight: 200, overflow: "auto" }}>
-              {JSON.stringify(triggerResult.results, null, 2)}
+              {JSON.stringify(triggerResult.results || triggerResult, null, 2)}
             </motion.div>
           )}
         </div>
@@ -219,9 +349,41 @@ export default function KnowledgeEngineEditor() {
               <div style={{ fontFamily: "var(--font-noto-serif-tc)", fontSize: 22, color: "var(--ink-deep)", marginTop: 4, marginBottom: 12, letterSpacing: 1 }}>
                 {active.title || "(無標題)"}
               </div>
-              <div style={{ fontSize: 11, color: "var(--ink-mid)", fontFamily: "var(--font-jetbrains-mono)", marginBottom: 24 }}>
+              <div style={{ fontSize: 11, color: "var(--ink-mid)", fontFamily: "var(--font-jetbrains-mono)", marginBottom: 16 }}>
                 {active.source_type} · {active.source_id} · {active.token_count || 0} tokens · {active.has_embedding ? "✓ embedded" : "✗ no embedding"}
               </div>
+
+              {/* F3 (2026-04-30 第三輪):pillar dropdown 手動 re-tag */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, padding: "10px 14px", background: "var(--bg-elev)", borderRadius: 4, border: `1px solid ${PILLAR_COLOR[active.pillar || "common"]}` }}>
+                <div style={{ fontSize: 10, color: "var(--ink-mid)", letterSpacing: 2, fontWeight: 600 }}>池</div>
+                <select
+                  value={active.pillar || "common"}
+                  onChange={(e) => updateChunkPillar(active.id, e.target.value as Pillar)}
+                  disabled={savingPillar}
+                  style={{
+                    padding: "6px 10px",
+                    background: "var(--bg-paper)",
+                    border: `1px solid ${PILLAR_COLOR[active.pillar || "common"]}`,
+                    color: PILLAR_COLOR[active.pillar || "common"],
+                    borderRadius: 3,
+                    fontSize: 13,
+                    fontFamily: "var(--font-noto-serif-tc)",
+                    cursor: savingPillar ? "wait" : "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  {(["hr", "legal", "sales", "common"] as Pillar[]).map((p) => (
+                    <option key={p} value={p}>{PILLAR_LABEL[p]}</option>
+                  ))}
+                </select>
+                {savingPillar && <span style={{ fontSize: 11, color: "var(--ink-mid)" }}>儲存中…</span>}
+                {active.allowed_roles && active.allowed_roles.length > 0 && (
+                  <span style={{ fontSize: 10, color: "var(--ink-mid)", marginLeft: "auto" }}>
+                    ACL: {active.allowed_roles.join(", ")}
+                  </span>
+                )}
+              </div>
+
               <div style={{ padding: 16, background: "var(--bg-elev)", borderRadius: 4, fontSize: 13, color: "var(--ink-deep)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
                 {active.content_preview}
                 {(active.content_preview || "").length >= 300 && <span style={{ color: "var(--ink-mid)" }}>… (預覽前 300 字)</span>}

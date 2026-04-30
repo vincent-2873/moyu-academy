@@ -21,13 +21,14 @@ import CommandCenterPanel from "@/components/admin/CommandCenterTab";
 import StampRulesEditor from "@/components/admin/StampRulesEditor";
 import AssetsUploader from "@/components/admin/AssetsUploader";
 import EmployeesFromMetabaseTab from "@/components/admin/EmployeesFromMetabaseTab";
+import SystemRunLogPanel from "@/components/admin/SystemRunLogPanel";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "line-templates" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub" | "strategy" | "group" | "predict" | "command-center" | "stamp-rules" | "assets" | "employees-sync";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "line-templates" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub" | "strategy" | "group" | "predict" | "command-center" | "stamp-rules" | "assets" | "employees-sync" | "run-log";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -296,6 +297,7 @@ export default function AdminPage() {
     { id: "stamp-rules", label: "印章規則", icon: "🪶" },
     { id: "assets", label: "資產上傳", icon: "🎬" },
     { id: "employees-sync", label: "Metabase 員工同步", icon: "📥" },
+    { id: "run-log", label: "運行紀錄", icon: "📜" },
   ];
 
   // 分組樹狀結構 — 取代 9 tab 平鋪
@@ -305,7 +307,7 @@ export default function AdminPage() {
     { label: "三大戰線", children: ["sales", "automation", "legal", "rules", "kpi"] },
     { label: "養成",   children: ["training", "stamp-rules", "assets", "people", "people-edit", "employees-sync"] },
     { label: "通訊",   children: ["messaging", "line-templates"] },
-    { label: "系統",   children: ["setup", "health", "cron", "knowledge", "org", "system-hub"] },
+    { label: "系統",   children: ["setup", "health", "cron", "knowledge", "org", "system-hub", "run-log"] },
   ];
 
   const currentScope = COMPANY_OPTIONS.find((c) => c.id === scope) || COMPANY_OPTIONS[0];
@@ -525,6 +527,7 @@ export default function AdminPage() {
           {tab === "stamp-rules" && <StampRulesEditor />}
           {tab === "assets" && <AssetsUploader />}
           {tab === "employees-sync" && <EmployeesFromMetabaseTab />}
+          {tab === "run-log" && <SystemRunLogPanel />}
         </div>
       </main>
     </div>
