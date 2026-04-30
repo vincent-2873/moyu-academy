@@ -103,12 +103,15 @@ export async function GET(req: NextRequest) {
   const prevMonthStart = prevMonthEnd.slice(0, 8) + "01";
 
   // Pull all data in one query: date >= prevMonthStart
+  // 加 .range(0, 99999) 避免 Supabase 預設 1000 row 截斷(60 天 × 50 人 × 多 brand > 1000)
+  // (Vincent 2026-04-30 反饋:thisMonth 顯示 14k 通但 Strategy 顯示 60k 通 = 截斷 bug)
   const { data: rows, error } = await supabase
     .from("sales_metrics_daily")
     .select(
       "date, email, salesperson_id, name, team, brand, calls, connected, raw_appointments, appointments_show, closures, net_revenue_daily, level"
     )
-    .gte("date", prevMonthStart);
+    .gte("date", prevMonthStart)
+    .range(0, 99999);
 
   if (error) {
     return Response.json({ ok: false, error: error.message }, { status: 500 });

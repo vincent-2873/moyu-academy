@@ -14,11 +14,12 @@ export async function GET() {
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const remainingDays = daysInMonth - dayOfMonth;
 
-  // 本月已實現 + 線性預估
+  // 本月已實現 + 線性預估(加 .range 防 1000 row 截斷,2026-04-30 fix)
   const { data: thisMonth } = await sb
     .from("sales_metrics_daily")
     .select("date, net_revenue_daily, closures, raw_appointments, brand, email")
-    .gte("date", monthStart);
+    .gte("date", monthStart)
+    .range(0, 99999);
 
   const monthRev = (thisMonth || []).reduce((s, r: any) => s + Number(r.net_revenue_daily || 0), 0);
   const monthClosures = (thisMonth || []).reduce((s, r: any) => s + Number(r.closures || 0), 0);
@@ -30,7 +31,8 @@ export async function GET() {
   const { data: lastWeek } = await sb
     .from("sales_metrics_daily")
     .select("date, net_revenue_daily")
-    .gte("date", new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10));
+    .gte("date", new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10))
+    .range(0, 99999);
   const dailyValues = (lastWeek || []).map((r: any) => Number(r.net_revenue_daily || 0));
   const mean = dailyValues.length > 0 ? dailyValues.reduce((s, v) => s + v, 0) / dailyValues.length : 0;
   const variance = dailyValues.length > 0 ? dailyValues.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / dailyValues.length : 0;

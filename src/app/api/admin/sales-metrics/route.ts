@@ -309,7 +309,8 @@ export async function GET(req: NextRequest) {
     .gte("date", start)
     .lte("date", end)
     .order("net_revenue_daily", { ascending: false })
-    .order("calls", { ascending: false });
+    .order("calls", { ascending: false })
+    .range(0, 99999);   // 防 Supabase 預設 1000 row 截斷(2026-04-30 fix)
 
   if (brand) query = query.eq("brand", brand);
   // 套用 caller scope:brand_manager 只看自己 brand,team_leader 只看自己 team
