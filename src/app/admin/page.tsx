@@ -12,6 +12,7 @@ import HealthDashboard from "@/components/admin/HealthDashboard";
 import HealthStrip from "@/components/admin/HealthStrip";
 import CronConfigEditor from "@/components/admin/CronConfigEditor";
 import KnowledgeEngineEditor from "@/components/admin/KnowledgeEngineEditor";
+import SidebarSetupProgress from "@/components/admin/SidebarSetupProgress";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
@@ -411,6 +412,9 @@ export default function AdminPage() {
             </div>
           ))}
         </nav>
+        {/* Setup 完成度 mini progress */}
+        <SidebarSetupProgress onClick={() => setTab("setup")} />
+
         <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border-soft, rgba(26,26,26,0.10))", display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--bg-elev, rgba(247,241,227,0.85))", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontFamily: "var(--font-noto-serif-tc, serif)", color: "var(--ink-deep, #1a1a1a)" }}>
             {(session.name || "?")[0]}
