@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 /**
  * 個人深度分析 — 一個業務的 15 個月完整活動報告
@@ -47,6 +48,8 @@ function stdDev(arr: number[]): number {
 export async function GET(req: NextRequest) {
   const email = req.nextUrl.searchParams.get("email");
   if (!email) return Response.json({ ok: false, error: "email required" }, { status: 400 });
+  const authErr = requireCallerEmail(req, email);
+  if (authErr) return authErr;
 
   const supabase = getSupabaseAdmin();
 

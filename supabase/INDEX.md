@@ -1,10 +1,11 @@
 # Supabase Migration Index
 
-> 55 個 `.sql` 檔案的順序、用途、狀態。
+> 56 個 `.sql` 檔案的順序、用途、狀態。
 > Apply 方式:`gh workflow run "Apply Supabase Migration" --ref main -f sql_file=<filename>`
 > 之後若想接 Supabase CLI,要 batch rename 加 `YYYYMMDDHHMMSS_` prefix 再放 `supabase/migrations/`。
 >
-> 生成時間:2026-04-30 (依 git log 第一次出現時序排)
+> 生成時間:2026-04-30(依 git log 第一次出現時序排)
+> 最後更新:2026-04-30 接手 + Vincent 6 件 Metabase 反饋 sprint(加 B6 backfill verify SQL)
 
 ---
 
@@ -116,6 +117,7 @@
 | `supabase-migration-VERIFY-metabase.sql` | Metabase 同步 verify |
 | `supabase-verify-metabase-sync.sql` | sales_metrics_daily by brand 統計 |
 | `supabase-verify-stats-overview.sql` | 全方位 stats 單 SELECT |
+| `supabase-verify-backfill-coverage.sql` | **2026-04-30 加** B6 反饋:484 天 100 天 backfill 缺口分析(工作日 vs 週末 vs 實際 data days)|
 
 ---
 

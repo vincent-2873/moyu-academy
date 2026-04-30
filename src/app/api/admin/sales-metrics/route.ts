@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminScope, applyScopeFilter } from "@/lib/admin-scope";
 
 /**
  * 後台「業務數據」頁面讀取 API
@@ -255,6 +256,11 @@ function computeRates(m: Metric): FunnelRates {
 }
 
 export async function GET(req: NextRequest) {
+  // Admin scope filter — brand_manager 只看自己 brand,team_leader 只看自己 team
+  // (Vincent 2026-04-30 安全 #2 + PERMISSIONS.md TODO)
+  const scope = await getAdminScope(req);
+  if (!scope) return NextResponse.json({ error: "Unauthorized — admin session required" }, { status: 401 });
+
   const brand = req.nextUrl.searchParams.get("brand");
   const period = (req.nextUrl.searchParams.get("period") || "month") as
     | "day"
@@ -306,6 +312,9 @@ export async function GET(req: NextRequest) {
     .order("calls", { ascending: false });
 
   if (brand) query = query.eq("brand", brand);
+  // 套用 caller scope:brand_manager 只看自己 brand,team_leader 只看自己 team
+  // 若 caller 已給 ?brand= 但跟 scope 衝突 → scope 優先(安全)
+  query = applyScopeFilter(query, scope);
 
   const { data: rawRows, error } = await query;
   if (error) {

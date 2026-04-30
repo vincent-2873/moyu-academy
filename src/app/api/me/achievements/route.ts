@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 /**
  * 成就系統 — 主要服務新人，但老人也能拿到長期里程碑
@@ -43,6 +44,8 @@ export async function GET(req: NextRequest) {
   if (!email) {
     return Response.json({ ok: false, error: "email required" }, { status: 400 });
   }
+  const authErr = requireCallerEmail(req, email);
+  if (authErr) return authErr;
 
   const supabase = getSupabaseAdmin();
 

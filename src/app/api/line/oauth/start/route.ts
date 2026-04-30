@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
   // 需要從 x-forwarded-* headers 抓原始 public URL
   const fwdHost = req.headers.get("x-forwarded-host") || req.headers.get("host") || url.host;
   const fwdProto = req.headers.get("x-forwarded-proto") || url.protocol.replace(":", "") || "https";
-  const origin = process.env.PUBLIC_APP_URL || `${fwdProto}://${fwdHost}`;
+  const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.PUBLIC_APP_URL || `${fwdProto}://${fwdHost}`;
   const redirectUri = `${origin}/api/line/oauth/callback`;
 
   const authorizeUrl = new URL("https://access.line.me/oauth2/v2.1/authorize");

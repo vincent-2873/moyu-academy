@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 /**
  * 每日晨報 API — 給業務本人一份「今天要做什麼」的代辦清單
@@ -114,6 +115,8 @@ export async function GET(req: NextRequest) {
   if (!email) {
     return Response.json({ ok: false, error: "email required" }, { status: 400 });
   }
+  const authErr = requireCallerEmail(req, email);
+  if (authErr) return authErr;
 
   const supabase = getSupabaseAdmin();
   const today = todayTaipei();

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 /**
  * 個人復盤對練聊天 API — Claude 吃該業務本人的即時 KPI、規則、落差
@@ -140,6 +141,8 @@ const MODE_SYSTEM: Record<string, string> = {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const email = body.email as string | undefined;
+  const authErr = requireCallerEmail(req, email || null);
+  if (authErr) return authErr;
   const messages = (body.messages || []) as Array<{ role: "user" | "assistant"; content: string }>;
   const mode = (body.mode || "debrief") as "debrief" | "practice" | "objection";
 

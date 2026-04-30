@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 /**
  * 個人業務數據 API（員工自己看自己）
@@ -100,6 +101,8 @@ export async function GET(req: NextRequest) {
   if (!email) {
     return Response.json({ ok: false, error: "email required" }, { status: 400 });
   }
+  const authErr = requireCallerEmail(req, email);
+  if (authErr) return authErr;
 
   const supabase = getSupabaseAdmin();
   const today = todayTaipei();

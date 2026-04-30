@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   const fwdHost = req.headers.get("x-forwarded-host") || req.headers.get("host") || url.host;
   const fwdProto = req.headers.get("x-forwarded-proto") || url.protocol.replace(":", "") || "https";
-  const origin = process.env.PUBLIC_APP_URL || `${fwdProto}://${fwdHost}`;
+  const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.PUBLIC_APP_URL || `${fwdProto}://${fwdHost}`;
   const redirectUri = `${origin}/api/auth/google/callback`;
 
   const authorizeUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");

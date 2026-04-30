@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminScope, ensureOwnerInScope } from "@/lib/admin-scope";
 
 /**
  * v3 Commands API — Claude 每天產出的命令（推給人類員工執行）
@@ -82,6 +83,14 @@ export async function POST(request: NextRequest) {
         { ok: false, error: "owner_email / title 必填" },
         { status: 400 },
       );
+    }
+
+    // 安全 #3:檢查 owner_email 是否在 caller 的 scope 內(brand_manager/team_leader 不可跨 scope 派)
+    // Cron / system-generated commands 走 CRON_SECRET bypass middleware,沒有 admin cookie → scope null → skip check
+    const scope = await getAdminScope(request);
+    if (scope) {
+      const denied = await ensureOwnerInScope(scope, owner_email);
+      if (denied) return denied;
     }
     if (pillar_id && !VALID_PILLARS.includes(pillar_id)) {
       return Response.json(

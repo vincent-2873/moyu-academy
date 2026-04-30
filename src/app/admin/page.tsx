@@ -8380,6 +8380,26 @@ function DailyTrendChart({
 }) {
   if (trend.length === 0) return null;
   const maxRevenue = Math.max(...trend.map((d) => d.net_revenue_daily), 1);
+  // SVG LineChart — Vincent 2026-04-30 反饋:業績趨勢用折線圖
+  const W = 760;          // viewBox width(響應 by 100% width)
+  const H = 180;          // viewBox height
+  const PAD_L = 50;       // 左 padding(Y 軸 label 空間)
+  const PAD_R = 14;
+  const PAD_T = 14;
+  const PAD_B = 28;       // 下 padding(X 軸 date label)
+  const PLOT_W = W - PAD_L - PAD_R;
+  const PLOT_H = H - PAD_T - PAD_B;
+  const N = trend.length;
+  const xAt = (i: number) => PAD_L + (N === 1 ? PLOT_W / 2 : (PLOT_W * i) / (N - 1));
+  const yAt = (v: number) => PAD_T + PLOT_H - (v / maxRevenue) * PLOT_H;
+  const points = trend.map((d, i) => `${xAt(i)},${yAt(d.net_revenue_daily)}`).join(" ");
+  const areaPath = `M ${PAD_L},${PAD_T + PLOT_H} L ${trend.map((d, i) => `${xAt(i)},${yAt(d.net_revenue_daily)}`).join(" L ")} L ${xAt(N - 1)},${PAD_T + PLOT_H} Z`;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((p) => ({
+    y: PAD_T + PLOT_H * (1 - p),
+    label: p === 0 ? "0" : `$${formatMillions(maxRevenue * p)}`,
+  }));
+  // X label 不要每一個都 show(>14 days 隔一個 show)
+  const xLabelStride = N > 14 ? Math.ceil(N / 12) : 1;
   return (
     <div
       style={{
@@ -8391,60 +8411,50 @@ function DailyTrendChart({
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)" }}>📈 業績趨勢</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)" }}>📈 業績趨勢 ({N} 天)</div>
         <div style={{ fontSize: 12, color: "var(--text3)" }}>
           區間合計 <strong style={{ color: "#B8474A" }}>NT${formatMillions(totalRevenue)}</strong>
         </div>
       </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${trend.length}, 1fr)`,
-          gap: 4,
-          alignItems: "end",
-          height: 140,
-          padding: "0 4px",
-        }}
-      >
-        {trend.map((d) => {
-          const pct = Math.max(3, (d.net_revenue_daily / maxRevenue) * 100);
-          return (
-            <div
-              key={d.date}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
-              title={`${d.date}  NT$${formatMillions(d.net_revenue_daily)}  (${d.calls} 通 · ${d.closures} 成交)`}
-            >
-              <div
-                style={{
-                  fontSize: 9,
-                  color: "var(--text3)",
-                  fontWeight: 600,
-                  lineHeight: 1,
-                  height: 12,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {d.net_revenue_daily > 0 ? `$${formatMillions(d.net_revenue_daily)}` : ""}
-              </div>
-              <div
-                style={{
-                  width: "100%",
-                  background: d.net_revenue_daily > 0
-                    ? "linear-gradient(180deg, #B8474A, #be185d)"
-                    : "var(--border)",
-                  borderRadius: 4,
-                  height: `${pct}%`,
-                  minHeight: 3,
-                  transition: "height 0.4s ease",
-                }}
-              />
-              <div style={{ fontSize: 9, color: "var(--text3)", whiteSpace: "nowrap" }}>
-                {d.date.slice(5)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", overflow: "visible" }} role="img" aria-label="業績趨勢折線圖">
+        <defs>
+          <linearGradient id="trendArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#B8474A" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#B8474A" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {/* Y grid + tick labels */}
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={PAD_L} x2={W - PAD_R} y1={t.y} y2={t.y} stroke="var(--border)" strokeWidth={1} strokeDasharray="2 3" opacity={0.6} />
+            <text x={PAD_L - 6} y={t.y + 3} fontSize={10} textAnchor="end" fill="var(--text3)">{t.label}</text>
+          </g>
+        ))}
+        {/* Area fill */}
+        <path d={areaPath} fill="url(#trendArea)" />
+        {/* Line */}
+        <polyline points={points} fill="none" stroke="#B8474A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        {/* Data points + tooltip via title */}
+        {trend.map((d, i) => (
+          <g key={d.date}>
+            <circle cx={xAt(i)} cy={yAt(d.net_revenue_daily)} r={3.5} fill="#B8474A" stroke="var(--card)" strokeWidth={1.5}>
+              <title>{`${d.date}  NT$${formatMillions(d.net_revenue_daily)}  (${d.calls} 通 · ${d.closures} 成交)`}</title>
+            </circle>
+            {/* Highlight peak value */}
+            {d.net_revenue_daily === maxRevenue && d.net_revenue_daily > 0 && (
+              <text x={xAt(i)} y={yAt(d.net_revenue_daily) - 8} fontSize={10} fontWeight={700} textAnchor="middle" fill="#B8474A">
+                ${formatMillions(d.net_revenue_daily)}
+              </text>
+            )}
+          </g>
+        ))}
+        {/* X axis labels */}
+        {trend.map((d, i) => i % xLabelStride === 0 && (
+          <text key={`x-${d.date}`} x={xAt(i)} y={H - 8} fontSize={10} textAnchor="middle" fill="var(--text3)">
+            {d.date.slice(5)}
+          </text>
+        ))}
+      </svg>
     </div>
   );
 }
@@ -8480,11 +8490,17 @@ interface AttentionPerson {
   suggestedTasks: Array<{ title: string; detail: string; severity: "critical" | "high" | "normal" }>;
 }
 
+// 單人單日 calls 上限(超過視為資料異常,如 bot / 累積資料 / 機械 dial,不算量多質差)
+const SINGLE_DAY_CALLS_ANOMALY = 500;
+const LOW_QUALITY_MIN_CALLS = 100;
+const LOW_QUALITY_MIN_CONNECT_RATE = 0.05;
+
 function detectAttention(rows: SalesMetricsRow[]): AttentionPerson[] {
   const list: AttentionPerson[] = [];
   for (const r of rows) {
     const calls = Number(r.calls) || 0;
     const closures = Number(r.closures) || 0;
+    const connected = Number(r.connected) || 0;
     const appointments = Number(r.raw_appointments) || 0;
     const shows = Number(r.appointments_show) || 0;
     const name = r.name || r.email || "(未命名)";
@@ -8507,11 +8523,38 @@ function detectAttention(rows: SalesMetricsRow[]): AttentionPerson[] {
       continue;
     }
 
-    // Rule 2: 通次破百但無成交 (量多質差)
-    if (calls >= 100 && closures === 0) {
+    // Rule 1b: 單日通次 > 500 視為資料異常(unrealistic for 1 person/day)
+    if (calls >= SINGLE_DAY_CALLS_ANOMALY) {
       list.push({
         email, name, team, brand, calls, closures,
-        reason: `打 ${calls} 通 · 0 成交 (量多質差)`,
+        reason: `${calls} 通 (資料異常 — 超過 ${SINGLE_DAY_CALLS_ANOMALY} 通/日,可能 bot/累積/機械 dial)`,
+        severity: "medium",
+        suggestedTasks: [
+          { title: "確認該員工角色", detail: `${name} 一天 ${calls} 通 unrealistic — 是否 call center 分工? 該從 sales_alert_rules 排除`, severity: "high" },
+          { title: "Metabase raw 資料對齊", detail: "去 Metabase 確認 Q1381「按日期」filter 沒有累積進來", severity: "normal" },
+        ],
+      });
+      continue;
+    }
+
+    // Rule 2: 通次 100-500 但無成交 — 用 connect rate 區分「量多質差」vs「lead 死號」
+    if (calls >= LOW_QUALITY_MIN_CALLS && closures === 0) {
+      const connectRate = calls > 0 ? connected / calls : 0;
+      if (connectRate < LOW_QUALITY_MIN_CONNECT_RATE) {
+        list.push({
+          email, name, team, brand, calls, closures,
+          reason: `${calls} 通 · 接通率 ${(connectRate * 100).toFixed(1)}% (lead 死號,不是量多質差)`,
+          severity: "medium",
+          suggestedTasks: [
+            { title: "review lead 來源", detail: "對方根本不接 → 換 lead 名單 / 改打時間 / 換通路", severity: "high" },
+            { title: "確認電話號碼有效", detail: "連接率 < 5% 通常是名單死號,要 review 號碼來源", severity: "normal" },
+          ],
+        });
+        continue;
+      }
+      list.push({
+        email, name, team, brand, calls, closures,
+        reason: `打 ${calls} 通 · 0 成交 · 接通率 ${(connectRate * 100).toFixed(1)}% (量多質差)`,
         severity: "high",
         suggestedTasks: [
           { title: "聽錄音自我診斷", detail: "挑今天 3 通最久的錄音 (超過 3 分鐘)，用戰情官 6 維度打分", severity: "high" },

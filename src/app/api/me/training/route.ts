@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 /**
  * GET /api/me/training?email=xxx
@@ -18,6 +19,8 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const email = url.searchParams.get("email");
   if (!email) return NextResponse.json({ error: "missing email" }, { status: 400 });
+  const authErr = requireCallerEmail(req, email);
+  if (authErr) return authErr;
 
   const sb = getSupabaseAdmin();
 

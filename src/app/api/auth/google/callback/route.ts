@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
 
   const fwdHost = req.headers.get("x-forwarded-host") || req.headers.get("host") || url.host;
   const fwdProto = req.headers.get("x-forwarded-proto") || url.protocol.replace(":", "") || "https";
-  const origin = process.env.PUBLIC_APP_URL || `${fwdProto}://${fwdHost}`;
+  const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.PUBLIC_APP_URL || `${fwdProto}://${fwdHost}`;
 
   if (err) return Response.redirect(`${origin}/?google_oauth_error=${encodeURIComponent(err)}`, 302);
   if (!code || !stateStr) return new Response("missing code or state", { status: 400 });

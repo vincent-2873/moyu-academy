@@ -54,7 +54,40 @@ export async function GET() {
 
   const todayTPE = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
   const latestSyncDate = maxDate?.[0]?.date || null;
-  const daysBehind = latestSyncDate ? Math.floor((new Date(todayTPE).getTime() - new Date(latestSyncDate).getTime()) / 86400000) : null;
+  // 算「應有資料」的 baseline:
+  //   平日 → 上一個 工作日(週六/日 → 週五;週一 → 週五,因為週末沒人上班)
+  //   注意:Metabase Q1381 「今天」可能 LINE 結算延遲到隔天才 finalize,所以 baseline 取「昨天 / 上週五」
+  function isWorkday(dateStr: string): boolean {
+    const dow = new Date(dateStr + "T00:00:00Z").getUTCDay(); // 0=Sun, 6=Sat
+    return dow >= 1 && dow <= 5;
+  }
+  function lastWorkdayBefore(dateStr: string): string {
+    const d = new Date(dateStr + "T00:00:00Z");
+    do {
+      d.setUTCDate(d.getUTCDate() - 1);
+    } while (![1, 2, 3, 4, 5].includes(d.getUTCDay()));
+    return d.toISOString().slice(0, 10);
+  }
+  const expectedLatest = isWorkday(todayTPE) ? lastWorkdayBefore(todayTPE) : lastWorkdayBefore(todayTPE);
+  // daysBehind:相對於「上個工作日」(unless 今天本身是 workday 而 sync 已含今天)
+  let daysBehind: number | null = null;
+  if (latestSyncDate) {
+    if (latestSyncDate >= todayTPE) {
+      daysBehind = 0; // 已 sync 到今天或更新
+    } else if (latestSyncDate >= expectedLatest) {
+      daysBehind = 0; // 已 sync 到上個工作日
+    } else {
+      // 算工作日 gap(扣週末)
+      let gap = 0;
+      const cur = new Date(latestSyncDate + "T00:00:00Z");
+      const target = new Date(expectedLatest + "T00:00:00Z");
+      while (cur < target) {
+        cur.setUTCDate(cur.getUTCDate() + 1);
+        if ([1, 2, 3, 4, 5].includes(cur.getUTCDay())) gap += 1;
+      }
+      daysBehind = gap;
+    }
+  }
 
   return NextResponse.json({
     ok: true,
@@ -66,7 +99,12 @@ export async function GET() {
       distinct_users: emailSet.size,
       xunlian_filtered: xunlianCount,
       days_behind_today: daysBehind,
-      health: daysBehind != null && daysBehind <= 1 ? "healthy" : daysBehind != null && daysBehind <= 3 ? "warning" : "critical",
+      expected_latest_workday: expectedLatest,
+      today_is_workday: isWorkday(todayTPE),
+      health: daysBehind === 0 ? "healthy" : daysBehind != null && daysBehind <= 1 ? "warning" : "critical",
+      note: daysBehind === 0
+        ? `已同步到 ${latestSyncDate} (Metabase 對「今天」可能尚未 finalize,以上個工作日 ${expectedLatest} 為基準)`
+        : `落後 ${daysBehind} 個工作日 (latest=${latestSyncDate} vs 預期=${expectedLatest})`,
     },
     by_brand: Object.entries(brandCount).map(([brand, v]) => ({
       brand,

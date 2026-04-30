@@ -36,6 +36,12 @@ interface AttentionHit {
   suggestedTasks: Array<{ title: string; detail: string; severity: "critical" | "high" | "normal" }>;
 }
 
+// 單人單日 calls 上限(超過視為資料異常,如 bot / 累積資料 / 機械 dial,不算量多質差)
+const SINGLE_DAY_CALLS_ANOMALY_THRESHOLD = 500;
+// 量多質差 calls 範圍:[100, 500],但同時要求 connect_rate >= 5% 才算「真的有打到人但成交不出來」
+const LOW_QUALITY_MIN_CALLS = 100;
+const LOW_QUALITY_MIN_CONNECT_RATE = 0.05;
+
 function detectAttention(rows: Array<Record<string, unknown>>): AttentionHit[] {
   const hits: AttentionHit[] = [];
   for (const r of rows) {
@@ -43,6 +49,7 @@ function detectAttention(rows: Array<Record<string, unknown>>): AttentionHit[] {
     if (!email) continue;
     const calls = Number(r.calls) || 0;
     const closures = Number(r.closures) || 0;
+    const connected = Number(r.connected) || 0;
     const appointments = Number(r.raw_appointments) || 0;
     const shows = Number(r.appointments_show) || 0;
     const name = (r.name as string) || email;
@@ -62,10 +69,38 @@ function detectAttention(rows: Array<Record<string, unknown>>): AttentionHit[] {
       });
       continue;
     }
-    if (calls >= 100 && closures === 0) {
+    // 單日打 500+ 通視為資料異常(單人 unrealistic)— 不算「量多質差」
+    if (calls >= SINGLE_DAY_CALLS_ANOMALY_THRESHOLD) {
       hits.push({
         email, name, team, brand,
-        reason: `${calls} 通 · 0 成交 (量多質差)`,
+        reason: `${calls} 通 (資料異常 — 超過 ${SINGLE_DAY_CALLS_ANOMALY_THRESHOLD} 通/日 unrealistic,可能 bot/累積資料)`,
+        severity: "medium",
+        suggestedTasks: [
+          { title: "確認該員工是否為機械 dial 角色", detail: `Vincent: ${name} 今天 ${calls} 通,如果是 call center 分工(專職撥號) — 應從 sales_alert_rules 排除`, severity: "high" },
+          { title: "Metabase 對 raw 資料是否累積", detail: "去 Metabase 直接 query 看是否「按日期」filter 對齊", severity: "normal" },
+        ],
+      });
+      continue;
+    }
+    if (calls >= LOW_QUALITY_MIN_CALLS && closures === 0) {
+      const connectRate = calls > 0 ? connected / calls : 0;
+      // 加 ratio gate:必須 connect_rate >= 5% 才算「打得到人但成交不出來」
+      // 連接率太低 → 對方根本沒接,不是「量多質差」是「lead 品質差」
+      if (connectRate < LOW_QUALITY_MIN_CONNECT_RATE) {
+        hits.push({
+          email, name, team, brand,
+          reason: `${calls} 通 · 接通率 ${(connectRate * 100).toFixed(1)}% (lead 品質差,不是量多質差)`,
+          severity: "medium",
+          suggestedTasks: [
+            { title: "review lead 來源", detail: "對方根本不接電話 → 換 lead 名單 / 改打時間 / 換通路", severity: "high" },
+            { title: "確認電話號碼有效", detail: "連接率 < 5% 通常是名單死號,要 review 號碼來源", severity: "normal" },
+          ],
+        });
+        continue;
+      }
+      hits.push({
+        email, name, team, brand,
+        reason: `${calls} 通 · 0 成交 · 接通率 ${(connectRate * 100).toFixed(1)}% (量多質差)`,
         severity: "high",
         suggestedTasks: [
           { title: "聽今天 3 通最久的錄音", detail: "挑超過 3 分鐘的通話，用戰情官 6 維度打分，找自己的卡點", severity: "high" },

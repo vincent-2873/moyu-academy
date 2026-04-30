@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 /**
  * 🔮 個人行為深度分析 — Claude 真正理解這個人
@@ -69,6 +70,8 @@ function todayTaipei(): string {
 export async function GET(req: NextRequest) {
   const email = req.nextUrl.searchParams.get("email");
   if (!email) return Response.json({ ok: false, error: "email required" }, { status: 400 });
+  const authErr = requireCallerEmail(req, email);
+  if (authErr) return authErr;
 
   const supabase = getSupabaseAdmin();
   const today = todayTaipei();

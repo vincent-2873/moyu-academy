@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   // 從代理 header 抓真正的 public origin（Zeabur 後端看到的是 localhost:8080）
   const fwdHost = req.headers.get("x-forwarded-host") || req.headers.get("host") || url.host;
   const fwdProto = req.headers.get("x-forwarded-proto") || url.protocol.replace(":", "") || "https";
-  const origin = process.env.PUBLIC_APP_URL || `${fwdProto}://${fwdHost}`;
+  const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.PUBLIC_APP_URL || `${fwdProto}://${fwdHost}`;
 
   if (err) {
     return Response.redirect(

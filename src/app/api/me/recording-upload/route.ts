@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 /**
  * 錄音上傳 + 轉文字 + Claude 分析 — 一次完成
@@ -107,6 +108,12 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabaseAdmin();
 
   try {
+    // 早期 auth 檢查:先取出 email 驗證,失敗直接返回(避免無謂上傳處理)
+    const cloned = req.clone();
+    const earlyForm = await cloned.formData();
+    const earlyEmail = earlyForm.get("email")?.toString() || null;
+    const authErr = requireCallerEmail(req, earlyEmail);
+    if (authErr) return authErr;
     const formData = await req.formData();
     const email = formData.get("email")?.toString();
     const audioFile = formData.get("audio") as File | null;

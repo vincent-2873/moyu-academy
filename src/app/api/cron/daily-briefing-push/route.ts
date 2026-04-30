@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
   const boundUsers = (usersData || []) as Array<{ email: string; name: string; line_user_id: string }>;
 
   // 3. 對每個綁定 LINE 且有今日 sales 資料的 user 推晨報
-  const host = process.env.PUBLIC_APP_URL || "https://moyusales.zeabur.app";
+  const host = process.env.NEXT_PUBLIC_APP_URL || process.env.PUBLIC_APP_URL || "https://moyusales.zeabur.app";
   const results: Array<{ email: string; status: "pushed" | "no_data" | "error"; error?: string }> = [];
 
   for (const u of boundUsers) {

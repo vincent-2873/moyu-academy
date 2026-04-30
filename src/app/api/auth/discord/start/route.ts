@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
   const fwdHost = req.headers.get("x-forwarded-host") || req.headers.get("host") || url.host;
   const fwdProto = req.headers.get("x-forwarded-proto") || url.protocol.replace(":", "") || "https";
-  const origin = process.env.PUBLIC_APP_URL || `${fwdProto}://${fwdHost}`;
+  const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.PUBLIC_APP_URL || `${fwdProto}://${fwdHost}`;
   const redirectUri = `${origin}/api/auth/discord/callback`;
 
   const authorizeUrl = new URL("https://discord.com/oauth2/authorize");

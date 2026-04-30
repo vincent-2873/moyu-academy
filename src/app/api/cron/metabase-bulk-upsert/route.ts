@@ -129,6 +129,11 @@ export async function POST(req: NextRequest) {
     return i !== undefined ? row[i] : null;
   };
 
+  // Funnel sanity: 通次 ≥ 接通 ≥ 邀約 ≥ 出席 ≥ 成交。違反 → cap 下游=上游 + flag in raw.
+  // (Vincent 2026-04-30 反饋:Q1381 raw 39 筆漏斗違反 e.g. 成交>出席,LINE 數位收入實戰系統人工輸入錯誤)
+  let funnelViolations = 0;
+  const violationDetails: Array<{ salesperson_id: string; field: string; from: number; to: number }> = [];
+
   const normalised = rows
     .map((row) => {
       const salesperson_id = str(get(row, "salesperson_id"));
@@ -141,6 +146,35 @@ export async function POST(req: NextRequest) {
       const rawBrand = app_id || "xuemi";
       const brand = BRAND_ALIASES[rawBrand] || rawBrand;
 
+      const calls = numInt(get(row, "calls"));
+      let connected = numInt(get(row, "connected"));
+      let raw_appointments = numInt(get(row, "raw_appointments"));
+      let appointments_show = numInt(get(row, "appointments_show"));
+      let closures = numInt(get(row, "closures"));
+
+      // Cap downstream to upstream (idempotent — if data is OK, no cap)
+      let rowViolated = false;
+      if (connected > calls) {
+        violationDetails.push({ salesperson_id, field: "connected>calls", from: connected, to: calls });
+        connected = calls; rowViolated = true;
+      }
+      if (raw_appointments > connected) {
+        violationDetails.push({ salesperson_id, field: "appointments>connected", from: raw_appointments, to: connected });
+        raw_appointments = connected; rowViolated = true;
+      }
+      if (appointments_show > raw_appointments) {
+        violationDetails.push({ salesperson_id, field: "show>appointments", from: appointments_show, to: raw_appointments });
+        appointments_show = raw_appointments; rowViolated = true;
+      }
+      if (closures > appointments_show) {
+        violationDetails.push({ salesperson_id, field: "closures>show", from: closures, to: appointments_show });
+        closures = appointments_show; rowViolated = true;
+      }
+      if (rowViolated) {
+        funnelViolations += 1;
+        rawObj.__funnel_capped = true;
+      }
+
       return {
         date,
         salesperson_id,
@@ -150,15 +184,15 @@ export async function POST(req: NextRequest) {
         name: str(get(row, "name")),
         email: str(get(row, "email")),
         level: str(get(row, "level")),
-        calls: numInt(get(row, "calls")),
+        calls,
         call_minutes: numInt(get(row, "call_minutes")),
-        connected: numInt(get(row, "connected")),
-        raw_appointments: numInt(get(row, "raw_appointments")),
-        appointments_show: numInt(get(row, "appointments_show")),
+        connected,
+        raw_appointments,
+        appointments_show,
         raw_no_show: numInt(get(row, "raw_no_show")),
         raw_demos: numInt(get(row, "raw_demos")),
         demo_failed: numInt(get(row, "demo_failed")),
-        closures: numInt(get(row, "closures")),
+        closures,
         net_closures_daily: num(get(row, "net_closures_daily")),
         net_closures_contract: num(get(row, "net_closures_contract")),
         gross_revenue: num(get(row, "gross_revenue")),
@@ -171,7 +205,7 @@ export async function POST(req: NextRequest) {
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (normalised.length === 0) {
-    return withCors({ ok: true, date, rows_received: rows.length, rows_normalised: 0, upserted: 0 });
+    return withCors({ ok: true, date, rows_received: rows.length, rows_normalised: 0, upserted: 0, funnel_violations: 0 });
   }
 
   const { error } = await supabase
@@ -182,5 +216,13 @@ export async function POST(req: NextRequest) {
     return withCors({ ok: false, error: error.message, date, attempted: normalised.length }, { status: 500 });
   }
 
-  return withCors({ ok: true, date, rows_received: rows.length, rows_normalised: normalised.length, upserted: normalised.length });
+  return withCors({
+    ok: true,
+    date,
+    rows_received: rows.length,
+    rows_normalised: normalised.length,
+    upserted: normalised.length,
+    funnel_violations: funnelViolations,
+    violation_details: violationDetails.slice(0, 20),
+  });
 }

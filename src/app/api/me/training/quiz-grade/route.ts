@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export async function POST(req: NextRequest) {
   if (!user_email || !module_id || !answers) {
     return NextResponse.json({ error: "missing user_email/module_id/answers" }, { status: 400 });
   }
+  const authErr = requireCallerEmail(req, user_email);
+  if (authErr) return authErr;
   const sb = getSupabaseAdmin();
 
   const [{ data: user }, { data: mod }] = await Promise.all([

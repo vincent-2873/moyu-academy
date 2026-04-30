@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 /**
  * 通話錄音/逐字稿分析 — 業務貼通話逐字稿 → Claude 診斷
@@ -70,6 +71,8 @@ interface AnalysisResponse {
 export async function POST(req: NextRequest): Promise<Response> {
   const body = await req.json();
   const email = body.email as string | undefined;
+  const authErr = requireCallerEmail(req, email || null);
+  if (authErr) return authErr;
   const transcript = body.transcript as string | undefined;
   const scenario = (body.scenario as string | undefined) || "一般通話";
   const customerOutcome = body.customerOutcome as string | undefined;
@@ -173,6 +176,8 @@ ${transcript.trim().slice(0, 8000)}
 export async function GET(req: NextRequest) {
   const email = req.nextUrl.searchParams.get("email");
   if (!email) return Response.json({ ok: false, error: "email required" }, { status: 400 });
+  const authErr = requireCallerEmail(req, email);
+  if (authErr) return authErr;
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase

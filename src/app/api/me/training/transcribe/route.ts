@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { requireCallerEmail } from "@/lib/auth";
 
 /**
  * POST /api/me/training/transcribe
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest) {
     const email = formData.get("email") as string | null;
     const moduleId = formData.get("module_id") as string | null;
     const frameworkHint = formData.get("framework_hint") as string | null;
+    const authErr = requireCallerEmail(req, email);
+    if (authErr) return authErr;
 
     if (!file || !email || !moduleId) {
       return NextResponse.json({ error: "missing file/email/module_id" }, { status: 400 });
