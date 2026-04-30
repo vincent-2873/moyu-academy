@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import BreathingNumber from "@/components/wabi/BreathingNumber";
+import DailyFocus from "@/components/DailyFocus";
 
 const STAGE_NAMES: Record<string, string> = {
   beginner: "研墨者",
@@ -70,7 +71,7 @@ export default function WorkClient() {
           transition={{ duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94] }}
           style={{
             fontFamily: "var(--font-noto-serif-tc)",
-            fontSize: "clamp(80px, 18vw, 200px)",
+            fontSize: "clamp(60px, 14vw, 140px)",
             fontWeight: 600,
             color: "var(--ink-deep)",
             letterSpacing: 12,
@@ -80,6 +81,9 @@ export default function WorkClient() {
         >
           鏡
         </motion.h1>
+
+        {/* 2026-04-30 末段:DailyFocus 員工每天第一個看到的東西 */}
+        {email && <DailyFocus email={email} />}
 
         <motion.div
           initial={{ opacity: 0, y: 12 }}

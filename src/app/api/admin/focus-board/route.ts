@@ -144,6 +144,30 @@ export async function GET() {
     topActionLink = "/admin?tab=strategy";
   }
 
+  // 高層視角額外判斷:對標 + 風險訊號
+  // 對標 1:每員人均週撥打 vs 行業 baseline (200/週 = 健康)
+  const avgCallsPerEmp = sortedEmp.length > 0 ? Math.round(thisWeek.calls / sortedEmp.length) : 0;
+  // 對標 2:轉換率(整體) calls→appts→closes
+  const callToApptRate = thisWeek.calls > 0 ? Math.round((thisWeek.appts / thisWeek.calls) * 1000) / 10 : 0;
+  const apptToCloseRate = thisWeek.appts > 0 ? Math.round((thisWeek.closes / thisWeek.appts) * 100) : 0;
+  // 對標 3:活躍員工 / 在線員工(出席率)
+  const activeEmpCount = sortedEmp.filter((e) => e.calls > 0).length;
+  const attendancePct = sortedEmp.length > 0 ? Math.round((activeEmpCount / sortedEmp.length) * 100) : 0;
+  // 對標 4:Top 1 vs Median(內部 spread,反映團隊穩定度)
+  const sortedRev = sortedEmp.map((e) => e.revenue).filter((v) => v > 0).sort((a, b) => b - a);
+  const median = sortedRev.length > 0 ? sortedRev[Math.floor(sortedRev.length / 2)] : 0;
+  const topToMedianRatio = median > 0 && top1 ? Math.round((top1.revenue / median) * 10) / 10 : 0;
+
+  // 投資人視角風險訊號
+  const risks: { level: "high" | "medium" | "low"; signal: string }[] = [];
+  if (onTrackPct < 70 && dayOfMonth >= 10) risks.push({ level: "high", signal: `月底達標僅 ${onTrackPct}% — 收入風險` });
+  if (attendancePct < 60) risks.push({ level: "high", signal: `${100 - attendancePct}% 員工本週 0 通 — 人力閒置` });
+  if (wow.revenue < -20) risks.push({ level: "high", signal: `本週營收 WoW ${wow.revenue}% — 動能下滑` });
+  if (topToMedianRatio > 5) risks.push({ level: "medium", signal: `Top:Median = ${topToMedianRatio}× — 過度依賴單一 Top` });
+  if (callToApptRate > 0 && callToApptRate < 10) risks.push({ level: "medium", signal: `撥打→邀約 ${callToApptRate}% — 通話品質弱` });
+  if (apptToCloseRate > 0 && apptToCloseRate < 15) risks.push({ level: "medium", signal: `邀約→成交 ${apptToCloseRate}% — 收網能力弱` });
+  if (monthDelta < -10) risks.push({ level: "medium", signal: `本月 vs 上月 ${monthDelta}% — 月成長負` });
+
   return NextResponse.json({
     ok: true,
     generated_at: new Date().toISOString(),
@@ -156,6 +180,19 @@ export async function GET() {
     } : null,
     bottom_count: sortedEmp.filter((e) => e.calls < 30).length,
     employee_count: sortedEmp.length,
+    // 高層視角(投資人 / 董事長 / 總經理):對標 + 風險
+    benchmark: {
+      avg_calls_per_employee: avgCallsPerEmp,
+      avg_calls_baseline: 200,                           // 行業 baseline 200/週/人
+      call_to_appt_rate_pct: callToApptRate,
+      call_to_appt_baseline: 15,                         // 健康 ≥ 15%
+      appt_to_close_rate_pct: apptToCloseRate,
+      appt_to_close_baseline: 25,                        // 健康 ≥ 25%
+      attendance_pct: attendancePct,                     // 員工活躍率
+      top_to_median_ratio: topToMedianRatio,             // 1-3 健康,>5 過度依賴
+      active_employee_count: activeEmpCount,
+    },
+    risks,                                                // 紅黃旗
     month_progress: {
       day_of_month: dayOfMonth, days_in_month: daysInMonth,
       revenue: monthRev, target: monthTarget,

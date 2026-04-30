@@ -86,7 +86,7 @@ export default function DeadlineCountdown({ items, todayStr }: Props) {
 
 function Section({ title, color, bg, items, showOverdue }: { title: string; color: string; bg: string; items: DeadlineItem[]; showOverdue?: boolean }) {
   return (
-    <div style={{ background: bg, border: `1px solid ${color}`, borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
+    <div className="moyu-glass-card" style={{ borderColor: `${color}40`, padding: "10px 14px", marginBottom: 8, background: `${bg}cc` }}>
       <div style={{ fontSize: 12, color, fontWeight: 700, marginBottom: 8 }}>{title}</div>
       <div style={{ display: "grid", gap: 4 }}>
         {items.slice(0, 6).map((it, idx) => (

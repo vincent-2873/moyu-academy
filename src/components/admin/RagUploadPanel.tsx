@@ -139,7 +139,7 @@ export default function RagUploadPanel({ email }: Props) {
       </div>
 
       {/* form */}
-      <div style={{ display: "grid", gap: 16, padding: 24, background: "var(--bg-paper)", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))", borderRadius: 6 }}>
+      <div className="moyu-glass-card" style={{ display: "grid", gap: 16, padding: 24 }}>
         {/* title */}
         <Field label="標題">
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. 業務破冰話術 v2 / 客戶異議處理 SOP" style={inputStyle} />

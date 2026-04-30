@@ -106,7 +106,7 @@ export default function CompanyDeepDive({ brand }: Props) {
       </div>
 
       {/* summary strip */}
-      <div className="cdd-summary" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: 14, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }}>
+      <div className="cdd-summary moyu-glass-card" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: 14 }}>
         <Quick label="員工" value={data.summary.employee_count} />
         <Quick label="本週撥打 / 人均" value={data.summary.week_total_calls} unit={`通(${data.summary.avg_calls_per_employee}/人)`} />
         <Quick label="本週總營收" value={`NT$ ${data.summary.week_total_revenue.toLocaleString()}`} />
@@ -159,7 +159,7 @@ export default function CompanyDeepDive({ brand }: Props) {
       )}
 
       {/* 7-day trend */}
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+      <div className="moyu-glass-card" style={{ padding: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 14 }}>📈 過去 7 天走勢</div>
         <div className="cdd-trend-bars" style={{ display: "flex", gap: 6, alignItems: "flex-end", height: 120 }}>
           {data.trend.map((t) => (
@@ -178,7 +178,7 @@ export default function CompanyDeepDive({ brand }: Props) {
       </div>
 
       {/* employees ranked */}
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+      <div className="moyu-glass-card" style={{ padding: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 12 }}>👥 業務員列表(本週營收排序)</div>
         <div style={{ display: "grid", gap: 4 }}>
           {data.employees.slice(0, 20).map((e, idx) => {
@@ -226,7 +226,7 @@ export default function CompanyDeepDive({ brand }: Props) {
 
       {/* sparrings */}
       {data.sparrings.length > 0 && (
-        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+        <div className="moyu-glass-card" style={{ padding: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 12 }}>🎯 對練紀錄(過去 30 天 Top 20)</div>
           <div style={{ display: "grid", gap: 4 }}>
             {data.sparrings.map((s, i) => (
