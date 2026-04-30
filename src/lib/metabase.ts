@@ -247,10 +247,11 @@ export function normaliseRow(
   // 優先用 row 裡的 app_id，沒有才 fallback
   const app_id = str(get("app_id"));
   const rawBrand = app_id || brand;
-  // Brand alias normalisation — Metabase 源頭用 "sixdigital"，我們系統裡統一叫 "ooschool" (無限學院)
+  // Brand alias — Metabase 源頭用 "sixdigital"，系統內統一叫 "ooschool" (無限學院)
+  // 2026-04-30 修：移除 xlab→aischool alias。Vincent 規格：xlab = X LAB AI 實驗室(實體)，
+  // aischool = 未來學院，**兩個是不同 brand**，不能 merge。
   const BRAND_ALIASES: Record<string, string> = {
     sixdigital: "ooschool",
-    xlab: "aischool", // xlab = AI 實驗室，跟 aischool 都是 AI 未來學院
   };
   const actualBrand = BRAND_ALIASES[rawBrand] || rawBrand;
 

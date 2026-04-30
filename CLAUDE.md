@@ -29,6 +29,17 @@
 | 自訂 domain | **無**（不要假設有 moyu.com、xuemi.co 等） |
 | 歷史脈絡 | **Vercel 時代已於 2026-04-23 結束**。死連結已清、`vercel.json` 已刪（commit `85d52b3`）。Zeabur 不讀 `vercel.json` |
 
+### ⚠️ 已知 OAuth 設定 bug（2026-04-30 發現，待修）
+
+prod env `NEXT_PUBLIC_SUPABASE_URL` 設成了 `nqegeidvsflkwllnfink.supabase.co`（**寰策的 Supabase project**），不是 moyu 自己的 `luynflhuzbcbajycvuet`。導致：
+
+- Google OAuth 登入流程跑完後，access_token 落在 `huance-copilot-app.zeabur.app`，**不是 moyu admin**
+- moyu admin Google 登入路徑無法用，需用 password 登入（vincent@xuemi.co / 0000）
+
+**這不是這個 repo 的 code 問題**（CLAUDE.md 寫死 Supabase ref = `luynflhuzbcbajycvuet`），是 **Zeabur env 被誤改**。可能上一輪 Claude 做寰策 Sprint 1 整合時改錯。
+
+**待修**：Zeabur dashboard → moyu-academy service → env → `NEXT_PUBLIC_SUPABASE_URL` 改回 `https://luynflhuzbcbajycvuet.supabase.co`（同時檢查 `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` 是不是也指向錯 project）。Vincent 自己改，AI agent 不要動 prod env。
+
 ---
 
 ## 技術棧
