@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -14,12 +14,12 @@ export async function GET() {
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const remainingDays = daysInMonth - dayOfMonth;
 
-  // 本月已實現 + 線性預估(加 .range 防 1000 row 截斷,2026-04-30 fix)
-  const { data: thisMonth } = await sb
-    .from("sales_metrics_daily")
-    .select("date, net_revenue_daily, closures, raw_appointments, brand, email")
-    .gte("date", monthStart)
-    .range(0, 99999);
+  // 本月已實現 + 線性預估(fetchAllRows 分頁繞 1000 hard cap)
+  const thisMonth = await fetchAllRows<{ date: string; net_revenue_daily: number; closures: number; raw_appointments: number; brand: string; email: string }>(() =>
+    sb.from("sales_metrics_daily")
+      .select("date, net_revenue_daily, closures, raw_appointments, brand, email")
+      .gte("date", monthStart)
+  );
 
   const monthRev = (thisMonth || []).reduce((s, r: any) => s + Number(r.net_revenue_daily || 0), 0);
   const monthClosures = (thisMonth || []).reduce((s, r: any) => s + Number(r.closures || 0), 0);
@@ -28,11 +28,11 @@ export async function GET() {
   const projectedClosures = Math.round(monthClosures + (monthClosures / Math.max(dayOfMonth, 1)) * remainingDays);
 
   // 抓近 7 天波動算 confidence
-  const { data: lastWeek } = await sb
-    .from("sales_metrics_daily")
-    .select("date, net_revenue_daily")
-    .gte("date", new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10))
-    .range(0, 99999);
+  const lastWeek = await fetchAllRows<{ date: string; net_revenue_daily: number }>(() =>
+    sb.from("sales_metrics_daily")
+      .select("date, net_revenue_daily")
+      .gte("date", new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10))
+  );
   const dailyValues = (lastWeek || []).map((r: any) => Number(r.net_revenue_daily || 0));
   const mean = dailyValues.length > 0 ? dailyValues.reduce((s, v) => s + v, 0) / dailyValues.length : 0;
   const variance = dailyValues.length > 0 ? dailyValues.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / dailyValues.length : 0;

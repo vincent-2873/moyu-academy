@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminScope, applyScopeFilter } from "@/lib/admin-scope";
 
@@ -306,25 +306,21 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabaseAdmin();
 
-  let query = supabase
-    .from("sales_metrics_daily")
-    .select("*")
-    .gte("date", start)
-    .lte("date", end)
-    .order("net_revenue_daily", { ascending: false })
-    .order("calls", { ascending: false })
-    .range(0, 99999);   // 防 Supabase 預設 1000 row 截斷(2026-04-30 fix)
-
-  if (brand) query = query.eq("brand", brand);
-  // 套用 caller scope:brand_manager 只看自己 brand,team_leader 只看自己 team
-  // 若 caller 已給 ?brand= 但跟 scope 衝突 → scope 優先(安全)
-  query = applyScopeFilter(query, scope);
-
-  const { data: rawRows, error } = await query;
-  if (error) {
-    return Response.json({ error: error.message }, { status: 500 });
-  }
-  const typedRows = (rawRows || []) as Row[];
+  // fetchAllRows 分頁繞 Supabase Postgrest db-max-rows=1000 hard cap
+  // (Vincent 2026-04-30 反饋,跟 Strategy 數字對不上 = 1000 row 截斷)
+  const typedRows = await fetchAllRows<Row>(() => {
+    let query = supabase
+      .from("sales_metrics_daily")
+      .select("*")
+      .gte("date", start)
+      .lte("date", end)
+      .order("net_revenue_daily", { ascending: false })
+      .order("calls", { ascending: false });
+    if (brand) query = query.eq("brand", brand);
+    // 套用 caller scope:brand_manager 只看自己 brand,team_leader 只看自己 team
+    query = applyScopeFilter(query, scope);
+    return query;
+  });
 
   // 若跨多天（週/月），依 salesperson_id 合併（累加）
   const bySalesperson = new Map<string, Row>();

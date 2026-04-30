@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
@@ -105,21 +105,17 @@ export async function GET(req: NextRequest) {
   const prevMonthEnd = daysAgo(monthStart, 1);
   const prevMonthStart = prevMonthEnd.slice(0, 8) + "01";
 
-  // Pull all data in one query: date >= prevMonthStart
-  // 加 .range(0, 99999) 避免 Supabase 預設 1000 row 截斷(60 天 × 50 人 × 多 brand > 1000)
+  // Pull all data: date >= prevMonthStart
+  // 用 fetchAllRows 分頁繞過 Supabase Postgrest db-max-rows=1000 hard cap
   // (Vincent 2026-04-30 反饋:thisMonth 顯示 14k 通但 Strategy 顯示 60k 通 = 截斷 bug)
-  const { data: rows, error } = await supabase
-    .from("sales_metrics_daily")
-    .select(
-      "date, email, salesperson_id, name, team, brand, calls, connected, raw_appointments, appointments_show, closures, net_revenue_daily, level"
-    )
-    .gte("date", prevMonthStart)
-    .range(0, 99999);
-
-  if (error) {
-    return Response.json({ ok: false, error: error.message }, { status: 500 });
-  }
-  const allRows = (rows || []) as Array<Record<string, unknown>>;
+  const allRows = await fetchAllRows<Record<string, unknown>>(() =>
+    supabase
+      .from("sales_metrics_daily")
+      .select(
+        "date, email, salesperson_id, name, team, brand, calls, connected, raw_appointments, appointments_show, closures, net_revenue_daily, level"
+      )
+      .gte("date", prevMonthStart)
+  );
 
   // Partition by period
   const todayRows = allRows.filter((r) => r.date === today);

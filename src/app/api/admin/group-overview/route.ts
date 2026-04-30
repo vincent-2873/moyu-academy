@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -23,20 +23,19 @@ export async function GET() {
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
 
-  // 各品牌本月營收 + closures
-  // 加 .range 防 1000 row 截斷(2026-04-30 fix)
-  const { data: thisMonth } = await sb
-    .from("sales_metrics_daily")
-    .select("brand, net_revenue_daily, closures, raw_appointments, calls")
-    .gte("date", monthStart)
-    .range(0, 99999);
+  // 各品牌本月營收 + closures (fetchAllRows 分頁繞 1000 hard cap)
+  const thisMonth = await fetchAllRows<{ brand: string; net_revenue_daily: number; closures: number; raw_appointments: number; calls: number }>(() =>
+    sb.from("sales_metrics_daily")
+      .select("brand, net_revenue_daily, closures, raw_appointments, calls")
+      .gte("date", monthStart)
+  );
 
-  const { data: lastMonth } = await sb
-    .from("sales_metrics_daily")
-    .select("brand, net_revenue_daily")
-    .gte("date", lastMonthStart)
-    .lte("date", lastMonthEnd)
-    .range(0, 99999);
+  const lastMonth = await fetchAllRows<{ brand: string; net_revenue_daily: number }>(() =>
+    sb.from("sales_metrics_daily")
+      .select("brand, net_revenue_daily")
+      .gte("date", lastMonthStart)
+      .lte("date", lastMonthEnd)
+  );
 
   // 各品牌 user 計數
   const { data: usersByBrand } = await sb

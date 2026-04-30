@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -13,12 +13,16 @@ export async function GET() {
   const { data: maxDate } = await sb.from("sales_metrics_daily").select("date").order("date", { ascending: false }).limit(1);
   const { data: minDate } = await sb.from("sales_metrics_daily").select("date").order("date", { ascending: true }).limit(1);
 
-  // 統計各 brand 數量(加 .range 防 1000 row 截斷,2026-04-30 fix)
-  const { data: byBrandRaw } = await sb.from("sales_metrics_daily").select("brand, date").range(0, 99999);
+  // 統計各 brand 數量(fetchAllRows 分頁繞 1000 hard cap)
+  const byBrandRaw = await fetchAllRows<{ brand: string; date: string }>(() =>
+    sb.from("sales_metrics_daily").select("brand, date")
+  );
   const brandCount: Record<string, { rows: number; latest: string; users: Set<string> }> = {};
 
   // 統計 distinct emails
-  const { data: emailRows } = await sb.from("sales_metrics_daily").select("email, name, brand").not("email", "is", null).range(0, 99999);
+  const emailRows = await fetchAllRows<{ email: string; name: string; brand: string }>(() =>
+    sb.from("sales_metrics_daily").select("email, name, brand").not("email", "is", null)
+  );
   const emailSet = new Set<string>();
   let xunlianCount = 0;
   for (const r of emailRows || []) {

@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -14,24 +14,24 @@ export async function GET() {
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
 
   // 北極星 = 本月總營收
-  // 加 .range(0,99999) 避免 1000 row 截斷(2026-04-30 fix)
-  const { data: thisMonth } = await sb
-    .from("sales_metrics_daily")
-    .select("net_revenue_daily, raw_appointments, closures, calls")
-    .gte("date", monthStart)
-    .range(0, 99999);
+  // fetchAllRows 分頁繞過 1000 row hard cap(2026-04-30 fix)
+  const thisMonth = await fetchAllRows<{ net_revenue_daily: number; raw_appointments: number; closures: number; calls: number }>(() =>
+    sb.from("sales_metrics_daily")
+      .select("net_revenue_daily, raw_appointments, closures, calls")
+      .gte("date", monthStart)
+  );
   const monthRevenue = (thisMonth || []).reduce((s, r: any) => s + (Number(r.net_revenue_daily) || 0), 0);
   const monthClosures = (thisMonth || []).reduce((s, r: any) => s + (Number(r.closures) || 0), 0);
   const monthCalls = (thisMonth || []).reduce((s, r: any) => s + (Number(r.calls) || 0), 0);
   const monthAppts = (thisMonth || []).reduce((s, r: any) => s + (Number(r.raw_appointments) || 0), 0);
 
   // 上月對比
-  const { data: lastMonth } = await sb
-    .from("sales_metrics_daily")
-    .select("net_revenue_daily")
-    .gte("date", lastMonthStart)
-    .lte("date", lastMonthEnd)
-    .range(0, 99999);
+  const lastMonth = await fetchAllRows<{ net_revenue_daily: number }>(() =>
+    sb.from("sales_metrics_daily")
+      .select("net_revenue_daily")
+      .gte("date", lastMonthStart)
+      .lte("date", lastMonthEnd)
+  );
   const lastMonthRevenue = (lastMonth || []).reduce((s, r: any) => s + (Number(r.net_revenue_daily) || 0), 0);
 
   // 線性預估到月底
@@ -62,11 +62,11 @@ export async function GET() {
 
   // LTV/CAC(粗算:近 6 個月 ARPU × 平均存活 / 招聘成本)
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString().slice(0, 10);
-  const { data: half } = await sb
-    .from("sales_metrics_daily")
-    .select("net_revenue_daily, closures")
-    .gte("date", sixMonthsAgo)
-    .range(0, 99999);
+  const half = await fetchAllRows<{ net_revenue_daily: number; closures: number }>(() =>
+    sb.from("sales_metrics_daily")
+      .select("net_revenue_daily, closures")
+      .gte("date", sixMonthsAgo)
+  );
   const halfRev = (half || []).reduce((s, r: any) => s + (Number(r.net_revenue_daily) || 0), 0);
   const halfClosures = (half || []).reduce((s, r: any) => s + (Number(r.closures) || 0), 0);
   const arpu = halfClosures > 0 ? Math.round(halfRev / halfClosures) : 0;
