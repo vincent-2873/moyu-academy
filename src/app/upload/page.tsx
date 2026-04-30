@@ -136,7 +136,17 @@ export default function UploadPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-paper, #f7f1e3)", padding: "40px 20px" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-paper, #f7f1e3)", padding: "32px 16px" }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .upload-pillar-row { flex-wrap: wrap !important; gap: 6px !important; }
+          .upload-pillar-row button { font-size: 11px !important; padding: 5px 10px !important; }
+          .upload-mode-row { flex-wrap: wrap !important; gap: 6px !important; }
+          .upload-mode-row button { font-size: 11px !important; padding: 6px 12px !important; flex: 1; min-width: 0; }
+          .upload-form-card { padding: 16px !important; gap: 12px !important; }
+          .upload-submit-btn { font-size: 14px !important; padding: 12px 20px !important; }
+        }
+      `}</style>
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ fontSize: 11, color: "var(--ink-mid)", letterSpacing: 4, marginBottom: 12, fontWeight: 600 }}>
           STAFF · KNOWLEDGE UPLOAD
@@ -160,7 +170,7 @@ export default function UploadPage() {
         )}
 
         {/* mode toggle */}
-        <div className="flex gap-2 mb-6 flex-wrap">
+        <div className="upload-mode-row flex gap-2 mb-6 flex-wrap">
           <ModeChip label="📝 純文字" active={mode === "text"} onClick={() => setMode("text")} />
           <ModeChip label="📁 檔案" active={mode === "file"} onClick={() => setMode("file")} />
           <ModeChip label="🔒 我自己用(私池)" active={mode === "self"} onClick={() => setMode("self")} />
@@ -173,7 +183,7 @@ export default function UploadPage() {
         )}
 
         {/* form */}
-        <div style={{ display: "grid", gap: 16, padding: 24, background: "var(--bg-elev, rgba(247,241,227,0.85))", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))", borderRadius: 6 }}>
+        <div className="upload-form-card" style={{ display: "grid", gap: 16, padding: 24, background: "var(--bg-elev, rgba(247,241,227,0.85))", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))", borderRadius: 6 }}>
           <Field label="標題">
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. 與客戶 A 第 3 通異議處理 / 招聘 EP4 練習" style={inputStyle} />
           </Field>
@@ -210,7 +220,7 @@ export default function UploadPage() {
 
           {mode !== "self" && (
             <Field label="池 PILLAR">
-              <div className="flex gap-2 flex-wrap">
+              <div className="upload-pillar-row flex gap-2 flex-wrap">
                 {(["hr", "sales", "legal", "common"] as Pillar[]).map((p) => (
                   <button
                     key={p}
@@ -256,6 +266,7 @@ export default function UploadPage() {
             whileTap={{ scale: submitting ? 1 : 0.98 }}
             onClick={submit}
             disabled={submitting}
+            className="upload-submit-btn"
             style={{
               padding: "14px 28px",
               background: submitting ? "var(--border-soft, rgba(26,26,26,0.10))" : "var(--accent-red, #b91c1c)",

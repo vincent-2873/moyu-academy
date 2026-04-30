@@ -96,17 +96,76 @@ export async function GET(req: NextRequest) {
       created_at: s.created_at,
     }));
 
+  // 5. 員工分群(從人類視角:看到要立刻知道哪批人需要關注)
+  //   領跑者:revenue ≥ top 30%
+  //   中堅:30%~70%
+  //   落後:bottom 30%(且 active_days ≥ 3 才算)
+  //   隱形:active_days < 3(本週幾乎沒打卡)
+  const sortedByRev = [...employeesEnriched].sort((a: any, b: any) => b.week_revenue - a.week_revenue);
+  const totalEmp = sortedByRev.length;
+  const top30 = Math.max(1, Math.ceil(totalEmp * 0.3));
+  const bottom30 = Math.max(1, Math.ceil(totalEmp * 0.3));
+  const groups = {
+    leaders: sortedByRev.slice(0, top30).filter((e: any) => e.active_days_7d >= 3),
+    middle: sortedByRev.slice(top30, totalEmp - bottom30).filter((e: any) => e.active_days_7d >= 3),
+    laggers: sortedByRev.slice(totalEmp - bottom30).filter((e: any) => e.active_days_7d >= 3),
+    invisible: sortedByRev.filter((e: any) => e.active_days_7d < 3),
+  };
+
+  // 6. 該關注的人(自動偵測)
+  //   - 量多質差:calls ≥ 210 但 closes = 0
+  //   - 邀約墜崖:appts > 0 但 close 比例 < 5%
+  //   - 突然消失:active_days_7d ≤ 1(週初打過後沒再打)
+  //   - top performer 連續沒打卡:exclude
+  const concerns: Array<{ email: string; name: string; reason: string; severity: "critical" | "warning" }> = [];
+  for (const e of employeesEnriched as any[]) {
+    if (e.active_days_7d <= 1 && e.week_calls > 0) {
+      concerns.push({ email: e.email, name: e.name, reason: `本週只打 ${e.active_days_7d} 天卡 (${e.week_calls} 通) — 突然消失?`, severity: "critical" });
+    } else if (e.week_calls >= 210 && e.week_closes === 0) {
+      concerns.push({ email: e.email, name: e.name, reason: `${e.week_calls} 通 0 成交 — 量到質沒到`, severity: "warning" });
+    } else if (e.week_appts > 5 && e.week_closes === 0) {
+      concerns.push({ email: e.email, name: e.name, reason: `${e.week_appts} 邀約 0 成交 — 收網問題`, severity: "warning" });
+    }
+  }
+  // dedup
+  const seen = new Set();
+  const concernsDedup = concerns.filter((c) => seen.has(c.email) ? false : seen.add(c.email));
+
+  // 7. brand-level diagnosis
+  const totalCallsBrand = employeesEnriched.reduce((s, e: any) => s + e.week_calls, 0);
+  const totalRevBrand = employeesEnriched.reduce((s, e: any) => s + e.week_revenue, 0);
+  const avgCallsPerEmp = totalEmp > 0 ? Math.round(totalCallsBrand / totalEmp) : 0;
+  let diagnosis = "";
+  if (totalEmp === 0) diagnosis = "🚫 此 brand 沒任何在線業務員";
+  else if (groups.invisible.length / totalEmp > 0.3) diagnosis = `⚠️ ${Math.round((groups.invisible.length / totalEmp) * 100)}% 員工本週未活躍 — 需點名`;
+  else if (concernsDedup.length / totalEmp > 0.3) diagnosis = `🟠 ${concernsDedup.length} 位需特別關注(占 ${Math.round((concernsDedup.length / totalEmp) * 100)}%)`;
+  else if (avgCallsPerEmp < 100) diagnosis = `📞 平均每人本週 ${avgCallsPerEmp} 通 — 量還沒到 baseline`;
+  else if (groups.leaders.length > 0) diagnosis = `✅ 領跑者 ${groups.leaders.length} 位(${groups.leaders[0].name}領頭) · 平均 ${avgCallsPerEmp} 通/人`;
+  else diagnosis = `📊 整體運作中(${avgCallsPerEmp} 通/人均)`;
+
   return NextResponse.json({
     ok: true,
     brand,
     employees: employeesEnriched,
     trend,
     sparrings,
+    groups: {
+      leaders: groups.leaders.map((e: any) => ({ email: e.email, name: e.name, week_revenue: e.week_revenue, week_calls: e.week_calls })),
+      middle_count: groups.middle.length,
+      laggers: groups.laggers.map((e: any) => ({ email: e.email, name: e.name, week_revenue: e.week_revenue, week_calls: e.week_calls, active_days_7d: e.active_days_7d })),
+      invisible: groups.invisible.map((e: any) => ({ email: e.email, name: e.name, active_days_7d: e.active_days_7d })),
+    },
+    concerns: concernsDedup,
+    diagnosis,
     summary: {
-      employee_count: employeesEnriched.length,
-      week_total_revenue: employeesEnriched.reduce((s, e: any) => s + e.week_revenue, 0),
-      week_total_calls: employeesEnriched.reduce((s, e: any) => s + e.week_calls, 0),
+      employee_count: totalEmp,
+      week_total_revenue: totalRevBrand,
+      week_total_calls: totalCallsBrand,
+      avg_calls_per_employee: avgCallsPerEmp,
       sparring_count_30d: sparrings.length,
+      leaders_count: groups.leaders.length,
+      laggers_count: groups.laggers.length,
+      invisible_count: groups.invisible.length,
     },
   });
 }

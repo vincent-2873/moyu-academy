@@ -26,6 +26,7 @@ import RagUploadPanel from "@/components/admin/RagUploadPanel";
 import RagReviewQueue from "@/components/admin/RagReviewQueue";
 import RecruitFunnelChart from "@/components/admin/RecruitFunnelChart";
 import CompanyDeepDive from "@/components/admin/CompanyDeepDive";
+import FocusBoard from "@/components/admin/FocusBoard";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
@@ -503,6 +504,7 @@ export default function AdminPage() {
         <div style={{ padding: "28px 36px" }}>
           {tab === "pillars" && (
             <>
+              <FocusBoard />
               <HealthStrip />
               <CeoOverviewSection />
               <PillarManagersOverview />

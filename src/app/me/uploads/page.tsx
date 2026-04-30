@@ -65,9 +65,18 @@ export default function MyUploadsPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-paper, #f7f1e3)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "min(420px, 35vw) 1fr", height: "100vh" }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .uploads-grid { grid-template-columns: 1fr !important; height: auto !important; }
+          .uploads-list { ${activeId ? "display:none !important;" : ""} border-right: none !important; }
+          .uploads-detail { ${!activeId ? "display:none !important;" : ""} }
+          .uploads-back-btn { display: inline-flex !important; }
+        }
+        .uploads-back-btn { display: none; }
+      `}</style>
+      <div className="uploads-grid" style={{ display: "grid", gridTemplateColumns: "min(420px, 35vw) 1fr", height: "100vh" }}>
         {/* List */}
-        <div style={{ borderRight: "1px solid var(--border-soft, rgba(26,26,26,0.10))", overflowY: "auto" }}>
+        <div className="uploads-list" style={{ borderRight: "1px solid var(--border-soft, rgba(26,26,26,0.10))", overflowY: "auto" }}>
           <div style={{ padding: "32px 20px 16px 20px", position: "sticky", top: 0, background: "var(--bg-paper, #f7f1e3)", zIndex: 1, borderBottom: "1px solid var(--border-soft, rgba(26,26,26,0.10))" }}>
             <div style={{ fontSize: 11, color: "var(--ink-mid)", letterSpacing: 4, fontWeight: 600 }}>MY UPLOADS</div>
             <div style={{ fontFamily: "var(--font-noto-serif-tc)", fontSize: 28, color: "var(--ink-deep)", marginTop: 4, marginBottom: 16, letterSpacing: 4 }}>
@@ -134,10 +143,28 @@ export default function MyUploadsPage() {
         </div>
 
         {/* Detail */}
-        <div style={{ overflowY: "auto" }}>
+        <div className="uploads-detail" style={{ overflowY: "auto" }}>
           <AnimatePresence mode="wait">
             {active ? (
-              <motion.div key={active.id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} style={{ padding: 40, maxWidth: 800 }}>
+              <motion.div key={active.id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} style={{ padding: 24, maxWidth: 800 }}>
+                <button
+                  onClick={() => setActiveId(null)}
+                  className="uploads-back-btn"
+                  style={{
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 12px",
+                    background: "transparent",
+                    border: "1px solid var(--border-soft, rgba(26,26,26,0.10))",
+                    borderRadius: 4,
+                    fontSize: 12,
+                    color: "var(--ink-deep)",
+                    cursor: "pointer",
+                    marginBottom: 16,
+                  }}
+                >
+                  ← 返回列表
+                </button>
                 <div style={{ fontSize: 11, color: "var(--ink-mid)", letterSpacing: 2, fontWeight: 600 }}>詳 DETAIL</div>
                 <div style={{ fontFamily: "var(--font-noto-serif-tc)", fontSize: 26, color: "var(--ink-deep)", marginTop: 6, marginBottom: 16, letterSpacing: 1 }}>
                   {active.title}
