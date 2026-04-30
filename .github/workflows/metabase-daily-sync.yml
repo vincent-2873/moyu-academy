@@ -1,12 +1,18 @@
 name: Metabase Daily Sync
 
-# 每天台北 09:00 自動跑(UTC 01:00),把當日 Q1381 業務指標撈進 sales_metrics_daily
+# 工作時段 (台北 09:00 ~ 22:00) 每 15 分鐘自動跑,把當日 Q1381 業務指標撈進 sales_metrics_daily
+# 22:00 後到隔天 09:00 不跑 (員工下班 + Metabase 不會更新)
 # 也可以 workflow_dispatch 手動跑指定日期 / 全月 backfill
+#
+# Schedule:
+#   工作時段 09:00-21:45 每 15 分:UTC 01:00-13:45 = */15 1-13
+#   22:00 收尾                  :UTC 14:00       = 0 14
+#   合計每天 56 次 sync
 
 on:
   schedule:
-    - cron: '0 1 * * *'    # UTC 01:00 = 台北 09:00
-    - cron: '0 9 * * *'    # UTC 09:00 = 台北 17:00 (下班前再 sync 一次)
+    - cron: '*/15 1-13 * * *'   # UTC 01:00-13:45 每 15 分 = 台北 09:00-21:45
+    - cron: '0 14 * * *'         # UTC 14:00 = 台北 22:00 (收尾)
   workflow_dispatch:
     inputs:
       date_start:
