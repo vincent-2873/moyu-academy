@@ -12,6 +12,7 @@ import HealthDashboard from "@/components/admin/HealthDashboard";
 import HealthStrip from "@/components/admin/HealthStrip";
 import CronConfigEditor from "@/components/admin/CronConfigEditor";
 import KnowledgeEngineEditor from "@/components/admin/KnowledgeEngineEditor";
+import LineTemplatesEditor from "@/components/admin/LineTemplatesEditor";
 import SidebarSetupProgress from "@/components/admin/SidebarSetupProgress";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
@@ -19,7 +20,7 @@ import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "line-templates" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -273,6 +274,7 @@ export default function AdminPage() {
     { id: "people-edit", label: "員工編輯", icon: "✏️" },
     { id: "training", label: "訓練管理", icon: "📚" },
     { id: "messaging", label: "通訊公告", icon: "📢" },
+    { id: "line-templates", label: "LINE 模板", icon: "💬" },
     { id: "setup", label: "Setup 設定", icon: "🛠️" },
     { id: "rules", label: "業務規則", icon: "📐" },
     { id: "kpi", label: "KPI 標準", icon: "🎯" },
@@ -287,7 +289,7 @@ export default function AdminPage() {
     { label: "戰況",   children: ["pillars", "commands"] },
     { label: "三大戰線", children: ["sales", "automation", "legal", "rules", "kpi"] },
     { label: "養成",   children: ["training", "people", "people-edit"] },
-    { label: "通訊",   children: ["messaging"] },
+    { label: "通訊",   children: ["messaging", "line-templates"] },
     { label: "系統",   children: ["setup", "health", "cron", "knowledge", "org", "system-hub"] },
   ];
 
@@ -493,6 +495,7 @@ export default function AdminPage() {
           {tab === "automation" && <AutomationTab />}
           {tab === "training" && <TrainingEditor />}
           {tab === "messaging" && <AnnouncementsEditor />}
+          {tab === "line-templates" && <LineTemplatesEditor />}
           {tab === "setup" && <SetupWizard />}
           {tab === "rules" && <SalesRulesEditor />}
           {tab === "kpi" && <KpiTargetsEditor />}
