@@ -31,14 +31,14 @@ type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | 
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
-  { id: "all", label: "🌐 全集團視角", color: "#8b5cf6" },
-  { id: "hq", label: "🏛️ 墨宇股份有限公司", color: "#dc2626" },
-  { id: "nschool", label: "nSchool 財經", color: "#feca57" },
-  { id: "xuemi", label: "XUEMI 學米", color: "#7c6cf0" },
-  { id: "ooschool", label: "OOschool 無限", color: "#4F46E5" },
+  { id: "all", label: "🌐 全集團視角", color: "#B8474A" },
+  { id: "hq", label: "🏛️ 墨宇股份有限公司", color: "#B8474A" },
+  { id: "nschool", label: "nSchool 財經", color: "#B89968" },
+  { id: "xuemi", label: "XUEMI 學米", color: "#B8474A" },
+  { id: "ooschool", label: "OOschool 無限", color: "#B8474A" },
   { id: "aischool", label: "AIschool 智能", color: "#10B981" },
-  { id: "moyuhunt", label: "墨宇獵頭", color: "#fb923c" },
-  { id: "legal", label: "法務顧問事務所", color: "#7c6cf0" },
+  { id: "moyuhunt", label: "墨宇獵頭", color: "#B89968" },
+  { id: "legal", label: "法務顧問事務所", color: "#B8474A" },
 ];
 
 // ─── v3 3 大支柱（業務 / 法務 / 招聘） ───────────────────────────────────────
@@ -130,17 +130,17 @@ const PILLAR_META: Record<string, { icon: string; tagline: string }> = {
 };
 
 const HEALTH_META: Record<string, { color: string; label: string; bg: string }> = {
-  healthy: { color: "#10b981", label: "健康", bg: "rgba(16,185,129,0.12)" },
-  warning: { color: "#fbbf24", label: "警告", bg: "rgba(251,191,36,0.12)" },
-  critical: { color: "#ef4444", label: "危急", bg: "rgba(239,68,68,0.12)" },
+  healthy: { color: "#6B7A5A", label: "健康", bg: "rgba(16,185,129,0.12)" },
+  warning: { color: "#B89968", label: "警告", bg: "rgba(251,191,36,0.12)" },
+  critical: { color: "#B8474A", label: "危急", bg: "rgba(239,68,68,0.12)" },
   unknown: { color: "#94a3b8", label: "未知", bg: "rgba(148,163,184,0.12)" },
 };
 
 const SEVERITY_META: Record<string, { color: string; label: string }> = {
-  info: { color: "#3b82f6", label: "提醒" },
-  normal: { color: "#8b5cf6", label: "一般" },
-  high: { color: "#fbbf24", label: "重要" },
-  critical: { color: "#ef4444", label: "緊急" },
+  info: { color: "#6B7E94", label: "提醒" },
+  normal: { color: "#B8474A", label: "一般" },
+  high: { color: "#B89968", label: "重要" },
+  critical: { color: "#B8474A", label: "緊急" },
 };
 
 interface AdminSession { name: string; email: string; token: string; }
@@ -237,7 +237,7 @@ function withAlpha(color: string, alpha: number): string {
   // Map CSS variable names to hex values for safe rgba conversion
   const varMap: Record<string, string> = {
     "var(--accent)": "#667eea", "var(--accent-light)": "#8fa4f0",
-    "var(--teal)": "#2dd4bf", "var(--gold)": "#fbbf24", "var(--green)": "#22c55e",
+    "var(--teal)": "#2dd4bf", "var(--gold)": "#B89968", "var(--green)": "#6B7A5A",
     "var(--red)": "#f87171", "var(--border)": "#2a2f3e",
   };
   const hex = varMap[color] || color;
@@ -767,9 +767,9 @@ function CommandCenterAggregate() {
 
   if (error && !data) {
     return (
-      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#ef4444" }}>
+      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#B8474A" }}>
         錯誤：{error}
-        <button onClick={load} style={{ marginLeft: 12, background: "transparent", border: "1px solid #ef4444", color: "#ef4444", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>重試</button>
+        <button onClick={load} style={{ marginLeft: 12, background: "transparent", border: "1px solid #B8474A", color: "#B8474A", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>重試</button>
       </div>
     );
   }
@@ -783,7 +783,7 @@ function CommandCenterAggregate() {
     <div>
       {/* HERO */}
       <div style={{
-        background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #581c87 100%)",
+        background: "linear-gradient(135deg, #0f172a 0%, #2A2622 50%, #581c87 100%)",
         borderRadius: 20,
         padding: "32px 36px",
         marginBottom: 24,
@@ -798,7 +798,7 @@ function CommandCenterAggregate() {
         <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.6)", letterSpacing: 2, marginBottom: 8 }}>COMMAND CENTER</div>
-            <div style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, lineHeight: 1.1, background: "linear-gradient(135deg, #fff, #fbbf24, #fb923c)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <div style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, lineHeight: 1.1, background: "linear-gradient(135deg, #fff, #B89968, #B89968)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               👁️ 指揮中心
             </div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
@@ -812,12 +812,12 @@ function CommandCenterAggregate() {
 
         {/* Empire stats grid */}
         <div style={{ position: "relative", marginTop: 28, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14 }}>
-          <EmpireStat label="在線業務" value={empire.total_active_reps} sub={`${empire.total_silent_today} 沒開口`} accent="#3b82f6" />
-          <EmpireStat label="今日通數" value={empire.total_calls_today} sub={`/ ${empire.total_active_reps * 30} 目標`} accent="#fbbf24" />
-          <EmpireStat label="今日邀約" value={empire.total_appointments_today} accent="#a855f7" />
-          <EmpireStat label="今日成交" value={empire.total_closures_today} accent="#10b981" />
-          <EmpireStat label="招聘漏斗" value={empire.recruit_funnel_total} sub="人在跑" accent="#fb923c" />
-          <EmpireStat label="本週對練" value={empire.total_sparring_week} sub={empire.avg_sparring_week > 0 ? `平均 ${empire.avg_sparring_week.toFixed(1)} 分` : ""} accent="#06b6d4" />
+          <EmpireStat label="在線業務" value={empire.total_active_reps} sub={`${empire.total_silent_today} 沒開口`} accent="#6B7E94" />
+          <EmpireStat label="今日通數" value={empire.total_calls_today} sub={`/ ${empire.total_active_reps * 30} 目標`} accent="#B89968" />
+          <EmpireStat label="今日邀約" value={empire.total_appointments_today} accent="#B8474A" />
+          <EmpireStat label="今日成交" value={empire.total_closures_today} accent="#6B7A5A" />
+          <EmpireStat label="招聘漏斗" value={empire.recruit_funnel_total} sub="人在跑" accent="#B89968" />
+          <EmpireStat label="本週對練" value={empire.total_sparring_week} sub={empire.avg_sparring_week > 0 ? `平均 ${empire.avg_sparring_week.toFixed(1)} 分` : ""} accent="#6B7E94" />
         </div>
 
         {/* Alert summary */}
@@ -917,20 +917,20 @@ function SalesBrandCard({ brand }: { brand: ChairmanBrand }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
         <MetricCell label="今日通數" value={brand.today_calls || 0} sub={`${brand.today_valid_calls || 0} 有效`} />
         <MetricCell label="今日邀約" value={brand.today_appointments || 0} sub={brand.call_to_appt_rate ? `${Math.round(brand.call_to_appt_rate * 100)}% 轉化` : ""} />
-        <MetricCell label="今日成交" value={brand.today_closures || 0} sub={brand.appt_to_close_rate ? `${Math.round(brand.appt_to_close_rate * 100)}% 收網` : ""} accent="#10b981" />
-        <MetricCell label="沒開口" value={brand.silent_reps || 0} sub={`${Math.round((brand.silent_ratio || 0) * 100)}%`} accent={brand.silent_ratio && brand.silent_ratio > 0.2 ? "#ef4444" : undefined} />
+        <MetricCell label="今日成交" value={brand.today_closures || 0} sub={brand.appt_to_close_rate ? `${Math.round(brand.appt_to_close_rate * 100)}% 收網` : ""} accent="#6B7A5A" />
+        <MetricCell label="沒開口" value={brand.silent_reps || 0} sub={`${Math.round((brand.silent_ratio || 0) * 100)}%`} accent={brand.silent_ratio && brand.silent_ratio > 0.2 ? "#B8474A" : undefined} />
       </div>
 
       {/* Progress bar (call target) */}
       <div style={{ marginBottom: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>
           <span>每日通數達成率</span>
-          <span style={{ fontWeight: 600, color: callProgress >= 100 ? "#22c55e" : callProgress >= 70 ? "#fbbf24" : "#ef4444" }}>
+          <span style={{ fontWeight: 600, color: callProgress >= 100 ? "#6B7A5A" : callProgress >= 70 ? "#B89968" : "#B8474A" }}>
             {Math.round(callProgress)}% ({brand.today_calls || 0}/{callTarget})
           </span>
         </div>
         <div style={{ height: 6, background: "var(--bg2)", borderRadius: 99, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${callProgress}%`, background: callProgress >= 100 ? "#22c55e" : callProgress >= 70 ? "#fbbf24" : "#ef4444", borderRadius: 99, transition: "width 0.5s" }} />
+          <div style={{ height: "100%", width: `${callProgress}%`, background: callProgress >= 100 ? "#6B7A5A" : callProgress >= 70 ? "#B89968" : "#B8474A", borderRadius: 99, transition: "width 0.5s" }} />
         </div>
       </div>
 
@@ -975,8 +975,8 @@ function RecruitCompanyCard({ brand }: { brand: ChairmanBrand }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
         <MetricCell label="漏斗中" value={brand.funnel_total || 0} accent={brand.color} />
         <MetricCell label="本週新增" value={brand.this_week_new || 0} />
-        <MetricCell label="本月通過" value={brand.this_month_passed || 0} accent="#10b981" />
-        <MetricCell label="本月流失" value={brand.this_month_dropped || 0} accent="#ef4444" />
+        <MetricCell label="本月通過" value={brand.this_month_passed || 0} accent="#6B7A5A" />
+        <MetricCell label="本月流失" value={brand.this_month_dropped || 0} accent="#B8474A" />
       </div>
 
       {/* Funnel mini-bars */}
@@ -1127,17 +1127,17 @@ function TeamPredictionPanel() {
       : data.predictions.filter((p) => p.momentum === "surging");
 
   const riskColor = {
-    critical: "#dc2626",
-    at_risk: "#ea580c",
-    behind: "#d97706",
-    on_track: "#16a34a",
+    critical: "#B8474A",
+    at_risk: "#B89968",
+    behind: "#B89968",
+    on_track: "#6B7A5A",
   };
   const fmt = (n: number) => (n >= 10000 ? `${(n / 10000).toFixed(1)}萬` : Math.round(n).toLocaleString());
 
   return (
     <div
       style={{
-        background: "linear-gradient(135deg, #1e1b4b, #312e81)",
+        background: "linear-gradient(135deg, #2A2622, #312e81)",
         borderRadius: 14,
         padding: 20,
         marginBottom: 14,
@@ -1150,10 +1150,10 @@ function TeamPredictionPanel() {
       </div>
       {/* Summary chips */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-        <Chip label={`🔴 危險 ${data.summary.critical}`} active={filter === "critical"} onClick={() => setFilter("critical")} color="#dc2626" />
-        <Chip label={`🟠 落後 ${data.summary.at_risk + data.summary.behind}`} active={filter === "at_risk"} onClick={() => setFilter("at_risk")} color="#ea580c" />
-        <Chip label={`🔥 突破 ${data.summary.surging}`} active={filter === "surging"} onClick={() => setFilter("surging")} color="#fbbf24" />
-        <Chip label={`✅ 正常 ${data.summary.on_track}`} active={filter === "all"} onClick={() => setFilter("all")} color="#16a34a" />
+        <Chip label={`🔴 危險 ${data.summary.critical}`} active={filter === "critical"} onClick={() => setFilter("critical")} color="#B8474A" />
+        <Chip label={`🟠 落後 ${data.summary.at_risk + data.summary.behind}`} active={filter === "at_risk"} onClick={() => setFilter("at_risk")} color="#B89968" />
+        <Chip label={`🔥 突破 ${data.summary.surging}`} active={filter === "surging"} onClick={() => setFilter("surging")} color="#B89968" />
+        <Chip label={`✅ 正常 ${data.summary.on_track}`} active={filter === "all"} onClick={() => setFilter("all")} color="#6B7A5A" />
       </div>
       {/* Person list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 400, overflowY: "auto" }}>
@@ -1252,9 +1252,9 @@ function CeoOverviewSection() {
   const dWeek = deltaPct(data.thisWeek.revenue, data.lastWeek.revenue);
   const dMonth = deltaPct(data.thisMonth.revenue, data.lastMonth.revenue);
   const sevColor = {
-    critical: "#dc2626",
-    high: "#ea580c",
-    normal: "#d97706",
+    critical: "#B8474A",
+    high: "#B89968",
+    normal: "#B89968",
     info: "#0891b2",
   } as Record<string, string>;
 
@@ -1268,7 +1268,7 @@ function CeoOverviewSection() {
     <div style={{ marginBottom: 28 }}>
       <div
         style={{
-          background: "linear-gradient(135deg, #1e1b4b 0%, #4c1d95 50%, #701a75 100%)",
+          background: "linear-gradient(135deg, #2A2622 0%, #4c1d95 50%, #701a75 100%)",
           borderRadius: 18,
           padding: "24px 28px",
           color: "#ffffff",
@@ -1386,7 +1386,7 @@ function CeoOverviewSection() {
                       style={{
                         fontSize: 10,
                         fontWeight: 700,
-                        color: b.deltaWeek >= 0 ? "#16a34a" : "#dc2626",
+                        color: b.deltaWeek >= 0 ? "#6B7A5A" : "#B8474A",
                         marginTop: 3,
                       }}
                     >
@@ -1419,7 +1419,7 @@ function CeoOverviewSection() {
                   fontSize: 12,
                 }}
               >
-                <div style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? "#d97706" : "var(--text3)", width: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? "#B89968" : "var(--text3)", width: 20 }}>
                   {["🥇", "🥈", "🥉"][i] || `${i + 1}.`}
                 </div>
                 <div style={{ flex: 1, color: "var(--text)" }}>{p.name}</div>
@@ -1431,7 +1431,7 @@ function CeoOverviewSection() {
         )}
         {data.silent3Days.length > 0 && (
           <div style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 12, padding: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: "#991b1b", marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#B8474A", marginBottom: 10 }}>
               🔴 連續 3 天 0 通 ({data.silent3Days.length} 人)
             </div>
             {data.silent3Days.slice(0, 8).map((p, i) => (
@@ -1550,7 +1550,7 @@ function V3PillarsBoard() {
   }
   if (missingMigration && !data) {
     return (
-      <div style={{ background: "linear-gradient(135deg, #1e1b4b, #4c1d95)", borderRadius: 16, padding: 32, color: "#fff" }}>
+      <div style={{ background: "linear-gradient(135deg, #2A2622, #4c1d95)", borderRadius: 16, padding: 32, color: "#fff" }}>
         <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>🚧 v3 資料表還沒建立</div>
         <div style={{ fontSize: 13, lineHeight: 1.7, opacity: 0.85, marginBottom: 18 }}>
           指揮中心需要 v3 的 6 張新表（pillars / projects / commands / line_dispatch / response_log / ai_insights）。
@@ -1570,9 +1570,9 @@ function V3PillarsBoard() {
   }
   if (error && !data) {
     return (
-      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#ef4444" }}>
+      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#B8474A" }}>
         錯誤：{error}
-        <button onClick={load} style={{ marginLeft: 12, background: "transparent", border: "1px solid #ef4444", color: "#ef4444", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>重試</button>
+        <button onClick={load} style={{ marginLeft: 12, background: "transparent", border: "1px solid #B8474A", color: "#B8474A", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>重試</button>
       </div>
     );
   }
@@ -1584,7 +1584,7 @@ function V3PillarsBoard() {
     <div>
       {/* HERO */}
       <div style={{
-        background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #581c87 100%)",
+        background: "linear-gradient(135deg, #0f172a 0%, #2A2622 50%, #581c87 100%)",
         borderRadius: 20,
         padding: "32px 36px",
         marginBottom: 24,
@@ -1598,7 +1598,7 @@ function V3PillarsBoard() {
         <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.6)", letterSpacing: 2, marginBottom: 8 }}>CLAUDE / CEO COMMAND CENTER</div>
-            <div style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, lineHeight: 1.1, background: "linear-gradient(135deg, #fff, #fbbf24, #fb923c)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <div style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, lineHeight: 1.1, background: "linear-gradient(135deg, #fff, #B89968, #B89968)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               👁️ 3 大支柱戰況
             </div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
@@ -1613,12 +1613,12 @@ function V3PillarsBoard() {
 
         {/* Empire stats grid */}
         <div style={{ position: "relative", marginTop: 28, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14 }}>
-          <V3HeroStat label="進行中專案" value={empire.total_projects} accent="#a855f7" />
-          <V3HeroStat label="待辦命令" value={empire.total_pending_commands} sub="LINE 待推" accent="#fbbf24" />
-          <V3HeroStat label="今日完成" value={empire.total_done_today} accent="#10b981" />
-          <V3HeroStat label="卡住" value={empire.total_blocked} accent="#fb923c" />
-          <V3HeroStat label="被忽略" value={empire.total_ignored} sub="員工失控" accent="#ef4444" />
-          <V3HeroStat label="紅燈支柱" value={empire.critical_pillars} sub={`${empire.warning_pillars} 黃燈`} accent="#ef4444" />
+          <V3HeroStat label="進行中專案" value={empire.total_projects} accent="#B8474A" />
+          <V3HeroStat label="待辦命令" value={empire.total_pending_commands} sub="LINE 待推" accent="#B89968" />
+          <V3HeroStat label="今日完成" value={empire.total_done_today} accent="#6B7A5A" />
+          <V3HeroStat label="卡住" value={empire.total_blocked} accent="#B89968" />
+          <V3HeroStat label="被忽略" value={empire.total_ignored} sub="員工失控" accent="#B8474A" />
+          <V3HeroStat label="紅燈支柱" value={empire.critical_pillars} sub={`${empire.warning_pillars} 黃燈`} accent="#B8474A" />
         </div>
 
         {/* Alert summary */}
@@ -1643,7 +1643,7 @@ function V3PillarsBoard() {
         <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>🏛️ 3 大支柱</div>
         <button
           onClick={() => { setShowNewProject(true); setDraftPillar("sales"); }}
-          style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff", border: "none", borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          style={{ background: "linear-gradient(135deg, #B8474A, #6366f1)", color: "#fff", border: "none", borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
         >
           + 新增專案
         </button>
@@ -1687,7 +1687,7 @@ function V3PillarsBoard() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {data.insights.slice(0, 5).map((i) => (
               <div key={i.id} style={{ padding: "10px 14px", background: "var(--bg2)", borderRadius: 8, fontSize: 13, color: "var(--text2)", lineHeight: 1.5 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#8b5cf6", marginRight: 8, letterSpacing: 0.5 }}>{i.insight_type.toUpperCase()}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#B8474A", marginRight: 8, letterSpacing: 0.5 }}>{i.insight_type.toUpperCase()}</span>
                 {i.content}
                 <span style={{ fontSize: 10, color: "var(--text3)", marginLeft: 8 }}>信心 {Math.round(i.confidence * 100)}%</span>
               </div>
@@ -1769,9 +1769,9 @@ function V3PillarCard({ pillar, projects, onOpen }: { pillar: V3Pillar; projects
       {/* Metrics */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
         <V3MiniMetric label="專案" value={pillar.project_count} accent={pillar.color} />
-        <V3MiniMetric label="待辦" value={pillar.commands.pending} accent="#fbbf24" />
-        <V3MiniMetric label="完成" value={pillar.commands.done_today} accent="#10b981" />
-        <V3MiniMetric label="忽略" value={pillar.commands.ignored} accent={pillar.commands.ignored > 0 ? "#ef4444" : undefined} />
+        <V3MiniMetric label="待辦" value={pillar.commands.pending} accent="#B89968" />
+        <V3MiniMetric label="完成" value={pillar.commands.done_today} accent="#6B7A5A" />
+        <V3MiniMetric label="忽略" value={pillar.commands.ignored} accent={pillar.commands.ignored > 0 ? "#B8474A" : undefined} />
       </div>
 
       {/* Avg progress */}
@@ -2093,10 +2093,10 @@ function V3NewProjectModal({
             <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>下一步</label>
             <textarea value={nextAction} onChange={(e) => setNextAction(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="第一個要動的事" />
           </div>
-          {err && <div style={{ color: "#ef4444", fontSize: 12 }}>{err}</div>}
+          {err && <div style={{ color: "#B8474A", fontSize: 12 }}>{err}</div>}
           <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
             <button onClick={onClose} style={{ flex: 1, background: "var(--bg2)", color: "var(--text2)", border: "1px solid var(--border)", borderRadius: 10, padding: "11px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>取消</button>
-            <button onClick={submit} disabled={saving || !name || !goal} style={{ flex: 1, background: saving || !name || !goal ? "var(--border)" : "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff", border: "none", borderRadius: 10, padding: "11px 16px", fontSize: 13, fontWeight: 700, cursor: saving || !name || !goal ? "not-allowed" : "pointer" }}>
+            <button onClick={submit} disabled={saving || !name || !goal} style={{ flex: 1, background: saving || !name || !goal ? "var(--border)" : "linear-gradient(135deg, #B8474A, #6366f1)", color: "#fff", border: "none", borderRadius: 10, padding: "11px 16px", fontSize: 13, fontWeight: 700, cursor: saving || !name || !goal ? "not-allowed" : "pointer" }}>
               {saving ? "建立中..." : "🚀 建立專案"}
             </button>
           </div>
@@ -2164,7 +2164,7 @@ function V3CommandsHub() {
     <div>
       {/* HERO */}
       <div style={{
-        background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #7c3aed 100%)",
+        background: "linear-gradient(135deg, #2A2622 0%, #312e81 50%, #7c3aed 100%)",
         borderRadius: 18,
         padding: "26px 32px",
         marginBottom: 22,
@@ -2183,7 +2183,7 @@ function V3CommandsHub() {
             <button
               onClick={dispatchAll}
               disabled={dispatching}
-              style={{ background: "linear-gradient(135deg, #10b981, #059669)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: dispatching ? "wait" : "pointer", opacity: dispatching ? 0.6 : 1 }}
+              style={{ background: "linear-gradient(135deg, #6B7A5A, #059669)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: dispatching ? "wait" : "pointer", opacity: dispatching ? 0.6 : 1 }}
             >
               {dispatching ? "派發中..." : "🚀 一鍵 LINE 派發全部待辦"}
             </button>
@@ -2204,11 +2204,11 @@ function V3CommandsHub() {
         {stats && (
           <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10, marginTop: 18 }}>
             <V3HeroStat label="總計" value={stats.total} accent="#fff" />
-            <V3HeroStat label="待辦" value={stats.pending} accent="#fbbf24" />
-            <V3HeroStat label="完成" value={stats.done} accent="#10b981" />
-            <V3HeroStat label="卡住" value={stats.blocked} accent="#fb923c" />
-            <V3HeroStat label="忽略" value={stats.ignored} accent="#ef4444" />
-            <V3HeroStat label="緊急" value={stats.critical} accent="#ef4444" />
+            <V3HeroStat label="待辦" value={stats.pending} accent="#B89968" />
+            <V3HeroStat label="完成" value={stats.done} accent="#6B7A5A" />
+            <V3HeroStat label="卡住" value={stats.blocked} accent="#B89968" />
+            <V3HeroStat label="忽略" value={stats.ignored} accent="#B8474A" />
+            <V3HeroStat label="緊急" value={stats.critical} accent="#B8474A" />
           </div>
         )}
       </div>
@@ -2221,9 +2221,9 @@ function V3CommandsHub() {
               key={s}
               onClick={() => setFilter(s)}
               style={{
-                background: filter === s ? "#8b5cf6" : "transparent",
+                background: filter === s ? "#B8474A" : "transparent",
                 color: filter === s ? "#fff" : "var(--text2)",
-                border: `1px solid ${filter === s ? "#8b5cf6" : "var(--border)"}`,
+                border: `1px solid ${filter === s ? "#B8474A" : "var(--border)"}`,
                 borderRadius: 8,
                 padding: "6px 12px",
                 fontSize: 12,
@@ -2323,11 +2323,11 @@ function V3CommandRow({ command, compact, onUpdated }: { command: V3Command; com
   }
 
   const statusColors: Record<string, string> = {
-    pending: "#fbbf24",
-    acknowledged: "#3b82f6",
-    done: "#10b981",
-    blocked: "#fb923c",
-    ignored: "#ef4444",
+    pending: "#B89968",
+    acknowledged: "#6B7E94",
+    done: "#6B7A5A",
+    blocked: "#B89968",
+    ignored: "#B8474A",
   };
 
   return (
@@ -2338,7 +2338,7 @@ function V3CommandRow({ command, compact, onUpdated }: { command: V3Command; com
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
             <div style={{ fontSize: 9, fontWeight: 800, color: sev.color, padding: "2px 7px", border: `1px solid ${sev.color}`, borderRadius: 5, letterSpacing: 0.5 }}>{sev.label}</div>
             <div style={{ fontSize: 9, fontWeight: 700, color: statusColors[command.status], padding: "2px 7px", background: `${statusColors[command.status]}22`, borderRadius: 5 }}>{command.status}</div>
-            {command.ai_generated && <div style={{ fontSize: 9, color: "#a855f7", fontWeight: 700 }}>🧠 AI</div>}
+            {command.ai_generated && <div style={{ fontSize: 9, color: "#B8474A", fontWeight: 700 }}>🧠 AI</div>}
             <div style={{ fontSize: 11, color: "var(--text3)" }}>{new Date(command.created_at).toLocaleString("zh-TW")}</div>
           </div>
           <div style={{ fontSize: compact ? 13 : 15, fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>{command.title}</div>
@@ -2348,18 +2348,18 @@ function V3CommandRow({ command, compact, onUpdated }: { command: V3Command; com
             {command.deadline && ` · 🕒 ${new Date(command.deadline).toLocaleString("zh-TW")}`}
           </div>
           {command.ai_reasoning && !compact && (
-            <div style={{ marginTop: 8, padding: "8px 10px", background: "rgba(168,85,247,0.08)", borderLeft: "2px solid #a855f7", borderRadius: 6, fontSize: 11, color: "var(--text2)", lineHeight: 1.5 }}>
-              <strong style={{ color: "#a855f7" }}>Claude 判斷：</strong> {command.ai_reasoning}
+            <div style={{ marginTop: 8, padding: "8px 10px", background: "rgba(168,85,247,0.08)", borderLeft: "2px solid #B8474A", borderRadius: 6, fontSize: 11, color: "var(--text2)", lineHeight: 1.5 }}>
+              <strong style={{ color: "#B8474A" }}>Claude 判斷：</strong> {command.ai_reasoning}
             </div>
           )}
         </div>
         {!compact && onUpdated && command.status === "pending" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <button onClick={dispatch} disabled={busy} style={{ background: "linear-gradient(135deg, #06b6d4, #0891b2)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>📢 推 LINE</button>
-            <button onClick={() => patch("done")} disabled={busy} style={{ background: "#10b981", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>✓ 完成</button>
-            <button onClick={() => patch("blocked")} disabled={busy} style={{ background: "transparent", color: "#fb923c", border: "1px solid #fb923c", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>卡住</button>
-            <button onClick={() => patch("ignored")} disabled={busy} style={{ background: "transparent", color: "#ef4444", border: "1px solid #ef4444", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>忽略</button>
-            {dispatchedAt && <div style={{ fontSize: 9, color: "#10b981", textAlign: "center", fontWeight: 700 }}>✓ {dispatchedAt}</div>}
+            <button onClick={dispatch} disabled={busy} style={{ background: "linear-gradient(135deg, #6B7E94, #0891b2)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>📢 推 LINE</button>
+            <button onClick={() => patch("done")} disabled={busy} style={{ background: "#6B7A5A", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>✓ 完成</button>
+            <button onClick={() => patch("blocked")} disabled={busy} style={{ background: "transparent", color: "#B89968", border: "1px solid #B89968", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>卡住</button>
+            <button onClick={() => patch("ignored")} disabled={busy} style={{ background: "transparent", color: "#B8474A", border: "1px solid #B8474A", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>忽略</button>
+            {dispatchedAt && <div style={{ fontSize: 9, color: "#6B7A5A", textAlign: "center", fontWeight: 700 }}>✓ {dispatchedAt}</div>}
           </div>
         )}
       </div>
@@ -2451,10 +2451,10 @@ function V3NewCommandModal({ onClose, onCreated }: { onClose: () => void; onCrea
             <label style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>判斷依據（學習用）</label>
             <textarea value={reasoning} onChange={(e) => setReasoning(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="為什麼下這個命令" />
           </div>
-          {err && <div style={{ color: "#ef4444", fontSize: 12 }}>{err}</div>}
+          {err && <div style={{ color: "#B8474A", fontSize: 12 }}>{err}</div>}
           <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
             <button onClick={onClose} style={{ flex: 1, background: "var(--bg2)", color: "var(--text2)", border: "1px solid var(--border)", borderRadius: 10, padding: "11px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>取消</button>
-            <button onClick={submit} disabled={saving || !ownerEmail || !title} style={{ flex: 1, background: saving || !ownerEmail || !title ? "var(--border)" : "linear-gradient(135deg, #fbbf24, #f59e0b)", color: "#fff", border: "none", borderRadius: 10, padding: "11px 16px", fontSize: 13, fontWeight: 700, cursor: saving || !ownerEmail || !title ? "not-allowed" : "pointer" }}>
+            <button onClick={submit} disabled={saving || !ownerEmail || !title} style={{ flex: 1, background: saving || !ownerEmail || !title ? "var(--border)" : "linear-gradient(135deg, #B89968, #B89968)", color: "#fff", border: "none", borderRadius: 10, padding: "11px 16px", fontSize: 13, fontWeight: 700, cursor: saving || !ownerEmail || !title ? "not-allowed" : "pointer" }}>
               {saving ? "送出中..." : "⚡ 派發命令"}
             </button>
           </div>
@@ -2482,7 +2482,7 @@ function CompanyDrilldown({ brandId }: { brandId: CompanyScope }) {
   }, [brandId]);
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text2)" }}>載入 {meta?.label} 戰況...</div>;
-  if (!data) return <div style={{ padding: 40, color: "#ef4444" }}>無法載入資料</div>;
+  if (!data) return <div style={{ padding: 40, color: "#B8474A" }}>無法載入資料</div>;
 
   const isRecruit = brandId === "moyuhunt";
   const brand = isRecruit
@@ -2547,21 +2547,21 @@ function SalesDrilldownDetails({ brand }: { brand: ChairmanBrand }) {
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 18 }}>
         <BigMetric label="在線業務" value={brand.active_reps || 0} accent={brand.color} sub={`${brand.silent_reps || 0} 沒開口`} />
-        <BigMetric label="今日通數" value={brand.today_calls || 0} accent="#fbbf24" sub={`/ ${callTarget} 目標`} />
-        <BigMetric label="今日有效通" value={brand.today_valid_calls || 0} accent="#06b6d4" />
-        <BigMetric label="今日邀約" value={brand.today_appointments || 0} accent="#a855f7" sub={brand.call_to_appt_rate ? `${Math.round(brand.call_to_appt_rate * 100)}% 轉化` : ""} />
-        <BigMetric label="今日成交" value={brand.today_closures || 0} accent="#10b981" sub={brand.appt_to_close_rate ? `${Math.round(brand.appt_to_close_rate * 100)}% 收網` : ""} />
-        <BigMetric label="本週通數" value={brand.week_calls || 0} accent="#ef4444" sub={`本週成交 ${brand.week_closures || 0}`} />
+        <BigMetric label="今日通數" value={brand.today_calls || 0} accent="#B89968" sub={`/ ${callTarget} 目標`} />
+        <BigMetric label="今日有效通" value={brand.today_valid_calls || 0} accent="#6B7E94" />
+        <BigMetric label="今日邀約" value={brand.today_appointments || 0} accent="#B8474A" sub={brand.call_to_appt_rate ? `${Math.round(brand.call_to_appt_rate * 100)}% 轉化` : ""} />
+        <BigMetric label="今日成交" value={brand.today_closures || 0} accent="#6B7A5A" sub={brand.appt_to_close_rate ? `${Math.round(brand.appt_to_close_rate * 100)}% 收網` : ""} />
+        <BigMetric label="本週通數" value={brand.week_calls || 0} accent="#B8474A" sub={`本週成交 ${brand.week_closures || 0}`} />
       </div>
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 10 }}>
           <span style={{ color: "var(--text2)", fontWeight: 600 }}>每日通數達成率</span>
-          <span style={{ fontWeight: 700, color: callProgress >= 100 ? "#22c55e" : callProgress >= 70 ? "#fbbf24" : "#ef4444" }}>
+          <span style={{ fontWeight: 700, color: callProgress >= 100 ? "#6B7A5A" : callProgress >= 70 ? "#B89968" : "#B8474A" }}>
             {Math.round(callProgress)}% ({brand.today_calls || 0}/{callTarget})
           </span>
         </div>
         <div style={{ height: 12, background: "var(--bg2)", borderRadius: 99, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${callProgress}%`, background: callProgress >= 100 ? "#22c55e" : callProgress >= 70 ? "#fbbf24" : "#ef4444", borderRadius: 99, transition: "width 0.5s" }} />
+          <div style={{ height: "100%", width: `${callProgress}%`, background: callProgress >= 100 ? "#6B7A5A" : callProgress >= 70 ? "#B89968" : "#B8474A", borderRadius: 99, transition: "width 0.5s" }} />
         </div>
       </div>
     </div>
@@ -2579,10 +2579,10 @@ function RecruitDrilldownDetails({ brand }: { brand: ChairmanBrand }) {
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 18 }}>
         <BigMetric label="漏斗中" value={brand.funnel_total || 0} accent={brand.color} />
-        <BigMetric label="本週新增" value={brand.this_week_new || 0} accent="#06b6d4" />
-        <BigMetric label="本月通過" value={brand.this_month_passed || 0} accent="#10b981" />
-        <BigMetric label="本月流失" value={brand.this_month_dropped || 0} accent="#ef4444" />
-        <BigMetric label="轉換率" value={`${Math.round((brand.conversion_rate || 0) * 100)}%`} accent="#a855f7" />
+        <BigMetric label="本週新增" value={brand.this_week_new || 0} accent="#6B7E94" />
+        <BigMetric label="本月通過" value={brand.this_month_passed || 0} accent="#6B7A5A" />
+        <BigMetric label="本月流失" value={brand.this_month_dropped || 0} accent="#B8474A" />
+        <BigMetric label="轉換率" value={`${Math.round((brand.conversion_rate || 0) * 100)}%`} accent="#B8474A" />
       </div>
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: "var(--text)" }}>漏斗階段分布</div>
@@ -2651,9 +2651,9 @@ const LEVEL_LABEL: Record<string, string> = {
 };
 const LEVEL_COLOR: Record<string, string> = {
   staff: "#94a3b8",
-  lead: "#06b6d4",
-  manager: "#7c6cf0",
-  director: "#fb923c",
+  lead: "#6B7E94",
+  manager: "#B8474A",
+  director: "#B89968",
 };
 
 interface OrgUser {
@@ -2746,7 +2746,7 @@ function V3OrgChartTab() {
 
   if (error) {
     return (
-      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#ef4444" }}>
+      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#B8474A" }}>
         ⚠️ {error}
       </div>
     );
@@ -3048,7 +3048,7 @@ function V3PositionCard({ position, onEdit, onDelete }: { position: V3Position; 
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <button onClick={onEdit} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", fontSize: 11, cursor: "pointer", color: "var(--text2)" }}>編輯</button>
-          <button onClick={onDelete} style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, padding: "6px 12px", fontSize: 11, cursor: "pointer", color: "#ef4444" }}>刪除</button>
+          <button onClick={onDelete} style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, padding: "6px 12px", fontSize: 11, cursor: "pointer", color: "#B8474A" }}>刪除</button>
         </div>
       </div>
 
@@ -3077,7 +3077,7 @@ function V3PositionCard({ position, onEdit, onDelete }: { position: V3Position; 
 }
 
 function V3DepartmentModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ code: "", name: "", icon: "🏢", color: "#7c6cf0", description: "" });
+  const [form, setForm] = useState({ code: "", name: "", icon: "🏢", color: "#B8474A", description: "" });
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
@@ -3616,12 +3616,12 @@ function AutomationTab() {
           const ws = (data as { workerStatus?: { services?: Array<{ service: string; alive: boolean; age_seconds: number; uptime_seconds?: number; jobs?: string[] }> } }).workerStatus;
           const svc = ws?.services?.find((x) => x.service === "moyu-worker");
           if (!svc) {
-            return <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: "#7f1d1d", color: "#fecaca" }}>⛔ worker 未回報</span>;
+            return <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: "#B8474A", color: "#F5E5DC" }}>⛔ worker 未回報</span>;
           }
           return (
             <span
               title={`jobs: ${(svc.jobs || []).join(", ")} · uptime=${svc.uptime_seconds ?? "-"}s · last seen ${svc.age_seconds}s ago`}
-              style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: svc.alive ? "#14532d" : "#7f1d1d", color: svc.alive ? "#bbf7d0" : "#fecaca" }}
+              style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: svc.alive ? "#14532d" : "#B8474A", color: svc.alive ? "#bbf7d0" : "#F5E5DC" }}
             >
               {svc.alive ? "✅" : "💀"} moyu-worker · {svc.age_seconds}s ago
             </span>
@@ -3631,11 +3631,11 @@ function AutomationTab() {
 
       {/* 發信進度 */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
-        <ProgressCard label="墨凡 104 發信" sent={data.sending.mofan.sent} quota={data.sending.mofan.quota} pct={pctMofan} color="#dc2626" />
+        <ProgressCard label="墨凡 104 發信" sent={data.sending.mofan.sent} quota={data.sending.mofan.quota} pct={pctMofan} color="#B8474A" />
         <ProgressCard label="睿富 104 發信" sent={data.sending.ruifu.sent} quota={data.sending.ruifu.quota} pct={pctRuifu} color="#7c3aed" />
         <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
           <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 8 }}>💬 今日新回覆</div>
-          <div style={{ fontSize: 36, fontWeight: 900, color: "#16a34a" }}>{data.newRepliesToday}</div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: "#6B7A5A" }}>{data.newRepliesToday}</div>
           <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 4 }}>有興趣 / 婉拒 / 其他回覆總和</div>
         </div>
       </div>
@@ -3648,7 +3648,7 @@ function AutomationTab() {
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
               <span style={{
                 fontSize: 10, fontWeight: 700, color: "#fff",
-                background: a.level === "critical" ? "#dc2626" : a.level === "high" ? "#f59e0b" : "#3b82f6",
+                background: a.level === "critical" ? "#B8474A" : a.level === "high" ? "#B89968" : "#6B7E94",
                 padding: "2px 8px", borderRadius: 4, whiteSpace: "nowrap",
               }}>{a.level}</span>
               <span style={{ fontSize: 11, color: "var(--text3)", width: 50 }}>{a.pillar}</span>
@@ -3666,11 +3666,11 @@ function AutomationTab() {
             <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
               <div style={{ fontSize: 12, color: "var(--text3)", fontWeight: 600, marginBottom: 10 }}>🎯 招聘 Funnel（近 7 天）</div>
               {[
-                { label: "新求職者", val: data.unified.recruit.funnel.new, color: "#3b82f6" },
+                { label: "新求職者", val: data.unified.recruit.funnel.new, color: "#6B7E94" },
                 { label: "聯繫中", val: data.unified.recruit.funnel.contacted, color: "#7c3aed" },
-                { label: "面試", val: data.unified.recruit.funnel.interview, color: "#f59e0b" },
-                { label: "Offer", val: data.unified.recruit.funnel.offer, color: "#dc2626" },
-                { label: "到職/試用", val: data.unified.recruit.funnel.onboarded, color: "#16a34a" },
+                { label: "面試", val: data.unified.recruit.funnel.interview, color: "#B89968" },
+                { label: "Offer", val: data.unified.recruit.funnel.offer, color: "#B8474A" },
+                { label: "到職/試用", val: data.unified.recruit.funnel.onboarded, color: "#6B7A5A" },
               ].map((r) => (
                 <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                   <span style={{ fontSize: 12, color: "var(--text3)", width: 80 }}>{r.label}</span>
@@ -3688,18 +3688,18 @@ function AutomationTab() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                 <span style={{ fontSize: 12, color: "var(--text3)", width: 80 }}>合約</span>
                 <span style={{ fontSize: 16, fontWeight: 800 }}>{data.unified.legal.contractsTotal}</span>
-                {data.unified.legal.contractsExpired > 0 && <span style={{ fontSize: 11, color: "#dc2626" }}>過期 {data.unified.legal.contractsExpired}</span>}
-                {data.unified.legal.contractsExpiring > 0 && <span style={{ fontSize: 11, color: "#f59e0b" }}>30 天內 {data.unified.legal.contractsExpiring}</span>}
+                {data.unified.legal.contractsExpired > 0 && <span style={{ fontSize: 11, color: "#B8474A" }}>過期 {data.unified.legal.contractsExpired}</span>}
+                {data.unified.legal.contractsExpiring > 0 && <span style={{ fontSize: 11, color: "#B89968" }}>30 天內 {data.unified.legal.contractsExpiring}</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                 <span style={{ fontSize: 12, color: "var(--text3)", width: 80 }}>法遵申報</span>
                 <span style={{ fontSize: 16, fontWeight: 800 }}>{data.unified.legal.complianceUpcoming + data.unified.legal.complianceOverdue}</span>
-                {data.unified.legal.complianceOverdue > 0 && <span style={{ fontSize: 11, color: "#dc2626" }}>🔴 逾期 {data.unified.legal.complianceOverdue}</span>}
+                {data.unified.legal.complianceOverdue > 0 && <span style={{ fontSize: 11, color: "#B8474A" }}>🔴 逾期 {data.unified.legal.complianceOverdue}</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                 <span style={{ fontSize: 12, color: "var(--text3)", width: 80 }}>糾紛</span>
                 <span style={{ fontSize: 16, fontWeight: 800 }}>{data.unified.legal.disputesOpen}</span>
-                {data.unified.legal.disputesCritical > 0 && <span style={{ fontSize: 11, color: "#dc2626" }}>🚨 重大 {data.unified.legal.disputesCritical}</span>}
+                {data.unified.legal.disputesCritical > 0 && <span style={{ fontSize: 11, color: "#B8474A" }}>🚨 重大 {data.unified.legal.disputesCritical}</span>}
               </div>
               <a href="/legal" style={{ display: "inline-block", marginTop: 10, fontSize: 11, color: "var(--accent)" }}>→ 進法務中心</a>
             </div>
@@ -3710,7 +3710,7 @@ function AutomationTab() {
               <div style={{ fontSize: 26, fontWeight: 900 }}>{data.unified.commands.total}</div>
               <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>
                 待處理 {data.unified.commands.pending} · 完成 {data.unified.commands.done}
-                {data.unified.commands.critical > 0 && <span style={{ color: "#dc2626" }}> · 🔴 緊急 {data.unified.commands.critical}</span>}
+                {data.unified.commands.critical > 0 && <span style={{ color: "#B8474A" }}> · 🔴 緊急 {data.unified.commands.critical}</span>}
               </div>
             </div>
           )}
@@ -3884,9 +3884,9 @@ interface BoardroomData {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; label: string }> = {
-  critical: { bg: "rgba(239,68,68,0.13)", border: "rgba(239,68,68,0.5)", text: "#ef4444", label: "🔴 危急" },
-  warning: { bg: "rgba(249,115,22,0.13)", border: "rgba(249,115,22,0.5)", text: "#f97316", label: "🟠 警告" },
-  healthy: { bg: "rgba(34,197,94,0.13)", border: "rgba(34,197,94,0.4)", text: "#22c55e", label: "🟢 正常" },
+  critical: { bg: "rgba(239,68,68,0.13)", border: "rgba(239,68,68,0.5)", text: "#B8474A", label: "🔴 危急" },
+  warning: { bg: "rgba(249,115,22,0.13)", border: "rgba(249,115,22,0.5)", text: "#B89968", label: "🟠 警告" },
+  healthy: { bg: "rgba(34,197,94,0.13)", border: "rgba(34,197,94,0.4)", text: "#6B7A5A", label: "🟢 正常" },
   unknown: { bg: "rgba(148,163,184,0.13)", border: "rgba(148,163,184,0.4)", text: "#94a3b8", label: "⚪ 未知" },
 };
 
@@ -3924,9 +3924,9 @@ function GrowthDashboardTab() {
 
   if (error && !data) {
     return (
-      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#ef4444" }}>
+      <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, padding: 20, color: "#B8474A" }}>
         錯誤：{error}
-        <button onClick={load} style={{ marginLeft: 12, background: "transparent", border: "1px solid #ef4444", color: "#ef4444", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>重試</button>
+        <button onClick={load} style={{ marginLeft: 12, background: "transparent", border: "1px solid #B8474A", color: "#B8474A", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>重試</button>
       </div>
     );
   }
@@ -3941,13 +3941,13 @@ function GrowthDashboardTab() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 6, background: "linear-gradient(135deg, #ef4444, #f97316, #fbbf24)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 6, background: "linear-gradient(135deg, #B8474A, #B89968, #B89968)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             🔥 業務監測生長儀表板
           </div>
           <div style={{ color: "var(--text3)", fontSize: 13 }}>
             違反人性、強迫成長 — {refreshedAt ? `最後更新 ${refreshedAt.toLocaleTimeString("zh-TW")}` : ""}
-            {criticalCount > 0 && <span style={{ color: "#ef4444", marginLeft: 12, fontWeight: 600 }}>⚠️ {criticalCount} 個專案危急</span>}
-            {warningCount > 0 && <span style={{ color: "#f97316", marginLeft: 8, fontWeight: 600 }}>· {warningCount} 個警告</span>}
+            {criticalCount > 0 && <span style={{ color: "#B8474A", marginLeft: 12, fontWeight: 600 }}>⚠️ {criticalCount} 個專案危急</span>}
+            {warningCount > 0 && <span style={{ color: "#B89968", marginLeft: 8, fontWeight: 600 }}>· {warningCount} 個警告</span>}
           </div>
         </div>
         <button onClick={load} disabled={loading} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.6 : 1 }}>
@@ -3957,11 +3957,11 @@ function GrowthDashboardTab() {
 
       {/* Summary stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
-        <SummaryCard label="活躍業務" value={data.summary.total_users} accent="#3b82f6" />
-        <SummaryCard label="在線主管" value={data.summary.active_managers} accent="#22c55e" />
-        <SummaryCard label="招聘漏斗中" value={data.summary.in_recruitment_funnel} accent="#fbbf24" />
-        <SummaryCard label="Claude 待辦" value={data.summary.pending_claude_tasks} accent="#a855f7" />
-        <SummaryCard label="緊急任務" value={data.summary.critical_claude_tasks} accent="#ef4444" />
+        <SummaryCard label="活躍業務" value={data.summary.total_users} accent="#6B7E94" />
+        <SummaryCard label="在線主管" value={data.summary.active_managers} accent="#6B7A5A" />
+        <SummaryCard label="招聘漏斗中" value={data.summary.in_recruitment_funnel} accent="#B89968" />
+        <SummaryCard label="Claude 待辦" value={data.summary.pending_claude_tasks} accent="#B8474A" />
+        <SummaryCard label="緊急任務" value={data.summary.critical_claude_tasks} accent="#B8474A" />
       </div>
 
       {/* Project cards */}
@@ -4086,15 +4086,15 @@ interface Recruit {
 
 const RECRUIT_STAGES: { id: string; label: string; color: string }[] = [
   { id: "applied", label: "投遞", color: "#94a3b8" },
-  { id: "screening", label: "篩選", color: "#3b82f6" },
-  { id: "interview_1", label: "一面", color: "#8b5cf6" },
-  { id: "interview_2", label: "二面", color: "#a855f7" },
-  { id: "offer", label: "Offer", color: "#fbbf24" },
-  { id: "onboarded", label: "報到", color: "#22c55e" },
-  { id: "probation", label: "試用期", color: "#10b981" },
+  { id: "screening", label: "篩選", color: "#6B7E94" },
+  { id: "interview_1", label: "一面", color: "#B8474A" },
+  { id: "interview_2", label: "二面", color: "#B8474A" },
+  { id: "offer", label: "Offer", color: "#B89968" },
+  { id: "onboarded", label: "報到", color: "#6B7A5A" },
+  { id: "probation", label: "試用期", color: "#6B7A5A" },
   { id: "passed", label: "通過", color: "#059669" },
-  { id: "dropped", label: "流失", color: "#ef4444" },
-  { id: "rejected", label: "拒絕", color: "#dc2626" },
+  { id: "dropped", label: "流失", color: "#B8474A" },
+  { id: "rejected", label: "拒絕", color: "#B8474A" },
 ];
 
 // 漏斗階段（不含最終 dropped/rejected）
@@ -4195,25 +4195,25 @@ function RecruitsTab() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4, background: "linear-gradient(135deg, #fbbf24, #f97316)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4, background: "linear-gradient(135deg, #B89968, #B89968)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             🎯 招聘漏斗
           </div>
           <div style={{ color: "var(--text3)", fontSize: 13 }}>
             點擊任一求職者可查看完整資訊與時間軸
           </div>
         </div>
-        <button onClick={() => setShowForm(true)} style={{ background: "linear-gradient(135deg, #fbbf24, #f97316)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(251,191,36,0.3)" }}>
+        <button onClick={() => setShowForm(true)} style={{ background: "linear-gradient(135deg, #B89968, #B89968)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(251,191,36,0.3)" }}>
           + 新增求職者
         </button>
       </div>
 
       {/* Top stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 20 }}>
-        <BigStat label="漏斗中" value={inFunnel} accent="#fbbf24" />
-        <BigStat label="已通過" value={passed} accent="#22c55e" />
-        <BigStat label="流失" value={dropped} accent="#ef4444" />
+        <BigStat label="漏斗中" value={inFunnel} accent="#B89968" />
+        <BigStat label="已通過" value={passed} accent="#6B7A5A" />
+        <BigStat label="流失" value={dropped} accent="#B8474A" />
         <BigStat label="拒絕" value={rejected} accent="#94a3b8" />
-        <BigStat label="轉換率" value={`${conversionRate}%`} accent="#a855f7" />
+        <BigStat label="轉換率" value={`${conversionRate}%`} accent="#B8474A" />
       </div>
 
       {/* Toolbar: search + brand filter + view toggle */}
@@ -4241,7 +4241,7 @@ function RecruitsTab() {
         </div>
       </div>
 
-      {error && <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", color: "#ef4444", padding: 12, borderRadius: 8, marginBottom: 12 }}>{error}</div>}
+      {error && <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", color: "#B8474A", padding: 12, borderRadius: 8, marginBottom: 12 }}>{error}</div>}
       {loading && <div style={{ color: "var(--text3)", padding: 20, textAlign: "center" }}>載入中...</div>}
 
       {!loading && recruits.length === 0 && (
@@ -4447,7 +4447,7 @@ function RecruitDrawer({ recruit, onClose, onMove, onDelete }: { recruit: Recrui
             <button
               onClick={() => onMove(recruit.id, nextStage.id)}
               style={{
-                background: `linear-gradient(135deg, ${stageInfo?.color || "#fbbf24"}, ${nextStage.color})`,
+                background: `linear-gradient(135deg, ${stageInfo?.color || "#B89968"}, ${nextStage.color})`,
                 color: "#fff",
                 border: "none",
                 borderRadius: 10,
@@ -4536,7 +4536,7 @@ function RecruitDrawer({ recruit, onClose, onMove, onDelete }: { recruit: Recrui
 
         {/* Footer */}
         <div style={{ padding: "14px 24px", borderTop: "1px solid var(--border)", background: "var(--bg2)" }}>
-          <button onClick={() => onDelete(recruit.id)} style={{ width: "100%", background: "transparent", border: "1px solid #ef4444", color: "#ef4444", borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          <button onClick={() => onDelete(recruit.id)} style={{ width: "100%", background: "transparent", border: "1px solid #B8474A", color: "#B8474A", borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
             🗑 刪除求職者
           </button>
         </div>
@@ -4585,12 +4585,12 @@ interface RecruitDocument {
 }
 
 const DOC_TYPE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
-  resume: { label: "履歷", icon: "📄", color: "#4f46e5" },
+  resume: { label: "履歷", icon: "📄", color: "#B8474A" },
   screenshot: { label: "截圖", icon: "🖼", color: "#0d9488" },
-  conversation: { label: "對話紀錄", icon: "💬", color: "#a855f7" },
-  interview_note: { label: "面試筆記", icon: "📝", color: "#f59e0b" },
+  conversation: { label: "對話紀錄", icon: "💬", color: "#B8474A" },
+  interview_note: { label: "面試筆記", icon: "📝", color: "#B89968" },
   reference: { label: "推薦人", icon: "🤝", color: "#ec4899" },
-  background: { label: "背景調查", icon: "🔍", color: "#dc2626" },
+  background: { label: "背景調查", icon: "🔍", color: "#B8474A" },
   other: { label: "其他", icon: "📎", color: "#64748b" },
 };
 
@@ -4675,7 +4675,7 @@ function RecruitDocumentsSection({ recruitId }: { recruitId: string }) {
                       🔗 開啟檔案連結
                     </a>
                   )}
-                  <button onClick={() => removeDoc(d.id)} style={{ marginTop: 8, background: "transparent", border: "1px solid #dc2626", color: "#dc2626", borderRadius: 5, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}>
+                  <button onClick={() => removeDoc(d.id)} style={{ marginTop: 8, background: "transparent", border: "1px solid #B8474A", color: "#B8474A", borderRadius: 5, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}>
                     刪除
                   </button>
                 </div>
@@ -4769,7 +4769,7 @@ function RecruitDocumentForm({ recruitId, onClose, onSaved }: { recruitId: strin
               <input value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} placeholder="Drive / Dropbox URL" style={inputStyle} />
             </div>
           </div>
-          {error && <div style={{ color: "#dc2626", fontSize: 13 }}>{error}</div>}
+          {error && <div style={{ color: "#B8474A", fontSize: 13 }}>{error}</div>}
           <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
             <button type="button" onClick={onClose} style={{ flex: 1, background: "var(--bg2)", border: "1px solid var(--border)", color: "var(--text2)", borderRadius: 8, padding: 10, cursor: "pointer" }}>
               取消
@@ -4860,7 +4860,7 @@ function RecruitForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
             <label style={{ fontSize: 12, color: "var(--text2)" }}>備註</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }} />
           </div>
-          {error && <div style={{ color: "#ef4444", fontSize: 13 }}>{error}</div>}
+          {error && <div style={{ color: "#B8474A", fontSize: 13 }}>{error}</div>}
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
             <button type="button" onClick={onClose} style={{ flex: 1, background: "var(--bg2)", border: "1px solid var(--border)", color: "var(--text2)", borderRadius: 8, padding: 10, cursor: "pointer" }}>
               取消
@@ -4894,9 +4894,9 @@ interface ClaudeTask {
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
-  critical: "#ef4444",
-  high: "#f97316",
-  normal: "#3b82f6",
+  critical: "#B8474A",
+  high: "#B89968",
+  normal: "#6B7E94",
   low: "#94a3b8",
 };
 
@@ -4981,10 +4981,10 @@ function ClaudeTasksTab({ token }: { token: string }) {
       {/* 統計卡 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         {[
-          { key: "pending", label: "待辦", count: counts.pending, color: "#3b82f6" },
-          { key: "in_progress", label: "進行中", count: counts.in_progress, color: "#f59e0b" },
-          { key: "blocked", label: "卡住", count: counts.blocked, color: "#ef4444" },
-          { key: "done", label: "已完成", count: counts.done, color: "#10b981" },
+          { key: "pending", label: "待辦", count: counts.pending, color: "#6B7E94" },
+          { key: "in_progress", label: "進行中", count: counts.in_progress, color: "#B89968" },
+          { key: "blocked", label: "卡住", count: counts.blocked, color: "#B8474A" },
+          { key: "done", label: "已完成", count: counts.done, color: "#6B7A5A" },
         ].map((c) => (
           <div key={c.key} style={{ padding: 16, borderRadius: 12, background: "var(--card)", border: "1px solid var(--border)" }}>
             <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 4 }}>{c.label}</div>
@@ -5084,25 +5084,25 @@ function ClaudeTasksTab({ token }: { token: string }) {
                   {t.description}
                 </div>
                 {t.why && (
-                  <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: "var(--bg)", borderLeft: "3px solid #3b82f6" }}>
+                  <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: "var(--bg)", borderLeft: "3px solid #6B7E94" }}>
                     <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 4 }}>為什麼需要</div>
                     <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{t.why}</div>
                   </div>
                 )}
                 {t.expected_input && (
-                  <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: "var(--bg)", borderLeft: "3px solid #10b981" }}>
+                  <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: "var(--bg)", borderLeft: "3px solid #6B7A5A" }}>
                     <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 4 }}>需要你提供</div>
                     <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{t.expected_input}</div>
                   </div>
                 )}
                 {t.blocked_features && t.blocked_features.length > 0 && (
-                  <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: "var(--bg)", borderLeft: "3px solid #ef4444" }}>
+                  <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: "var(--bg)", borderLeft: "3px solid #B8474A" }}>
                     <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 4 }}>卡住的功能</div>
                     <div style={{ fontSize: 13 }}>{t.blocked_features.join(" / ")}</div>
                   </div>
                 )}
                 {t.user_response && (
-                  <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: "var(--bg)", borderLeft: "3px solid #f59e0b" }}>
+                  <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: "var(--bg)", borderLeft: "3px solid #B89968" }}>
                     <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 4 }}>你的回應</div>
                     <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{t.user_response}</div>
                   </div>
@@ -5120,20 +5120,20 @@ function ClaudeTasksTab({ token }: { token: string }) {
                       {t.status === "pending" && (
                         <button
                           onClick={() => updateStatus(t.id, "in_progress")}
-                          style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#f59e0b", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                          style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#B89968", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
                         >
                           開始處理
                         </button>
                       )}
                       <button
                         onClick={() => updateStatus(t.id, "done")}
-                        style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#10b981", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                        style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#6B7A5A", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
                       >
                         ✓ 完成
                       </button>
                       <button
                         onClick={() => updateStatus(t.id, "blocked")}
-                        style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", fontSize: 13, cursor: "pointer" }}
+                        style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #B8474A", background: "transparent", color: "#B8474A", fontSize: 13, cursor: "pointer" }}
                       >
                         卡住了
                       </button>
@@ -5244,7 +5244,7 @@ function DashboardTab({ token }: { token: string }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 24 }}>
         {[
           { label: "總人數", value: totalUsers, icon: "👥", color: "var(--accent)" },
-          { label: "目前在線", value: onlineNow, icon: "🟢", color: "#22c55e" },
+          { label: "目前在線", value: onlineNow, icon: "🟢", color: "#6B7A5A" },
           { label: "本週活躍", value: activeThisWeek, icon: "🔥", color: "var(--teal)" },
           { label: "平均測驗分", value: avgQuiz ? Math.round(avgQuiz) : "—", icon: "📝", color: "var(--gold)" },
           { label: "平均對練分", value: avgSparring ? Math.round(avgSparring) : "—", icon: "🎯", color: "var(--green)" },
@@ -5318,8 +5318,8 @@ function DashboardTab({ token }: { token: string }) {
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <span style={{
                         display: "inline-flex", alignItems: "center", gap: 4,
-                        background: actOnline ? "#22c55e22" : actIdle !== null && actIdle < 60 ? "#feca5722" : "#f8717122",
-                        color: actOnline ? "#22c55e" : actIdle !== null && actIdle < 60 ? "#feca57" : "#f87171",
+                        background: actOnline ? "#6B7A5A22" : actIdle !== null && actIdle < 60 ? "#B8996822" : "#f8717122",
+                        color: actOnline ? "#6B7A5A" : actIdle !== null && actIdle < 60 ? "#B89968" : "#f87171",
                         padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
                       }}>
                         <span style={{ width: 6, height: 6, borderRadius: 3, background: "currentColor", display: "inline-block" }} />
@@ -5690,20 +5690,20 @@ function UsersTab({ token }: { token: string }) {
             // 集團層
             { role: "super_admin",    label: "超級管理員", desc: "系統最高權限,管所有品牌、用戶、設定", perms: "全部功能", color: "var(--red)" },
             { role: "ceo",            label: "總經理",     desc: "集團總經理,掌控所有部門與品牌的全局戰況", perms: "全部功能 + 全部門數據", color: "var(--red)" },
-            { role: "coo",            label: "營運長",     desc: "集團營運長,負責各品牌營運效率與流程", perms: "全部功能 + 全部門數據", color: "#dc2626" },
-            { role: "cfo",            label: "財務長",     desc: "集團財務長,負責財務規劃與成本控制", perms: "全部功能 + 全部門數據", color: "#dc2626" },
-            { role: "director",       label: "總監",       desc: "部門總監,跨品牌管理特定職能", perms: "全部功能 + 全部門數據", color: "#ea580c" },
+            { role: "coo",            label: "營運長",     desc: "集團營運長,負責各品牌營運效率與流程", perms: "全部功能 + 全部門數據", color: "#B8474A" },
+            { role: "cfo",            label: "財務長",     desc: "集團財務長,負責財務規劃與成本控制", perms: "全部功能 + 全部門數據", color: "#B8474A" },
+            { role: "director",       label: "總監",       desc: "部門總監,跨品牌管理特定職能", perms: "全部功能 + 全部門數據", color: "#B89968" },
             // 品牌層
             { role: "brand_manager",  label: "品牌主管",   desc: "管所屬品牌的團隊、訓練進度、KPI 審核", perms: "品牌管理、審核、報表", color: "var(--gold)" },
             // 部門主管
-            { role: "sales_manager",  label: "業務主管",   desc: "管業務團隊 KPI、配額、突破預警", perms: "業務戰線後台 + 看 team", color: "#f59e0b" },
-            { role: "recruit_manager",label: "招募主管",   desc: "管招募漏斗、104 邀約、面試節點", perms: "招募戰線後台 + 看 team", color: "#fb923c" },
+            { role: "sales_manager",  label: "業務主管",   desc: "管業務團隊 KPI、配額、突破預警", perms: "業務戰線後台 + 看 team", color: "#B89968" },
+            { role: "recruit_manager",label: "招募主管",   desc: "管招募漏斗、104 邀約、面試節點", perms: "招募戰線後台 + 看 team", color: "#B89968" },
             { role: "legal_manager",  label: "法務主管",   desc: "管法務案件、合約、合規 deadline", perms: "法務戰線後台 + 看 team", color: "#a78bfa" },
             // 帶訓 / 中層
             { role: "team_leader",    label: "組長",       desc: "帶 1 組業務,負責配對師傅、KPI 推進", perms: "team 管理、師徒配對", color: "var(--accent)" },
             { role: "trainer",        label: "訓練師",     desc: "訓練課程授課、SOP 教學、技能考核", perms: "訓練內容、測驗管理", color: "var(--teal)" },
             { role: "mentor",         label: "師傅",       desc: "1:1 帶訓,每日回饋 + 實戰陪跑", perms: "師徒帶訓、回饋", color: "var(--green)" },
-            { role: "hr",             label: "人資",       desc: "人事行政 + 招聘協助", perms: "人事檔案讀寫", color: "#10b981" },
+            { role: "hr",             label: "人資",       desc: "人事行政 + 招聘協助", perms: "人事檔案讀寫", color: "#6B7A5A" },
             // 一般員工
             { role: "legal_staff",    label: "法務人員",   desc: "法務專員,處理案件 / 合約 / 文件", perms: "前台法務工作頁", color: "#9ca3af" },
             { role: "sales_rep",      label: "業務員",     desc: "正式業務員,執行 KPI 目標", perms: "前台個人頁(/me, /today, /checkin)", color: "var(--text3)" },
@@ -5757,7 +5757,7 @@ function UsersTab({ token }: { token: string }) {
                     </select>
                   </td>
                   <td style={{ padding: "12px 14px" }}>
-                    <span style={{ background: u.status === "active" ? "#22c55e22" : "#f8717122", color: u.status === "active" ? "var(--green)" : "var(--red)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+                    <span style={{ background: u.status === "active" ? "#6B7A5A22" : "#f8717122", color: u.status === "active" ? "var(--green)" : "var(--red)", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
                       {u.status === "active" ? "啟用" : "停用"}
                     </span>
                   </td>
@@ -5825,9 +5825,9 @@ function TrainingTab({ token }: { token: string }) {
   const [newBrands, setNewBrands] = useState<string[]>([]);
 
   const BRAND_TABS = [
-    { id: "nschool", name: "nSchool 財經", color: "#feca57" },
-    { id: "ooschool", name: "OOschool 無限", color: "#4F46E5" },
-    { id: "xuemi", name: "XUEMI 學米", color: "#7c6cf0" },
+    { id: "nschool", name: "nSchool 財經", color: "#B89968" },
+    { id: "ooschool", name: "OOschool 無限", color: "#B8474A" },
+    { id: "xuemi", name: "XUEMI 學米", color: "#B8474A" },
     { id: "aischool", name: "AIschool AI", color: "#10B981" },
   ];
   const BRAND_OPTIONS = BRAND_TABS;
@@ -6904,9 +6904,9 @@ function MentorshipTab({ token }: { token: string }) {
           <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
             <button onClick={() => { setFeedbackBrand("all"); setFeedbackFilter(""); }} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: feedbackBrand === "all" ? "2px solid var(--accent)" : "1px solid var(--border)", background: feedbackBrand === "all" ? withAlpha("var(--accent)", 0.1) : "var(--bg2)", color: feedbackBrand === "all" ? "var(--accent)" : "var(--text3)" }}>全部品牌</button>
             {[
-              { id: "nschool", name: "nSchool", color: "#feca57" },
-              { id: "ooschool", name: "OOschool", color: "#4F46E5" },
-              { id: "xuemi", name: "XUEMI", color: "#7c6cf0" },
+              { id: "nschool", name: "nSchool", color: "#B89968" },
+              { id: "ooschool", name: "OOschool", color: "#B8474A" },
+              { id: "xuemi", name: "XUEMI", color: "#B8474A" },
               { id: "aischool", name: "AIschool", color: "#10B981" },
             ].map(b => (
               <button key={b.id} onClick={() => { setFeedbackBrand(b.id); setFeedbackFilter(""); }}
@@ -7071,7 +7071,7 @@ function ApprovalsTab({ token }: { token: string }) {
                   <div style={{ fontSize: 12, color: "var(--text3)" }}>{a.submitted_by}</div>
                 </div>
                 <span style={{
-                  background: a.status === "approved" ? "#22c55e22" : "#f8717122",
+                  background: a.status === "approved" ? "#6B7A5A22" : "#f8717122",
                   color: a.status === "approved" ? "var(--green)" : "var(--red)",
                   padding: "2px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600,
                 }}>
@@ -7232,7 +7232,7 @@ function SystemTab() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {Object.entries(schedules).map(([key, sched]) => (
             <div key={key} style={{ padding: 16, background: "var(--bg2)", borderRadius: 12, border: "1px solid var(--border)" }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: key === "finance" ? "#feca57" : "var(--accent)" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: key === "finance" ? "#B89968" : "var(--accent)" }}>
                 {key === "finance" ? "💰 財經組（nSchool）" : "💻 職能組（無限/學米/AI未來）"}
               </div>
               <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
@@ -7869,7 +7869,7 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
               borderRadius: 6,
               marginLeft: 8,
               background: data.daysWithData === data.daysInRange ? "rgba(34,197,94,0.1)" : "rgba(251,191,36,0.15)",
-              color: data.daysWithData === data.daysInRange ? "#16a34a" : "#b45309",
+              color: data.daysWithData === data.daysInRange ? "#6B7A5A" : "#b45309",
               border: data.daysWithData === data.daysInRange ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(251,191,36,0.4)",
             }}
             title={data.daysWithData === data.daysInRange ? "資料齊全" : "部分日期缺資料，統計可能失真"}
@@ -7985,7 +7985,7 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
                 border: "1px dashed rgba(239,68,68,0.45)",
                 borderRadius: 10,
                 fontSize: 12,
-                color: "#991b1b",
+                color: "#B8474A",
               }}
             >
               🔴 資料完整性警告 — 有 {data.dataIssues.length} 筆違反漏斗規則（應該「有通次→才有接通→邀約→出席→成交」）:
@@ -8007,28 +8007,28 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
               value={summary.calls.toLocaleString()}
               subLabel="接通率"
               subValue={data?.brandRates?.connectRate}
-              tone="#4f46e5"
+              tone="#B8474A"
             />
             <FunnelBigCard
               label="邀約"
               value={summary.raw_appointments.toLocaleString()}
               subLabel="接通→邀約"
               subValue={data?.brandRates?.inviteRate}
-              tone="#d97706"
+              tone="#B89968"
             />
             <FunnelBigCard
               label="出席"
               value={summary.appointments_show.toLocaleString()}
               subLabel="邀約→出席"
               subValue={data?.brandRates?.showRate}
-              tone="#ea580c"
+              tone="#B89968"
             />
             <FunnelBigCard
               label="成交"
               value={`${summary.closures} 件`}
               subLabel="出席→成交"
               subValue={data?.brandRates?.closeRate}
-              tone="#16a34a"
+              tone="#6B7A5A"
             />
             <FunnelBigCard
               label="淨業績"
@@ -8036,7 +8036,7 @@ function SalesMetricsTab({ token: _token }: { token: string }) {
               subLabel="客單價"
               subValueRaw={data?.brandRates?.avgDealSize}
               subValueFormat="money"
-              tone="#db2777"
+              tone="#B8474A"
               highlight
             />
             <FunnelBigCard
@@ -8393,7 +8393,7 @@ function DailyTrendChart({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)" }}>📈 業績趨勢</div>
         <div style={{ fontSize: 12, color: "var(--text3)" }}>
-          區間合計 <strong style={{ color: "#db2777" }}>NT${formatMillions(totalRevenue)}</strong>
+          區間合計 <strong style={{ color: "#B8474A" }}>NT${formatMillions(totalRevenue)}</strong>
         </div>
       </div>
       <div
@@ -8430,7 +8430,7 @@ function DailyTrendChart({
                 style={{
                   width: "100%",
                   background: d.net_revenue_daily > 0
-                    ? "linear-gradient(180deg, #db2777, #be185d)"
+                    ? "linear-gradient(180deg, #B8474A, #be185d)"
                     : "var(--border)",
                   borderRadius: 4,
                   height: `${pct}%`,
@@ -8450,10 +8450,10 @@ function DailyTrendChart({
 }
 
 const BRAND_COLORS: Record<string, string> = {
-  nschool: "#4F46E5",
-  xuemi: "#ea580c",
+  nschool: "#B8474A",
+  xuemi: "#B89968",
   ooschool: "#0891b2",
-  aischool: "#db2777",
+  aischool: "#B8474A",
   hq: "#64748b",
 };
 
@@ -8613,9 +8613,9 @@ function AttentionPanel({ rows, onAssigned }: { rows: SalesMetricsRow[]; onAssig
   };
 
   const sevTone = {
-    critical: { bg: "rgba(239,68,68,0.08)", bar: "#dc2626", icon: "🔴" },
-    high: { bg: "rgba(234,88,12,0.08)", bar: "#ea580c", icon: "🟠" },
-    medium: { bg: "rgba(251,191,36,0.08)", bar: "#d97706", icon: "🟡" },
+    critical: { bg: "rgba(239,68,68,0.08)", bar: "#B8474A", icon: "🔴" },
+    high: { bg: "rgba(234,88,12,0.08)", bar: "#B89968", icon: "🟠" },
+    medium: { bg: "rgba(251,191,36,0.08)", bar: "#B89968", icon: "🟡" },
   };
 
   return (
@@ -8629,7 +8629,7 @@ function AttentionPanel({ rows, onAssigned }: { rows: SalesMetricsRow[]; onAssig
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#7f1d1d" }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#B8474A" }}>
           🚨 今日要特別關心的 {attention.length} 人
         </div>
         <div style={{ fontSize: 11, color: "var(--text3)" }}>
@@ -8645,7 +8645,7 @@ function AttentionPanel({ rows, onAssigned }: { rows: SalesMetricsRow[]; onAssig
             border: `1px solid ${msg.startsWith("✅") ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
             borderRadius: 6,
             fontSize: 11,
-            color: msg.startsWith("✅") ? "#14532d" : "#7f1d1d",
+            color: msg.startsWith("✅") ? "#14532d" : "#B8474A",
           }}
         >
           {msg}
@@ -8744,7 +8744,7 @@ function BrandCompareCard({ brands }: { brands: BrandCompareRow[] }) {
                     width: 24,
                     height: 24,
                     borderRadius: 12,
-                    background: rank === 1 ? "#fbbf24" : rank === 2 ? "#cbd5e1" : rank === 3 ? "#cd7f32" : "var(--border)",
+                    background: rank === 1 ? "#B89968" : rank === 2 ? "#cbd5e1" : rank === 3 ? "#cd7f32" : "var(--border)",
                     color: rank <= 3 ? "#fff" : "var(--text3)",
                     fontSize: 11,
                     fontWeight: 900,
@@ -9010,7 +9010,7 @@ function RankingTable({
                   style={{
                     fontSize: 9,
                     background: "rgba(239,68,68,0.15)",
-                    color: "#dc2626",
+                    color: "#B8474A",
                     padding: "1px 5px",
                     borderRadius: 4,
                     fontWeight: 700,
@@ -9171,7 +9171,7 @@ function LegalAdminTab() {
   useEffect(() => { loadAll(); }, []);
 
   if (loading) return <div style={{ padding: 40, color: "var(--text3)" }}>載入中...</div>;
-  if (!data) return <div style={{ padding: 40, color: "#dc2626" }}>載入失敗</div>;
+  if (!data) return <div style={{ padding: 40, color: "#B8474A" }}>載入失敗</div>;
 
   const s = data.stats;
 
@@ -9187,10 +9187,10 @@ function LegalAdminTab() {
       {/* 指標卡 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 20 }}>
         <MetricCard label="全部案件" value={s.total} color="#64748b" />
-        <MetricCard label="進行中" value={s.open} color="#4f46e5" />
-        <MetricCard label="🚨 逾期" value={s.overdue} color="#dc2626" highlight />
-        <MetricCard label="⏰ 本週到期" value={s.due_week} color="#f59e0b" />
-        <MetricCard label="已結案" value={s.closed} color="#16a34a" />
+        <MetricCard label="進行中" value={s.open} color="#B8474A" />
+        <MetricCard label="🚨 逾期" value={s.overdue} color="#B8474A" highlight />
+        <MetricCard label="⏰ 本週到期" value={s.due_week} color="#B89968" />
+        <MetricCard label="已結案" value={s.closed} color="#6B7A5A" />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
@@ -9202,7 +9202,7 @@ function LegalAdminTab() {
             <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", fontSize: 13 }}>
               <span style={{ width: 120 }}>{k}</span>
               <div style={{ flex: 1, height: 8, background: "var(--bg2)", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ width: `${Math.min(100, (v / Math.max(...Object.values(s.by_kind))) * 100)}%`, height: "100%", background: "#4f46e5" }} />
+                <div style={{ width: `${Math.min(100, (v / Math.max(...Object.values(s.by_kind))) * 100)}%`, height: "100%", background: "#B8474A" }} />
               </div>
               <span style={{ width: 30, textAlign: "right", fontWeight: 700 }}>{v}</span>
             </div>
@@ -9216,7 +9216,7 @@ function LegalAdminTab() {
             <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", fontSize: 13 }}>
               <span style={{ width: 80, fontWeight: 700 }}>{k}</span>
               <div style={{ flex: 1, height: 8, background: "var(--bg2)", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ width: `${Math.min(100, (v / Math.max(...Object.values(s.by_brand))) * 100)}%`, height: "100%", background: "#7c6cf0" }} />
+                <div style={{ width: `${Math.min(100, (v / Math.max(...Object.values(s.by_brand))) * 100)}%`, height: "100%", background: "#B8474A" }} />
               </div>
               <span style={{ width: 30, textAlign: "right", fontWeight: 700 }}>{v}</span>
             </div>
@@ -9240,13 +9240,13 @@ function LegalAdminTab() {
 
       {/* Top 逾期 */}
       {data.top_overdue.length > 0 && (
-        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: 16, marginBottom: 20 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 800, marginTop: 0, color: "#991b1b" }}>🚨 最嚴重逾期 TOP 10</h3>
+        <div style={{ background: "#fef2f2", border: "1px solid #F5E5DC", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 800, marginTop: 0, color: "#B8474A" }}>🚨 最嚴重逾期 TOP 10</h3>
           {data.top_overdue.map((c) => (
-            <a key={c.id} href={`/legal/cases/${c.id}`} style={{ display: "flex", padding: "8px 0", borderTop: "1px solid #fecaca", textDecoration: "none", color: "var(--text)", fontSize: 13, alignItems: "center", gap: 10 }}>
+            <a key={c.id} href={`/legal/cases/${c.id}`} style={{ display: "flex", padding: "8px 0", borderTop: "1px solid #F5E5DC", textDecoration: "none", color: "var(--text)", fontSize: 13, alignItems: "center", gap: 10 }}>
               <div style={{
                 width: 60, textAlign: "center", padding: "6px 0", borderRadius: 6,
-                background: "#fee2e2", color: "#991b1b", fontSize: 11, fontWeight: 800, flexShrink: 0,
+                background: "#fee2e2", color: "#B8474A", fontSize: 11, fontWeight: 800, flexShrink: 0,
               }}>{c.days_overdue} 天</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>{c.title}</div>
@@ -9266,7 +9266,7 @@ function LegalAdminTab() {
           <div key={o.email} style={{ display: "flex", alignItems: "center", padding: "7px 0", borderTop: "1px solid var(--border)", fontSize: 13 }}>
             <span style={{ flex: 1 }}>{o.email}</span>
             <span style={{ width: 100, textAlign: "right" }}>進行 {o.open}</span>
-            <span style={{ width: 100, textAlign: "right", color: o.overdue > 0 ? "#dc2626" : "var(--text3)", fontWeight: o.overdue > 0 ? 700 : 400 }}>逾期 {o.overdue}</span>
+            <span style={{ width: 100, textAlign: "right", color: o.overdue > 0 ? "#B8474A" : "var(--text3)", fontWeight: o.overdue > 0 ? 700 : 400 }}>逾期 {o.overdue}</span>
           </div>
         ))}
       </div>
@@ -9293,7 +9293,7 @@ function LegalAdminTab() {
                 <td style={{ fontFamily: "monospace", fontSize: 11, color: m.line_user_id ? "var(--text)" : "var(--text3)" }}>{m.line_user_id ? m.line_user_id.slice(0,14)+"..." : "(未綁)"}</td>
                 <td>{m.role}</td>
                 <td>{m.priority}</td>
-                <td><button onClick={async () => { if(!confirm('刪除 '+m.email+'?')) return; await fetch('/api/admin/pillar-managers?id='+m.id,{method:'DELETE'}); loadAll(); }} style={{ padding: "2px 8px", border: "1px solid var(--border)", background: "transparent", color: "#dc2626", fontSize: 11, borderRadius: 4, cursor: "pointer" }}>刪除</button></td>
+                <td><button onClick={async () => { if(!confirm('刪除 '+m.email+'?')) return; await fetch('/api/admin/pillar-managers?id='+m.id,{method:'DELETE'}); loadAll(); }} style={{ padding: "2px 8px", border: "1px solid var(--border)", background: "transparent", color: "#B8474A", fontSize: 11, borderRadius: 4, cursor: "pointer" }}>刪除</button></td>
               </tr>
             ))}
           </tbody>
@@ -9360,7 +9360,7 @@ function DeadlineHeatmap({ heat }: { heat: Record<string, number> }) {
     const ratio = n / max;
     if (ratio < 0.25) return "#dbeafe";
     if (ratio < 0.5) return "#93c5fd";
-    if (ratio < 0.75) return "#3b82f6";
+    if (ratio < 0.75) return "#6B7E94";
     return "#1d4ed8";
   };
   return (
@@ -9369,7 +9369,7 @@ function DeadlineHeatmap({ heat }: { heat: Record<string, number> }) {
         <div key={c.date} title={`${c.date}: ${c.count} 件到期`} style={{
           padding: "8px 4px", borderRadius: 6, background: shade(c.count),
           textAlign: "center", fontSize: 10, fontWeight: 600,
-          border: c.isToday ? "2px solid #dc2626" : "none",
+          border: c.isToday ? "2px solid #B8474A" : "none",
           color: c.count > 0 ? (c.count / max > 0.5 ? "#fff" : "#0f172a") : "#94a3b8",
         }}>
           <div>{c.dom}</div>
@@ -9397,9 +9397,9 @@ function PillarManagersOverview() {
   }, []);
 
   const pillars = [
-    { id: "sales", emoji: "\u{1F4B0}", label: "業務", color: "#f59e0b" },
-    { id: "legal", emoji: "\u2696\uFE0F", label: "法務", color: "#7c6cf0" },
-    { id: "recruit", emoji: "\u{1F3AF}", label: "招聘", color: "#10b981" },
+    { id: "sales", emoji: "\u{1F4B0}", label: "業務", color: "#B89968" },
+    { id: "legal", emoji: "\u2696\uFE0F", label: "法務", color: "#B8474A" },
+    { id: "recruit", emoji: "\u{1F3AF}", label: "招聘", color: "#6B7A5A" },
   ];
 
   if (loading) return <div style={{ padding: 20, textAlign: "center", color: "var(--text3)", fontSize: 13 }}>載入主管資料...</div>;
@@ -9422,8 +9422,8 @@ function PillarManagersOverview() {
                       <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text1)" }}>{m.display_name}</div>
                       <div style={{ fontSize: 11, color: "var(--text3)" }}>{m.email}</div>
                     </div>
-                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: m.role === "manager" ? "#eef2ff" : "#f0fdf4", color: m.role === "manager" ? "#4f46e5" : "#16a34a", fontWeight: 700 }}>{m.role}</span>
-                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: m.line_user_id ? "#dcfce7" : "#fef2f2", color: m.line_user_id ? "#16a34a" : "#dc2626", fontWeight: 600 }}>{m.line_user_id ? "LINE 已綁" : "LINE 未綁"}</span>
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: m.role === "manager" ? "#eef2ff" : "#f0fdf4", color: m.role === "manager" ? "#B8474A" : "#6B7A5A", fontWeight: 700 }}>{m.role}</span>
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: m.line_user_id ? "#dcfce7" : "#fef2f2", color: m.line_user_id ? "#6B7A5A" : "#B8474A", fontWeight: 600 }}>{m.line_user_id ? "LINE 已綁" : "LINE 未綁"}</span>
                   </div>
                 ))
               )}
@@ -9441,11 +9441,11 @@ function PillarManagersOverview() {
 // ─── Aging Bars ─────────────────
 function AgingBars({ aging }: { aging: Record<string, number> }) {
   const buckets = [
-    { key: "d0_7", label: "0-7 天", color: "#10b981" },
-    { key: "d8_30", label: "8-30 天", color: "#4f46e5" },
-    { key: "d31_60", label: "31-60 天", color: "#f59e0b" },
-    { key: "d61_90", label: "61-90 天", color: "#ea580c" },
-    { key: "d91plus", label: "91+ 天", color: "#dc2626" },
+    { key: "d0_7", label: "0-7 天", color: "#6B7A5A" },
+    { key: "d8_30", label: "8-30 天", color: "#B8474A" },
+    { key: "d31_60", label: "31-60 天", color: "#B89968" },
+    { key: "d61_90", label: "61-90 天", color: "#B89968" },
+    { key: "d91plus", label: "91+ 天", color: "#B8474A" },
   ];
   const total = buckets.reduce((s, b) => s + (aging[b.key] || 0), 0);
   return (
