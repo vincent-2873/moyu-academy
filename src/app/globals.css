@@ -422,6 +422,96 @@ body:has(.admin-light) {
   box-shadow: 0 4px 18px -8px rgba(15,23,42,0.10);
 }
 
+/* ─────────────────────────────────────────────────────────────────
+ * Wabi 強制 override (Phase E — 2026-04-30):
+ * 既有 7 admin tab inline 在 admin/page.tsx 用 SaaS 紫青色 inline style,
+ * 用 CSS attribute selector 強制蓋成侘寂色票。
+ * 不動 inline component code,只蓋 visual.
+ * ─────────────────────────────────────────────────────────────── */
+
+/* 紫色 / 紫青漸層 → 朱紅 + 米紙 */
+.admin-light [style*="#8b5cf6"],
+.admin-light [style*="#7c6cf0"],
+.admin-light [style*="#a855f7"],
+.admin-light [style*="#4F46E5"],
+.admin-light [style*="#4f46e5"],
+.admin-light [style*="#6366f1"],
+.admin-light [style*="purple"]:not([style*="bgPurple"]) {
+  /* 慎用:可能誤殺 — 但 admin-light 範圍可控,值得 */
+  border-color: var(--accent) !important;
+}
+
+/* 漸層背景 → 紙感扁平 + 細邊框 */
+.admin-light [style*="linear-gradient"][style*="135deg"][style*="#8b5cf6"],
+.admin-light [style*="linear-gradient"][style*="135deg"][style*="#06b6d4"],
+.admin-light [style*="linear-gradient"][style*="135deg"][style*="#4F46E5"],
+.admin-light [style*="linear-gradient"][style*="135deg"][style*="#7c6cf0"],
+.admin-light [style*="linear-gradient"][style*="purple"],
+.admin-light [style*="linear-gradient"][style*="violet"],
+.admin-light [style*="linear-gradient"][style*="indigo"],
+.admin-light [style*="linear-gradient"][style*="cyan"] {
+  background: var(--bg2) !important;
+  background-image: none !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+
+/* 文字色:純紫色 hex → ink */
+.admin-light [style*="color: #8b5cf6"],
+.admin-light [style*="color:#8b5cf6"],
+.admin-light [style*="color: #7c6cf0"],
+.admin-light [style*="color: #4F46E5"],
+.admin-light [style*="color: #4f46e5"],
+.admin-light [style*="color: #a855f7"] {
+  color: var(--accent) !important;
+}
+
+/* 青色 / 藍綠 → moss / sky */
+.admin-light [style*="background: #06b6d4"],
+.admin-light [style*="background:#06b6d4"],
+.admin-light [style*="background-color: #06b6d4"],
+.admin-light [style*="background: #14b8a6"],
+.admin-light [style*="background: #0ea5e9"] {
+  background: var(--cyan) !important;
+}
+
+/* 強烈紅(SaaS error 紅 #ef4444 / #dc2626)→ stamp-red */
+.admin-light [style*="background: #ef4444"],
+.admin-light [style*="background: #dc2626"],
+.admin-light [style*="color: #ef4444"],
+.admin-light [style*="color: #dc2626"] {
+  background-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+/* 通用 saturation 降:整片 admin 內 vivid 色塊降 0.85 飽和 */
+.admin-light .metric-tile,
+.admin-light .glass-card,
+.admin-light .surface-elevated {
+  filter: saturate(0.85);
+}
+
+/* 卡片浮起:既有 hardcoded 卡片有自己 shadow,加一致 hover 浮 */
+.admin-light [style*="border-radius"][style*="background"]:not(button) {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* 按鈕:有 inline 紫色背景的 button 一律改墨色 */
+.admin-light button[style*="background: #8b5cf6"],
+.admin-light button[style*="background: #7c6cf0"],
+.admin-light button[style*="background: #4F46E5"],
+.admin-light button[style*="background-color: #8b5cf6"] {
+  background: var(--text) !important;
+  color: var(--bg) !important;
+}
+
+/* table SaaS 條紋 → paper-2 條紋 */
+.admin-light tr:nth-child(even) [style*="background: #f3f4f6"],
+.admin-light tr:nth-child(even) [style*="background: #f8fafc"] {
+  background: var(--bg2) !important;
+}
+
 /* Admin 後台也跟著深色模式 —— 以 html[data-theme="dark"] 覆蓋 admin-light 的強制淺色 */
 html[data-theme="dark"] body:has(.admin-light) {
   background: #0b1020 !important;
