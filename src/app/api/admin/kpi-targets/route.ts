@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminScope, enforceWriteAccess } from "@/lib/admin-scope";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const scope = await getAdminScope(req);
+  if (scope) { const ro = enforceWriteAccess(scope, req.method); if (ro) return ro; }
   const body = await req.json();
   const { name, metric, target_value, period, applies_to_role, applies_to_stage, applies_to_brand, weight, is_active } = body;
   if (!name || !metric || target_value == null) return NextResponse.json({ error: "missing name/metric/target_value" }, { status: 400 });
@@ -27,6 +30,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const scope = await getAdminScope(req);
+  if (scope) { const ro = enforceWriteAccess(scope, req.method); if (ro) return ro; }
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
@@ -43,6 +48,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const scope = await getAdminScope(req);
+  if (scope) { const ro = enforceWriteAccess(scope, req.method); if (ro) return ro; }
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });

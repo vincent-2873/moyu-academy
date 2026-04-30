@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminScope, enforceWriteAccess } from '@/lib/admin-scope';
 
 
 export async function GET(req: NextRequest) {
@@ -28,6 +29,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    // 安全 #4: trainer/mentor read-only block
+    const scope = await getAdminScope(req);
+    if (scope) {
+      const ro = enforceWriteAccess(scope, req.method);
+      if (ro) return ro;
+    }
     const { email, name, brand, role } = await req.json();
 
     if (!email || !name || !brand || !role) {
@@ -56,6 +63,12 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    // 安全 #4: trainer/mentor read-only block
+    const scope = await getAdminScope(req);
+    if (scope) {
+      const ro = enforceWriteAccess(scope, req.method);
+      if (ro) return ro;
+    }
     const { id, ...updates } = await req.json();
 
     if (!id) {
