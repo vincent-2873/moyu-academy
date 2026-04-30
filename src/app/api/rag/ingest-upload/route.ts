@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { parseFile, isSupportedMime } from "@/lib/file-parser";
 import { anonymize } from "@/lib/anonymize";
 import { writeAuditLog } from "@/lib/audit-log";
+import { canUploadRag, uploadDeniedReason } from "@/lib/upload-permissions";
 import type { Pillar } from "@/lib/rag-pillars";
 
 /**
@@ -86,11 +87,10 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (!user) return NextResponse.json({ error: "user not found" }, { status: 404 });
 
-    // source rule
-    const isAdmin = ["super_admin", "ceo", "coo", "cfo", "director", "brand_manager",
-                     "sales_manager", "recruit_manager", "legal_manager"].includes(user.role || "");
-    if (source === "admin" && !isAdmin) {
-      return NextResponse.json({ error: "non-admin role cannot use source=admin" }, { status: 403 });
+    // 2026-04-30 末段 Vincent 反饋:RAG 上傳限定 4 role
+    //   super_admin / sales_manager / legal_manager / recruit_manager
+    if (!canUploadRag(user.role)) {
+      return NextResponse.json({ error: uploadDeniedReason(user.role) }, { status: 403 });
     }
 
     // 2. 處理 input

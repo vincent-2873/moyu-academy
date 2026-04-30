@@ -39,6 +39,8 @@ on:
     - cron: '*/30 * * * *'      # 已存在,共用 — embedding-refresh
     # 2026-04-30 第三輪 — N7 cron failure alert 每小時掃 fail rate 推 LINE
     - cron: '15 * * * *'        # 每小時 :15 — cron-failure-alert
+    # 2026-04-30 末段 — auto-classify-pillar 週日 02:00 TPE = UTC 週六 18:00
+    - cron: '0 18 * * 6'        # 週日 02:00 — auto-classify-pillar
   workflow_dispatch:  # 允許 manual trigger
 
 jobs:
@@ -157,6 +159,10 @@ jobs:
           # 2026-04-30 第三輪 — cron-failure-alert 每小時 :15(連續 fail 推 LINE)
           if [ "$SCHEDULE" = "15 * * * *" ] || [ "$MANUAL" = "true" ]; then
             call_cron cron-failure-alert
+          fi
+          # 2026-04-30 末段 — auto-classify-pillar 週日 02:00 TPE = UTC 週六 18:00
+          if [ "$SCHEDULE" = "0 18 * * 6" ] || [ "$MANUAL" = "true" ]; then
+            call_cron auto-classify-pillar
           fi
 
           echo "Done."

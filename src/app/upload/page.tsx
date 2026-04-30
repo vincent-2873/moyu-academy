@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { canUploadRag, RAG_UPLOAD_ROLE_LABELS } from "@/lib/upload-permissions";
 
 /**
  * 2026-04-30 Wave C UI B:前台共同上傳區
@@ -108,6 +109,31 @@ export default function UploadPage() {
   }
 
   if (!email) return null;
+
+  // 2026-04-30 末段:role guard — 只有 super_admin / 3 manager 可上傳
+  const allowed = user ? canUploadRag(user.role) : null;
+  if (user !== null && allowed === false) {
+    return (
+      <div style={{ minHeight: "100vh", background: "var(--bg-paper, #f7f1e3)", padding: "60px 20px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ maxWidth: 520, textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: "var(--ink-mid)", letterSpacing: 4, marginBottom: 12, fontWeight: 600 }}>NO PERMISSION</div>
+          <h1 style={{ fontFamily: "var(--font-noto-serif-tc)", fontSize: 40, color: "var(--ink-deep)", letterSpacing: 4, marginBottom: 20 }}>權限不足</h1>
+          <div style={{ fontSize: 14, color: "var(--ink-deep)", lineHeight: 1.7, marginBottom: 24 }}>
+            你的角色 <code style={{ background: "var(--bg-elev)", padding: "2px 6px", borderRadius: 3 }}>{user?.role || "未知"}</code> 沒有 RAG 上傳權限。
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-mid)", lineHeight: 1.8, marginBottom: 24, padding: 16, background: "var(--bg-elev)", borderRadius: 4, textAlign: "left" }}>
+            可上傳的角色:
+            <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+              {Object.entries(RAG_UPLOAD_ROLE_LABELS).map(([k, v]) => (
+                <li key={k} style={{ marginBottom: 4 }}>{v} <code style={{ fontSize: 10, color: "var(--ink-mid)" }}>({k})</code></li>
+              ))}
+            </ul>
+          </div>
+          <a href="/work" style={{ fontSize: 13, color: "var(--accent-red)", textDecoration: "underline" }}>← 回工作台</a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-paper, #f7f1e3)", padding: "40px 20px" }}>

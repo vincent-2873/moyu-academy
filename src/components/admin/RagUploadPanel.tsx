@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { canUploadRag, RAG_UPLOAD_ROLE_LABELS } from "@/lib/upload-permissions";
 
 /**
  * 2026-04-30 Wave C UI A:後台 RAG 上傳區
@@ -49,6 +50,16 @@ export default function RagUploadPanel({ email }: Props) {
   const [anonymizePII, setAnonymizePII] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<any>(null);
+  // 2026-04-30 末段:role check
+  const [userRole, setUserRole] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!email) return;
+    fetch(`/api/user?email=${encodeURIComponent(email)}`)
+      .then((r) => r.json())
+      .then((d) => setUserRole(d?.user?.role || d?.role || null))
+      .catch(() => setUserRole(null));
+  }, [email]);
 
   async function submit() {
     if (!title.trim()) { setResult({ error: "請填 title" }); return; }
@@ -79,6 +90,29 @@ export default function RagUploadPanel({ email }: Props) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (userRole === undefined) {
+    return <div className="p-12 text-sm" style={{ color: "var(--ink-mid)" }}>檢查權限…</div>;
+  }
+  if (!canUploadRag(userRole)) {
+    return (
+      <div style={{ padding: "60px 32px", maxWidth: 700, margin: "0 auto" }}>
+        <div style={{ fontSize: 11, color: "var(--accent-red)", letterSpacing: 4, marginBottom: 12, fontWeight: 600 }}>NO PERMISSION</div>
+        <h1 style={{ fontFamily: "var(--font-noto-serif-tc)", fontSize: 40, color: "var(--ink-deep)", letterSpacing: 4, marginBottom: 16 }}>權限不足</h1>
+        <div style={{ fontSize: 14, color: "var(--ink-deep)", lineHeight: 1.7, marginBottom: 20 }}>
+          你的角色 <code style={{ background: "var(--bg-elev)", padding: "2px 6px", borderRadius: 3 }}>{userRole || "未知"}</code> 沒有 RAG 上傳權限。
+        </div>
+        <div style={{ fontSize: 12, color: "var(--ink-mid)", lineHeight: 1.8, padding: 16, background: "var(--bg-elev)", borderRadius: 4 }}>
+          可上傳的角色(只 4 種):
+          <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+            {Object.entries(RAG_UPLOAD_ROLE_LABELS).map(([k, v]) => (
+              <li key={k} style={{ marginBottom: 4 }}>{v} <code style={{ fontSize: 10, color: "var(--ink-mid)" }}>({k})</code></li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
   }
 
   return (

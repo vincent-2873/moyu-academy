@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 type Data = {
   ok: boolean;
   generated_at: string;
-  revenue_forecast: { this_month_actual: number; projected_eom: number; projected_closures: number; day_of_month: number; days_in_month: number; confidence_pct: number; daily_avg: number };
+  revenue_forecast: { this_month_actual: number; projected_eom: number; projected_closures: number; day_of_month: number; days_in_month: number; confidence_pct: number; daily_avg: number; insufficient_data?: boolean };
   hire_gap: { target: number; done: number; gap: number; next_month_pressure: "healthy" | "warning" | "critical" };
   risk_alerts: { user: string; this_month_rev: number; expected: number; pct: number }[];
   scenarios: { name: string; assumption: string; projected_revenue: number; delta_vs_target: number }[];
@@ -53,6 +53,12 @@ export default function PredictionTab() {
             信心度 {f.confidence_pct}% · 日均 {fmt(f.daily_avg)}
           </div>
         </div>
+        {/* 2026-04-30 末段 P3:月初 < 3 天 projection 不可信 → 標示 */}
+        {f.insufficient_data && (
+          <div style={{ padding: 10, background: "rgba(217,119,6,0.08)", border: "1px solid #d97706", borderRadius: 4, marginBottom: 12, fontSize: 12, color: "#92400e" }}>
+            ⚠️ 月初 {f.day_of_month} 天樣本太少 — 預估值僅供參考(實際線性預測在 D3+ 才生效)
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, marginBottom: 16 }}>
           <Stat label="已實現" value={fmt(f.this_month_actual)} />
           <Stat label="預估月底" value={fmt(f.projected_eom)} highlight />
