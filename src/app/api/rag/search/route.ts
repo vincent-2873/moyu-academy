@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { query, brand, path_type, stage_tag, top_k, user_role } = body;
+    const { query, brand, path_type, stage_tag, top_k, user_role, user_email } = body;
     if (!query || typeof query !== "string") {
       return NextResponse.json({ error: "missing query" }, { status: 400 });
     }
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "no embedding returned" }, { status: 502 });
     }
 
-    // 2. search_knowledge() RPC (含 pillar + allowed_roles ACL)
+    // 2. search_knowledge() RPC (含 pillar + allowed_roles ACL + visibility=self)
     const { data: results, error } = await sb.rpc("search_knowledge", {
       query_embedding: queryEmbedding,
       match_count: top_k || 5,
@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       filter_stage_tag: stage_tag || null,
       filter_pillars: allowedPillars,
       filter_user_role: user_role || null,
+      filter_user_email: user_email || null,        // D16:visibility=self 必要
     });
 
     if (error) {

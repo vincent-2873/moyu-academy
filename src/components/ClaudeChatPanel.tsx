@@ -53,6 +53,14 @@ interface Props {
   brand?: string;
 }
 
+type Session = {
+  session_id: string;
+  last_message_at: string;
+  message_count: number;
+  last_user_msg: string;
+  last_assistant_msg: string;
+};
+
 export default function ClaudeChatPanel({ userEmail, stage, brand }: Props) {
   const [open, setOpen] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -60,6 +68,37 @@ export default function ClaudeChatPanel({ userEmail, stage, brand }: Props) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 2026-04-30 Wave D: chat history sidebar
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
+
+  async function loadSessions() {
+    if (!userEmail) return;
+    try {
+      const r = await fetch(`/api/claude-panel/sessions?email=${encodeURIComponent(userEmail)}`);
+      const d = await r.json();
+      setSessions(d.sessions || []);
+    } catch {}
+  }
+
+  function newSession() {
+    if (!userEmail) return;
+    const sid = (typeof crypto !== "undefined" && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(`__claude_session_${userEmail}`, sid);
+    setSessionId(sid);
+    setMessages([]);
+    setSidebarOpen(false);
+  }
+
+  function switchSession(sid: string) {
+    if (!userEmail) return;
+    localStorage.setItem(`__claude_session_${userEmail}`, sid);
+    setSessionId(sid);
+    setSidebarOpen(false);
+    // 重 load messages 由 useEffect 觸發
+  }
 
   // session 從 localStorage 讀, 首次進入創新
   useEffect(() => {
@@ -184,36 +223,102 @@ export default function ClaudeChatPanel({ userEmail, stage, brand }: Props) {
             className="flex items-center justify-between px-5 py-4"
             style={{ borderBottom: "1px solid var(--border-soft, rgba(26,26,26,0.10))" }}
           >
-            <div>
-              <div
-                style={{
-                  fontFamily: "var(--font-noto-serif-tc, serif)",
-                  fontSize: "18px",
-                  fontWeight: 600,
-                  color: "var(--ink-deep, #1a1a1a)",
-                }}
+            <div className="flex items-center gap-3">
+              {/* 2026-04-30 Wave D: chat history sidebar trigger */}
+              <button
+                onClick={() => { setSidebarOpen((o) => !o); if (!sidebarOpen) loadSessions(); }}
+                aria-label="對話歷史"
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5"
+                style={{ color: "var(--ink-mid, #4a4a4a)", fontSize: 16 }}
+                title="對話歷史"
               >
-                戰情官
-              </div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "var(--ink-mid, #4a4a4a)",
-                  marginTop: "2px",
-                }}
-              >
-                {stage && `${stage} · `}{brand || "墨宇"}
+                ☰
+              </button>
+              <div>
+                <div
+                  style={{
+                    fontFamily: "var(--font-noto-serif-tc, serif)",
+                    fontSize: "18px",
+                    fontWeight: 600,
+                    color: "var(--ink-deep, #1a1a1a)",
+                  }}
+                >
+                  戰情官
+                </div>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--ink-mid, #4a4a4a)",
+                    marginTop: "2px",
+                  }}
+                >
+                  {stage && `${stage} · `}{brand || "墨宇"}
+                </div>
               </div>
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              aria-label="收起"
-              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5"
-              style={{ color: "var(--ink-mid, #4a4a4a)" }}
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={newSession}
+                aria-label="新對話"
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5"
+                style={{ color: "var(--ink-mid, #4a4a4a)", fontSize: 14 }}
+                title="新對話"
+              >
+                ＋
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="收起"
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5"
+                style={{ color: "var(--ink-mid, #4a4a4a)" }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
+
+          {/* 2026-04-30 Wave D: Sessions sidebar(覆蓋 messages 區) */}
+          {sidebarOpen && (
+            <div className="absolute inset-x-0 top-[73px] bottom-0 z-10 overflow-y-auto" style={{ background: "var(--bg-paper, #f7f1e3)" }}>
+              <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border-soft, rgba(26,26,26,0.10))" }}>
+                <span style={{ fontSize: 11, color: "var(--ink-mid)", letterSpacing: 2, fontWeight: 600 }}>對話歷史 · {sessions.length}</span>
+                <button onClick={newSession} style={{ fontSize: 11, color: "var(--accent-red)", textDecoration: "underline", cursor: "pointer", background: "transparent", border: 0 }}>+ 開新對話</button>
+              </div>
+              {sessions.length === 0 ? (
+                <div className="p-8 text-sm text-center" style={{ color: "var(--ink-mid)" }}>無紀錄</div>
+              ) : (
+                <div className="p-2 space-y-1.5">
+                  {sessions.map((s) => {
+                    const isActive = s.session_id === sessionId;
+                    return (
+                      <button
+                        key={s.session_id}
+                        onClick={() => switchSession(s.session_id)}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "10px 12px",
+                          background: isActive ? "var(--ink-deep)" : "var(--bg-elev, rgba(247,241,227,0.85))",
+                          color: isActive ? "var(--bg-paper)" : "var(--ink-deep)",
+                          border: `1px solid ${isActive ? "var(--ink-deep)" : "var(--border-soft, rgba(26,26,26,0.10))"}`,
+                          borderRadius: 4,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
+                          <span style={{ fontSize: 9, opacity: 0.6 }}>{new Date(s.last_message_at).toISOString().slice(5, 16).replace("T", " ")}</span>
+                          <span style={{ fontSize: 9, opacity: 0.5, marginLeft: "auto" }}>{s.message_count} 則</span>
+                        </div>
+                        <div style={{ fontFamily: "var(--font-noto-serif-tc, serif)", fontSize: 12, fontWeight: 500, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                          {s.last_user_msg || s.last_assistant_msg || "(無內容)"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">

@@ -25,8 +25,8 @@ export function taipeiNow(): Date {
  * 取台北「今天」(yyyy-MM-dd 字串)
  * 無論 server TZ 如何,輸出都是台北日期
  */
-export function taipeiToday(): string {
-  return formatInTimeZone(new Date(), TAIPEI_TZ, 'yyyy-MM-dd');
+export function taipeiToday(date: Date = new Date()): string {
+  return formatInTimeZone(date, TAIPEI_TZ, 'yyyy-MM-dd');
 }
 
 /**

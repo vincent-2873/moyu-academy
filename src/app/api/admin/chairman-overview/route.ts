@@ -254,6 +254,13 @@ export async function GET() {
     return Response.json({
       ok: true,
       generated_at: new Date().toISOString(),
+      // 2026-04-30 Wave B B13:標明數據源讓前端 / Vincent 看到「為什麼跟其他頁不一樣」
+      data_source: {
+        sales_kpi: "kpi_entries (用戶手填)",
+        recruit: "recruits (招聘流水)",
+        sparring: "sparring_records",
+        note: "與 ceo-overview / strategy / group-overview 用 sales_metrics_daily(Metabase 同步) 不同;若用戶填 kpi 落後,主席頁數字會偏低",
+      },
       empire: {
         total_active_reps: totalActiveReps,
         total_silent_today: totalSilent,

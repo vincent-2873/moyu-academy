@@ -1,33 +1,48 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
+import { taipeiToday, taipeiDaysAgo } from "@/lib/time";
 
 /**
  * 統一儀表板 — 業務 + 招聘 + 法務 + 104 + 電話 一次給完
  * 快速、聚合、帶 alerts
+ *
+ * 2026-04-30 Wave B B12 fix:8 query 全套 fetchAllRows 防 1000 row hard cap +
+ *   tpToday 改用 taipeiToday() 統一 TZ
  */
 export async function GET() {
   const s = getSupabaseAdmin();
   const today = new Date();
-  const tpToday = new Date(today.getTime() + 8 * 3600 * 1000).toISOString().slice(0, 10);
-  const dayStart = tpToday + "T00:00:00Z";
+  const tpToday = taipeiToday(today);
+  const dayStart = tpToday + "T00:00:00+08:00";
+  const weekAgo = taipeiDaysAgo(7, today);
   const weekAgoIso = new Date(today.getTime() - 7 * 24 * 3600 * 1000).toISOString();
-  const in30 = new Date(today.getTime() + 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const in30 = taipeiDaysAgo(-30, today);
 
-  const [
-    recruits, outreach, phone, commands,
-    contracts, compliance, disputes, users,
-  ] = await Promise.all([
-    s.from("recruits").select("id, stage, created_at").gte("created_at", weekAgoIso),
-    s.from("outreach_log").select("id, account, sent_at, reply_status").gte("sent_at", weekAgoIso),
-    s.from("phone_call_log").select("extension, agent_name, duration_seconds, status, start_time").gte("start_time", dayStart),
-    s.from("v3_commands").select("id, status, severity, pillar_id, created_at").gte("created_at", dayStart),
-    s.from("legal_contracts").select("id, status, effective_to, title"),
-    s.from("legal_compliance").select("id, task_name, next_due_at, status"),
-    s.from("legal_disputes").select("id, title, status, severity"),
+  const [recList, outr, phoneList, cmds, ct, cp, dp, users] = await Promise.all([
+    fetchAllRows<{ id: string; stage: string; created_at: string }>(() =>
+      s.from("recruits").select("id, stage, created_at").gte("created_at", weekAgoIso)
+    ),
+    fetchAllRows<{ id: string; account: string; sent_at: string; reply_status: string }>(() =>
+      s.from("outreach_log").select("id, account, sent_at, reply_status").gte("sent_at", weekAgoIso)
+    ),
+    fetchAllRows<{ extension: string; agent_name: string; duration_seconds: number; status: string; start_time: string }>(() =>
+      s.from("phone_call_log").select("extension, agent_name, duration_seconds, status, start_time").gte("start_time", dayStart)
+    ),
+    fetchAllRows<{ id: string; status: string; severity: string; pillar_id: string; created_at: string }>(() =>
+      s.from("v3_commands").select("id, status, severity, pillar_id, created_at").gte("created_at", dayStart)
+    ),
+    fetchAllRows<{ id: string; status: string; effective_to: string; title: string }>(() =>
+      s.from("legal_contracts").select("id, status, effective_to, title")
+    ),
+    fetchAllRows<{ id: string; task_name: string; next_due_at: string; status: string }>(() =>
+      s.from("legal_compliance").select("id, task_name, next_due_at, status")
+    ),
+    fetchAllRows<{ id: string; title: string; status: string; severity: string }>(() =>
+      s.from("legal_disputes").select("id, title, status, severity")
+    ),
     s.from("users").select("email, role, status").eq("status", "active"),
   ]);
 
   // 招聘 funnel
-  const recList = recruits.data || [];
   const funnel = {
     new: recList.filter((r) => r.stage === "new" || r.stage === "applied").length,
     contacted: recList.filter((r) => ["contacted", "screening"].includes(r.stage)).length,
@@ -37,8 +52,7 @@ export async function GET() {
     rejected: recList.filter((r) => ["rejected", "dropped"].includes(r.stage)).length,
   };
 
-  // 104 狀態
-  const outr = outreach.data || [];
+  // 104 狀態(outr 已是 fetchAllRows array)
   const sentToday = outr.filter((o) => o.sent_at?.startsWith(tpToday));
   const repliesToday = outr.filter((o) => o.reply_status && o.sent_at?.startsWith(tpToday));
   const sent104 = {
@@ -51,8 +65,7 @@ export async function GET() {
     return acc;
   }, {} as Record<string, number>);
 
-  // 電話
-  const phoneList = phone.data || [];
+  // 電話(phoneList 已是 fetchAllRows array)
   const phoneByExt: Record<string, { agent: string; calls: number; answered: number; totalMin: number }> = {};
   for (const p of phoneList) {
     const k = p.extension;
@@ -62,8 +75,7 @@ export async function GET() {
     phoneByExt[k].totalMin += Math.round((p.duration_seconds || 0) / 60);
   }
 
-  // 命令
-  const cmds = commands.data || [];
+  // 命令(cmds 已是 fetchAllRows array)
   const cmdStats = {
     total: cmds.length,
     pending: cmds.filter((c) => c.status === "pending").length,
@@ -76,10 +88,7 @@ export async function GET() {
     }, {} as Record<string, number>),
   };
 
-  // 法務
-  const ct = contracts.data || [];
-  const cp = compliance.data || [];
-  const dp = disputes.data || [];
+  // 法務(ct/cp/dp 已是 fetchAllRows array)
   const legalStats = {
     contractsTotal: ct.length,
     contractsExpired: ct.filter((c) => c.effective_to && c.effective_to < tpToday).length,

@@ -157,6 +157,7 @@ export async function POST(req: NextRequest) {
               filter_stage_tag: null,
               filter_pillars: allowedPillars,
               filter_user_role: userRole,
+              filter_user_email: email,                 // D16:visibility=self 需要 user email
             });
             if (results && results.length > 0) {
               ragSources = results;

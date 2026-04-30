@@ -22,13 +22,16 @@ import StampRulesEditor from "@/components/admin/StampRulesEditor";
 import AssetsUploader from "@/components/admin/AssetsUploader";
 import EmployeesFromMetabaseTab from "@/components/admin/EmployeesFromMetabaseTab";
 import SystemRunLogPanel from "@/components/admin/SystemRunLogPanel";
+import RagUploadPanel from "@/components/admin/RagUploadPanel";
+import RagReviewQueue from "@/components/admin/RagReviewQueue";
+import RecruitFunnelChart from "@/components/admin/RecruitFunnelChart";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "line-templates" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub" | "strategy" | "group" | "predict" | "command-center" | "stamp-rules" | "assets" | "employees-sync" | "run-log";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "line-templates" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub" | "strategy" | "group" | "predict" | "command-center" | "stamp-rules" | "assets" | "employees-sync" | "run-log" | "rag-upload" | "rag-review";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -298,6 +301,8 @@ export default function AdminPage() {
     { id: "assets", label: "資產上傳", icon: "🎬" },
     { id: "employees-sync", label: "Metabase 員工同步", icon: "📥" },
     { id: "run-log", label: "運行紀錄", icon: "📜" },
+    { id: "rag-upload", label: "知識上傳", icon: "📤" },
+    { id: "rag-review", label: "知識審核", icon: "📥" },
   ];
 
   // 分組樹狀結構 — 取代 9 tab 平鋪
@@ -307,7 +312,7 @@ export default function AdminPage() {
     { label: "三大戰線", children: ["sales", "automation", "legal", "rules", "kpi"] },
     { label: "養成",   children: ["training", "stamp-rules", "assets", "people", "people-edit", "employees-sync"] },
     { label: "通訊",   children: ["messaging", "line-templates"] },
-    { label: "系統",   children: ["setup", "health", "cron", "knowledge", "org", "system-hub", "run-log"] },
+    { label: "系統",   children: ["setup", "health", "cron", "knowledge", "rag-upload", "rag-review", "org", "system-hub", "run-log"] },
   ];
 
   const currentScope = COMPANY_OPTIONS.find((c) => c.id === scope) || COMPANY_OPTIONS[0];
@@ -528,6 +533,8 @@ export default function AdminPage() {
           {tab === "assets" && <AssetsUploader />}
           {tab === "employees-sync" && <EmployeesFromMetabaseTab />}
           {tab === "run-log" && <SystemRunLogPanel />}
+          {tab === "rag-upload" && <RagUploadPanel email={session.email} />}
+          {tab === "rag-review" && <RagReviewQueue />}
         </div>
       </main>
     </div>
@@ -2573,11 +2580,6 @@ function SalesDrilldownDetails({ brand }: { brand: ChairmanBrand }) {
 
 function RecruitDrilldownDetails({ brand }: { brand: ChairmanBrand }) {
   const stages = brand.funnel_by_stage || {};
-  const stageOrder = ["applied", "screening", "interview_1", "interview_2", "offer", "onboarded", "probation", "passed"];
-  const stageLabels: Record<string, string> = {
-    applied: "投遞", screening: "篩選", interview_1: "一面", interview_2: "二面", offer: "Offer", onboarded: "報到", probation: "試用", passed: "通過",
-  };
-  const max = Math.max(1, ...stageOrder.map((s) => stages[s] || 0));
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 18 }}>
@@ -2587,22 +2589,8 @@ function RecruitDrilldownDetails({ brand }: { brand: ChairmanBrand }) {
         <BigMetric label="本月流失" value={brand.this_month_dropped || 0} accent="#B8474A" />
         <BigMetric label="轉換率" value={`${Math.round((brand.conversion_rate || 0) * 100)}%`} accent="#B8474A" />
       </div>
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: "var(--text)" }}>漏斗階段分布</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 140 }}>
-          {stageOrder.map((sid) => {
-            const count = stages[sid] || 0;
-            const h = 24 + (count / max) * 100;
-            return (
-              <div key={sid} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: count > 0 ? brand.color : "var(--text3)" }}>{count}</div>
-                <div style={{ height: h, width: "100%", background: count > 0 ? brand.color : "var(--bg2)", borderRadius: 6, opacity: count > 0 ? 0.85 : 0.4 }} />
-                <div style={{ fontSize: 10, color: "var(--text3)" }}>{stageLabels[sid]}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* 2026-04-30 Wave D M7:換 SVG 漏斗 waterfall */}
+      <RecruitFunnelChart stages={stages} accentColor={brand.color} />
     </div>
   );
 }
