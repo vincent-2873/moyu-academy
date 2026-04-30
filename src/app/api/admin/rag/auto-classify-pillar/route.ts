@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import type { Pillar } from "@/lib/rag-pillars";
@@ -6,7 +5,7 @@ import type { Pillar } from "@/lib/rag-pillars";
 /**
  * POST /api/admin/rag/auto-classify-pillar
  *
- * 用 Claude 自動分類既有 knowledge_chunks 的 pillar
+ * 用 OpenAI gpt-4o-mini 自動分類既有 knowledge_chunks 的 pillar
  *
  * Body:
  *   { dry_run?: boolean, only_common?: boolean }
@@ -15,12 +14,13 @@ import type { Pillar } from "@/lib/rag-pillars";
  *
  * 邏輯:
  *   1. 撈 chunks(filter only_common ? pillar='common' : 全部)
- *   2. 送 chunk title + content 前 800 字 給 Claude
- *   3. Claude 回 strict JSON: { pillar: 'hr'|'legal'|'sales'|'common', confidence: 0-1, reason: string }
+ *   2. 送 chunk title + content 前 800 字 給 OpenAI gpt-4o-mini
+ *   3. 回 strict JSON: { pillar: 'hr'|'legal'|'sales'|'common', confidence: 0-1, reason: string }
  *   4. confidence >= 0.7 才實際 update,否則 keep common(safe default)
  *   5. 回傳 batch summary + sample
  *
- * 預估 cost: 34 chunks × 1k token × $0.003 = ~$0.10(用 Vincent 之前儲值的 OpenAI / Claude)
+ * 預估 cost: 34 chunks × 500 tokens × $0.15/1M(gpt-4o-mini)= **~$0.003**
+ * (用 Vincent 加的 OpenAI credit;原本用 Claude 但 Anthropic balance 0)
  */
 
 export const runtime = "nodejs";
@@ -49,9 +49,9 @@ interface ClaudeResult {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY missing" }, { status: 503 });
+    return NextResponse.json({ error: "OPENAI_API_KEY missing" }, { status: 503 });
   }
 
   const body = await req.json().catch(() => ({}));
@@ -72,24 +72,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, note: "no chunks to classify", duration_ms: Date.now() - started });
   }
 
-  const client = new Anthropic({ apiKey });
-
   const results: Array<{ id: string; title: string; old_pillar: string; new_pillar: Pillar; confidence: number; reason: string; updated: boolean }> = [];
   const errors: string[] = [];
 
   for (const c of chunks) {
     try {
       const userText = `Title: ${c.title || "(無)"}\n\nContent (前 800 字):\n${(c.content || "").slice(0, 800)}`;
-      const msg = await client.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 200,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userText }],
+      const oaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          response_format: { type: "json_object" },
+          max_tokens: 200,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: userText },
+          ],
+        }),
       });
-      const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+      if (!oaiRes.ok) {
+        const errText = await oaiRes.text();
+        errors.push(`${c.id}: OpenAI ${oaiRes.status} ${errText.slice(0, 150)}`);
+        continue;
+      }
+      const oaiData = await oaiRes.json();
+      const text = oaiData.choices?.[0]?.message?.content || "";
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        errors.push(`${c.id}: no JSON in Claude response`);
+        errors.push(`${c.id}: no JSON in OpenAI response`);
         continue;
       }
       const parsed: ClaudeResult = JSON.parse(jsonMatch[0]);
