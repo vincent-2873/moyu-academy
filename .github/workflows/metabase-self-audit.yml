@@ -1,0 +1,36 @@
+name: Metabase Self-Audit
+
+# 每天 23:00 (台北時區) = UTC 15:00 抽 5 員工 verify 資料品質
+# 任一指標差 > 5% 推 LINE Notify 給 Vincent
+on:
+  schedule:
+    - cron: "0 15 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Trigger self-audit endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repo secret 沒設"
+            exit 1
+          fi
+          response=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
+            "https://moyusales.zeabur.app/api/cron/metabase-self-audit" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            -d '{"sample_size": 5}' \
+            --max-time 120)
+          http_code=$(echo "$response" | tail -1 | sed 's/HTTP_CODE://')
+          body=$(echo "$response" | sed '$d')
+          echo "HTTP $http_code"
+          echo "$body" | head -c 3000
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Audit returned $http_code"
+            exit 1
+          fi

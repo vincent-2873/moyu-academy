@@ -29,16 +29,46 @@
 | 自訂 domain | **無**（不要假設有 moyu.com、xuemi.co 等） |
 | 歷史脈絡 | **Vercel 時代已於 2026-04-23 結束**。死連結已清、`vercel.json` 已刪（commit `85d52b3`）。Zeabur 不讀 `vercel.json` |
 
-### ⚠️ 已知 OAuth 設定 bug（2026-04-30 發現，待修）
+### 🚨 Supabase project 設定（2026-04-30 重新判斷）
 
-prod env `NEXT_PUBLIC_SUPABASE_URL` 設成了 `nqegeidvsflkwllnfink.supabase.co`（**寰策的 Supabase project**），不是 moyu 自己的 `luynflhuzbcbajycvuet`。導致：
+**moyu prod 已合併用 `nqegeidvsflkwllnfink` (寰策的 Supabase project)，不是這份 CLAUDE.md 上面其他段落寫的 `luynflhuzbcbajycvuet`。**
 
-- Google OAuth 登入流程跑完後，access_token 落在 `huance-copilot-app.zeabur.app`，**不是 moyu admin**
-- moyu admin Google 登入路徑無法用，需用 password 登入（vincent@xuemi.co / 0000）
+#### 證據
+- 2026-04-30 commit `02bfce3` backfill `getSupabaseAdmin()` 寫進 prod DB inserted=2916 row 成功
+- 代表 prod env 的 `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` 都指向同一個 project（`nqegeidvsflkwllnfink`），internal consistent
+- CLAUDE.md 上面任何提到 `luynflhuzbcbajycvuet` 的段落都是 **outdated**（過去某個時間點 moyu 自己的 supabase，後來合併走了）
 
-**這不是這個 repo 的 code 問題**（CLAUDE.md 寫死 Supabase ref = `luynflhuzbcbajycvuet`），是 **Zeabur env 被誤改**。可能上一輪 Claude 做寰策 Sprint 1 整合時改錯。
+#### 🚨 給未來 Claude 的強警告
 
-**待修**：Zeabur dashboard → moyu-academy service → env → `NEXT_PUBLIC_SUPABASE_URL` 改回 `https://luynflhuzbcbajycvuet.supabase.co`（同時檢查 `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` 是不是也指向錯 project）。Vincent 自己改，AI agent 不要動 prod env。
+❌ **絕對不要動 Zeabur env 的 supabase 相關 key**:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+❌ **不要因為「CLAUDE.md 寫 luynflhuzbcbajycvuet 但 prod 是 nqegeidvsflkwllnfink」就以為設定錯了**。**沒錯**。實際 prod 用的是 nqegeidvsflkwllnfink，CLAUDE.md 過時。
+
+❌ **第四輪 Claude (我) 一開始也誤判**，以為要把 URL 改回 luynflhuzbcbajycvuet。後來透過 backfill 證實 prod env 是 internal consistent 才修正判斷。**下個 Claude 直接信這段就好**。
+
+如果改錯（只改 URL 不改 key 或反過來）→ JWT issuer 跟 URL 不 match → admin login 全壞 + DB 寫不進去 + 整個 prod broken，要 rollback Zeabur 才能救。
+
+#### 唯一真正的小 bug（P3，先不動沒關係）
+
+Supabase dashboard 上 OAuth `Site URL` 設定指向寰策（`huance-copilot-app.zeabur.app`），導致 moyu 端 Google OAuth login 跑完 callback 落到寰策。
+
+**影響**:
+- moyu admin Google OAuth login 路徑壞掉（callback 落到寰策）
+- moyu admin **password login 一直 working**（`vincent@xuemi.co / 0000`）
+- 業務員前台 Google login 不受影響（他們不走 admin 路徑）
+
+**真要修的方法**（Vincent 自己進 Supabase dashboard）：
+```
+1. https://supabase.com/dashboard/project/nqegeidvsflkwllnfink/auth/url-configuration
+2. Additional Redirect URLs 加上：
+   - https://moyusales.zeabur.app/**
+   - https://moyusales.zeabur.app/api/auth/supabase-callback
+3. 不要動 Site URL（寰策正常用）
+4. 不要動 Zeabur env
+```
 
 ---
 
