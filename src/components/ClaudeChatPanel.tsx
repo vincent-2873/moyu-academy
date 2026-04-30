@@ -210,10 +210,17 @@ export default function ClaudeChatPanel({ userEmail, stage, brand }: Props) {
 
       {/* Panel */}
       {open && (
+        <>
+          <style>{`
+            @media (max-width: 768px) {
+              .moyu-chat-panel { width: 100vw !important; max-width: 100vw !important; }
+            }
+          `}</style>
         <div
-          className="fixed top-0 right-0 z-40 h-full flex flex-col shadow-2xl"
+          className="moyu-chat-panel fixed top-0 right-0 z-40 h-full flex flex-col shadow-2xl"
           style={{
             width: "380px",
+            maxWidth: "100vw",
             background: "var(--bg-paper, #f7f1e3)",
             borderLeft: "1px solid var(--border-soft, rgba(26,26,26,0.10))",
           }}
@@ -434,6 +441,7 @@ export default function ClaudeChatPanel({ userEmail, stage, brand }: Props) {
             </div>
           </div>
         </div>
+        </>
       )}
     </>
   );
