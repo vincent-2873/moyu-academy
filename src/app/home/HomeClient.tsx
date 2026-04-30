@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Stamp } from "@/components/wabi/Stamp";
 import Calendar from "@/components/Calendar";
 import StreakScroll from "@/components/wabi/StreakScroll";
+import DailyFocus from "@/components/DailyFocus";
 
 const STAGE_NAMES: Record<string, string> = {
   beginner: "研墨者",
@@ -143,6 +144,13 @@ export default function HomeClient() {
         </motion.div>
 
         <KintsugiLine delay={0.5} />
+
+        {/* 2026-04-30 末段:DailyFocus 每天第一個看到 */}
+        {email && (
+          <div style={{ marginTop: 24 }}>
+            <DailyFocus email={email} />
+          </div>
+        )}
       </div>
 
       {/* 簽到 + 狀態 */}
