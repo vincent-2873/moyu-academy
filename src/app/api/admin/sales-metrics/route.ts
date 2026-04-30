@@ -2,6 +2,9 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminScope, applyScopeFilter } from "@/lib/admin-scope";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 /**
  * 後台「業務數據」頁面讀取 API
  *
