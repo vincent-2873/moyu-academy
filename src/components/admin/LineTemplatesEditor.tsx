@@ -207,13 +207,57 @@ export default function LineTemplatesEditor() {
             <div style={{ marginTop: 8, padding: 16, background: "#06C755", color: "#fff", borderRadius: 12, fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: "var(--font-noto-sans-tc)" }}>
               {previewText || "(空)"}
             </div>
-            <div style={{ fontSize: 10, color: "var(--ink-mid)", marginTop: 8, opacity: 0.7 }}>LINE Bot 訊息預覽(綠泡泡 = LINE 標準)</div>
+            <div style={{ fontSize: 10, color: "var(--ink-mid)", marginTop: 8, opacity: 0.7, marginBottom: 16 }}>LINE Bot 訊息預覽(綠泡泡 = LINE 標準)</div>
+
+            {/* 測試發送 buttons */}
+            {draft.code && (
+              <SendButtons code={draft.code} variables={previewVars} />
+            )}
           </>
         ) : (
           <div style={{ marginTop: 12, fontSize: 12, color: "var(--ink-mid)", lineHeight: 1.7 }}>點左欄模板看 live preview</div>
         )}
       </div>
     </div>
+  );
+}
+
+function SendButtons({ code, variables }: { code: string; variables: string }) {
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  async function send(dry_run: boolean) {
+    setSending(true);
+    setResult(null);
+    let parsedVars = {};
+    try { parsedVars = JSON.parse(variables || "{}"); } catch {}
+    const r = await fetch("/api/admin/line-templates/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template_code: code, variables: parsedVars, to: "self", dry_run }),
+    });
+    const d = await r.json();
+    setResult({ ok: r.ok, ...d });
+    setSending(false);
+  }
+
+  return (
+    <>
+      <div style={{ ...labelStyle, marginTop: 16, marginBottom: 8 }}>測試發送</div>
+      <div className="flex gap-2">
+        <motion.button whileHover={{ scale: sending ? 1 : 1.03 }} whileTap={{ scale: sending ? 1 : 0.97 }} onClick={() => send(true)} disabled={sending} style={{ flex: 1, padding: "8px 12px", borderRadius: 4, background: "transparent", color: "var(--ink-deep)", border: "1px solid var(--border-soft, rgba(26,26,26,0.10))", fontSize: 12, fontFamily: "var(--font-noto-serif-tc)", cursor: sending ? "wait" : "pointer" }}>
+          {sending ? "…" : "Dry-run 預覽"}
+        </motion.button>
+        <motion.button whileHover={{ scale: sending ? 1 : 1.03 }} whileTap={{ scale: sending ? 1 : 0.97 }} onClick={() => send(false)} disabled={sending} style={{ flex: 1, padding: "8px 12px", borderRadius: 4, background: "#06C755", color: "#fff", border: "none", fontSize: 12, fontFamily: "var(--font-noto-serif-tc)", cursor: sending ? "wait" : "pointer" }}>
+          {sending ? "…" : "📱 推 self"}
+        </motion.button>
+      </div>
+      {result && (
+        <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 12, padding: 12, background: result.ok ? "var(--bg-paper)" : "rgba(185,28,28,0.05)", border: `1px solid ${result.ok ? "var(--gold-thread, #c9a96e)" : "var(--accent-red)"}`, borderRadius: 4, fontSize: 11, fontFamily: "var(--font-jetbrains-mono)", color: "var(--ink-mid)" }}>
+          {result.dry_run ? `dry_run rendered:\n${result.rendered}` : result.ok ? `✓ 已推送 (status ${result.status})` : `✗ ${result.error || "fail"}`}
+        </motion.div>
+      )}
+    </>
   );
 }
 
