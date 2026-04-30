@@ -1,22 +1,22 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import type { Pillar } from "@/lib/rag-pillars";
 
 /**
  * POST /api/admin/rag/ingest-notion
  *
  * 同步 Notion workspace 進 knowledge_chunks (RAG 知識庫)
  *
- * 需 env: NOTION_INTEGRATION_TOKEN (secret_xxx, Vincent 在 https://www.notion.so/profile/integrations/internal 開)
+ * 需 env: NOTION_INTEGRATION_TOKEN
  *
  * 流程:
  *   1. 列 Notion workspace 所有 page (search API)
  *   2. 對每個 page 撈 blocks → 拼 markdown
- *   3. chunk(每 ~1000 tokens 切一段)
- *   4. embedding (Anthropic Voyage / OpenAI text-embedding-3-small)
- *   5. upsert knowledge_chunks (用 content_hash dedup)
+ *   3. upsert knowledge_chunks (用 content_hash dedup)
  *
  * Body:
- *   { brand?, business_line?, max_pages? } - filter
+ *   { brand?, business_line?, max_pages?, pillar? } - filter + RAG 池分類
+ *   pillar 可選 hr/legal/sales/common(default common)— Vincent 2026-04-30 RAG 三池
  *
  * 注意: 這個 endpoint 跑 1-5 分鐘 (大 workspace),建議從 admin UI 觸發
  */
@@ -44,6 +44,9 @@ export async function POST(req: NextRequest) {
     const maxPages = body.max_pages || 100;
     const brandFilter = body.brand;
     const businessLineFilter = body.business_line;
+    // RAG 三池 (2026-04-30):caller 帶 pillar 進來分類
+    const validPillars: Pillar[] = ["hr", "legal", "sales", "common"];
+    const pillar: Pillar = validPillars.includes(body.pillar) ? body.pillar : "common";
 
     // 1. Search 所有可訪問的 pages
     const searchRes = await fetch(`${NOTION_API_BASE}/search`, {
@@ -120,6 +123,7 @@ export async function POST(req: NextRequest) {
             source_url: page.url,
             brand: brandFilter || null,
             business_line: businessLineFilter || null,
+            pillar,                                // RAG 三池
             title,
             content: md.slice(0, 50000),
             content_hash: hash,

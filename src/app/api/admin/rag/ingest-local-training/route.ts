@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { inferPillarFromPath } from "@/lib/rag-pillars";
 import fs from "fs";
 import path from "path";
 
@@ -53,6 +54,10 @@ export async function POST(req: NextRequest) {
           : relPath.includes("sales") || relPath.includes("foundation") ? "business"
           : "common";
 
+        // 推斷 pillar(RAG 三池) — Vincent 2026-04-30 反饋
+        // hrbp_series / hr/* → hr ; legal/* → legal ; sales/* → sales ; 其他 → common
+        const pillar = inferPillarFromPath(relPath);
+
         const hash = await sha256(content);
 
         const { data: existing } = await sb
@@ -64,12 +69,12 @@ export async function POST(req: NextRequest) {
 
         if (existing && existing.content_hash === hash) continue;
 
-        const op = existing ? "update" : "insert";
         const payload = {
           source_type: "training_md" as const,
           source_id: sourceId,
           title,
           path_type: pathType,
+          pillar,
           content: content.slice(0, 50000),
           content_hash: hash,
           metadata: {

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { getRolePillars } from "@/lib/rag-pillars";
 
 /**
  * Claude 對話側欄 — chat endpoint
@@ -97,10 +98,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 撈 user
+    // 撈 user (含 role for RAG 三池 filter)
     const { data: user } = await sb
       .from("users")
-      .select("id, email, name, stage, stage_path, brand, capability_scope")
+      .select("id, email, name, stage, stage_path, brand, capability_scope, role")
       .eq("email", email)
       .maybeSingle();
 
@@ -145,12 +146,17 @@ export async function POST(req: NextRequest) {
           const qEmb = embData.data?.[0]?.embedding;
           if (qEmb) {
             const pathTypeFilter = (user as any).stage_path === "recruit" ? "recruit" : "business";
+            // RAG 三池 (2026-04-30) — derive 該 user role 可看的 pillar 清單
+            const userRole = (user as any).role || null;
+            const allowedPillars = userRole ? getRolePillars(userRole) : null;
             const { data: results } = await sb.rpc("search_knowledge", {
               query_embedding: qEmb,
               match_count: 3,
               filter_brand: (user as any).brand || null,
               filter_path_type: pathTypeFilter,
               filter_stage_tag: null,
+              filter_pillars: allowedPillars,
+              filter_user_role: userRole,
             });
             if (results && results.length > 0) {
               ragSources = results;
