@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import MobileNav from "@/components/MobileNav";
+import DeadlineCountdown, { type DeadlineItem } from "@/components/legal/DeadlineCountdown";
 
 interface Contract { id: string; contract_no: string | null; title: string; party_b: string; contract_type: string | null; status: string; effective_from: string | null; effective_to: string | null; amount: number | null; owner_email: string | null; }
 interface Compliance { id: string; task_name: string; category: string | null; authority: string | null; due_date: string; next_due_at: string | null; status: string; frequency: string | null; }
@@ -111,6 +112,12 @@ export default function LegalPage() {
               <Stat label="進行中糾紛" value={data.summary.disputes.open} sub={`共 ${data.summary.disputes.total} 件`} color="#f59e0b" />
               <Stat label="智財權項目" value={data.summary.ip.total} sub="商標 / 專利 / 著作權" color="#7c3aed" />
             </div>
+
+            {/* 2026-04-30 末段 G1:Deadline countdown widget */}
+            <DeadlineCountdown
+              todayStr={todayStr}
+              items={buildDeadlineItems(data, todayStr)}
+            />
 
             {/* 警報 */}
             {data.alerts.length > 0 && (
@@ -227,6 +234,55 @@ function ExpireBadge({ date }: { date: string | null }) {
   if (date < today) color = "#dc2626";
   else if (days <= 30) color = "#f59e0b";
   return <span style={{ color, fontWeight: 600, fontSize: 12 }}>{date} {days < 0 ? `(過期 ${-days} 天)` : days <= 30 ? `(${days} 天)` : ""}</span>;
+}
+
+// 2026-04-30 末段 G1:把 contracts/compliance/disputes 拼成 deadline list
+function buildDeadlineItems(d: LegalData, today: string): DeadlineItem[] {
+  const items: DeadlineItem[] = [];
+  const dayMs = 86400000;
+  const todayMs = new Date(today + "T00:00:00").getTime();
+
+  for (const c of d.contracts) {
+    if (!c.effective_to) continue;
+    const due = c.effective_to;
+    const days = Math.ceil((new Date(due + "T00:00:00").getTime() - todayMs) / dayMs);
+    if (days <= 30) items.push({
+      type: "contract",
+      title: c.title,
+      due_date: due,
+      days_left: days,
+      detail: c.party_b,
+      link: "/legal#contracts",
+    });
+  }
+  for (const cp of d.compliance) {
+    const due = cp.next_due_at || cp.due_date;
+    if (!due || cp.status === "done") continue;
+    const dueStr = due.slice(0, 10);
+    const days = Math.ceil((new Date(dueStr + "T00:00:00").getTime() - todayMs) / dayMs);
+    if (days <= 30) items.push({
+      type: "compliance",
+      title: cp.task_name,
+      due_date: dueStr,
+      days_left: days,
+      detail: cp.authority || undefined,
+      link: "/legal#compliance",
+    });
+  }
+  for (const dp of d.disputes) {
+    if (!dp.next_action_date) continue;
+    const dueStr = dp.next_action_date.slice(0, 10);
+    const days = Math.ceil((new Date(dueStr + "T00:00:00").getTime() - todayMs) / dayMs);
+    if (days <= 30) items.push({
+      type: "dispute",
+      title: dp.title,
+      due_date: dueStr,
+      days_left: days,
+      detail: dp.next_action || undefined,
+      link: "/legal#disputes",
+    });
+  }
+  return items;
 }
 
 function Empty({ msg }: { msg: string }) {

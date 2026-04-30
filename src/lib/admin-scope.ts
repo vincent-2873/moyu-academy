@@ -47,6 +47,8 @@ export interface AdminScope {
   scopedBrand: string | null;
   /** caller 限定的 team(team_leader)— null 表示無限制 */
   scopedTeam: string | null;
+  /** 2026-04-30 末段 J — SaaS multi-tenant:caller 屬於哪個 tenant(default 'moyu') */
+  organizationId: string;
 }
 
 function decodeAdminCookie(req: NextRequest): string | null {
@@ -80,9 +82,10 @@ export async function getAdminScope(req: NextRequest): Promise<AdminScope | null
   const email = decodeAdminCookie(req);
   if (!email) return null;
   const sb = getSupabaseAdmin();
+  // 2026-04-30 末段 J:撈 organization_id(D17 已加 default='moyu')
   const { data: user } = await sb
     .from("users")
-    .select("email, role, brand, team")
+    .select("email, role, brand, team, organization_id")
     .eq("email", email)
     .maybeSingle();
   if (!user) return null;
@@ -100,6 +103,7 @@ export async function getAdminScope(req: NextRequest): Promise<AdminScope | null
     isReadOnly,
     scopedBrand: isBrandScoped ? ((user.brand as string) || null) : null,
     scopedTeam: isTeamScoped ? ((user.team as string) || null) : null,
+    organizationId: ((user as any).organization_id as string) || "moyu",
   };
 }
 
@@ -120,6 +124,24 @@ export function applyScopeFilter<T extends { eq: (col: string, val: string) => T
   if (scope.scopedBrand) query = query.eq(brandCol, scope.scopedBrand);
   if (scope.scopedTeam) query = query.eq(teamCol, scope.scopedTeam);
   return query;
+}
+
+/**
+ * 2026-04-30 末段 J — SaaS multi-tenant filter helper
+ *
+ * 加 organization_id filter 給支援 tenant 隔離的 table
+ *   knowledge_chunks / users / audit_log / system_run_log / ...(已加 organization_id 的 table)
+ *
+ * 用法:
+ *   let q = sb.from('knowledge_chunks').select(...);
+ *   q = applyTenantFilter(q, scope);
+ */
+export function applyTenantFilter<T extends { eq: (col: string, val: string) => T }>(
+  query: T,
+  scope: AdminScope,
+  column: string = "organization_id"
+): T {
+  return query.eq(column, scope.organizationId);
 }
 
 /**

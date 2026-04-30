@@ -25,6 +25,7 @@ import SystemRunLogPanel from "@/components/admin/SystemRunLogPanel";
 import RagUploadPanel from "@/components/admin/RagUploadPanel";
 import RagReviewQueue from "@/components/admin/RagReviewQueue";
 import RecruitFunnelChart from "@/components/admin/RecruitFunnelChart";
+import CompanyDeepDive from "@/components/admin/CompanyDeepDive";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
@@ -2540,12 +2541,8 @@ function CompanyDrilldown({ brandId }: { brandId: CompanyScope }) {
         <SalesDrilldownDetails brand={brand} />
       )}
 
-      {/* TODO 置入該公司業務員列表 / KPI 趨勢 / 對練紀錄 */}
-      <div style={{ marginTop: 24, padding: 18, background: "var(--bg2)", border: "1px dashed var(--border)", borderRadius: 12, color: "var(--text3)", fontSize: 13, lineHeight: 1.7 }}>
-        <strong style={{ color: "var(--text2)" }}>下一步：</strong>
-        切到「人員管理」分頁可看到 {brand.name} 的所有業務員 / 求職者列表（自動套用此檢視範圍）。
-        點任一人可看深度資料：今日 KPI / 對練紀錄 / 突破日誌。
-      </div>
+      {/* 2026-04-30 末段 G4:替換 TODO 為實際 deep dive */}
+      <CompanyDeepDive brand={brand.id} />
     </div>
   );
 }

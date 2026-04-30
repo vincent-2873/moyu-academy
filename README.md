@@ -24,6 +24,9 @@ pnpm dev            # http://localhost:3000
 # 4. 跑型別檢查 + build
 pnpm tsc --noEmit
 pnpm build
+
+# 5. 跑 unit tests(2026-04-30 加,目前 39 tests for lib/ helpers)
+npx vitest run
 ```
 
 ---
@@ -37,6 +40,8 @@ pnpm build
 | [PERMISSIONS.md](./PERMISSIONS.md) | 角色 matrix / API endpoint scope / 已完成 vs 待辦 |
 | [supabase/INDEX.md](./supabase/INDEX.md) | 50+ SQL migration 索引 |
 | [.env.example](./.env.example) | env vars 清單(23 個 user-configurable) |
+| [SAAS-READINESS.md](./SAAS-READINESS.md) | Multi-tenant SaaS 化 roadmap(階段 A-J,2026-04-30 第三輪加)|
+| [MOYU-ACADEMY-AUDIT.md](../MOYU-ACADEMY-AUDIT.md) | 系統 audit + backlog(repo 外)|
 
 ---
 
