@@ -11,13 +11,14 @@ import UsersEditor from "@/components/admin/UsersEditor";
 import HealthDashboard from "@/components/admin/HealthDashboard";
 import HealthStrip from "@/components/admin/HealthStrip";
 import CronConfigEditor from "@/components/admin/CronConfigEditor";
+import KnowledgeEngineEditor from "@/components/admin/KnowledgeEngineEditor";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "setup" | "rules" | "kpi" | "health" | "cron" | "system-hub";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -276,6 +277,7 @@ export default function AdminPage() {
     { id: "kpi", label: "KPI 標準", icon: "🎯" },
     { id: "health", label: "系統健康度", icon: "❤️" },
     { id: "cron", label: "排程管理", icon: "⏰" },
+    { id: "knowledge", label: "知識引擎", icon: "🧠" },
     { id: "system-hub", label: "系統管控", icon: "⚙️" },
   ];
 
@@ -285,7 +287,7 @@ export default function AdminPage() {
     { label: "三大戰線", children: ["sales", "automation", "legal", "rules", "kpi"] },
     { label: "養成",   children: ["training", "people", "people-edit"] },
     { label: "通訊",   children: ["messaging"] },
-    { label: "系統",   children: ["setup", "health", "cron", "org", "system-hub"] },
+    { label: "系統",   children: ["setup", "health", "cron", "knowledge", "org", "system-hub"] },
   ];
 
   const currentScope = COMPANY_OPTIONS.find((c) => c.id === scope) || COMPANY_OPTIONS[0];
@@ -492,6 +494,7 @@ export default function AdminPage() {
           {tab === "kpi" && <KpiTargetsEditor />}
           {tab === "health" && <HealthDashboard />}
           {tab === "cron" && <CronConfigEditor />}
+          {tab === "knowledge" && <KnowledgeEngineEditor />}
           {tab === "system-hub" && <SystemHubTab token={session.token} />}
         </div>
       </main>
