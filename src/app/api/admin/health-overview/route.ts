@@ -29,7 +29,8 @@ export async function GET() {
     cronLogAgg,
     freshness,
   ] = await Promise.all([
-    sb.from("sales_metrics_daily").select("date, salesperson_id", { count: "exact", head: false }).limit(5000).then(r => r.data?.length || 0),
+    // 2026-04-30 Wave A B7 fix:改用 head:true count → 取 r.count(避免 1000 row hard cap 截斷)
+    sb.from("sales_metrics_daily").select("id", { count: "exact", head: true }).then(r => r.count || 0),
     Promise.resolve(null),
     sb.from("knowledge_chunks").select("id", { count: "exact", head: true }).then(r => r.count || 0),
     sb.from("knowledge_chunks").select("id", { count: "exact", head: true }).not("embedding", "is", null).then(r => r.count || 0),

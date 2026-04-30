@@ -208,8 +208,17 @@ export async function GET(req: NextRequest) {
     .slice(0, 5);
 
   // Silent 3 days
+  // 2026-04-30 Wave A B9 fix:過濾「該日有同步資料」才算數
+  //   原本 last3.every(d => days[d]||0 === 0) 會把「沒同步那天」當「0 通」 → 假陽性
+  //   改成:必須 last3 三天都有 row(該日有同步)且 calls 都是 0 才算 silent
   const last3 = [daysAgo(today, 0), daysAgo(today, 1), daysAgo(today, 2)];
   const personCallsByDate: Record<string, Record<string, number>> = {};
+  // 第一步:每天有沒有「任何 row」(資料同步指標,跨人)
+  const dayHasData = new Set<string>();
+  for (const r of allRows) {
+    const date = r.date as string;
+    if (last3.includes(date)) dayHasData.add(date);
+  }
   for (const r of allRows) {
     const k = (r.email as string) || (r.salesperson_id as string);
     if (!k) continue;
@@ -218,7 +227,9 @@ export async function GET(req: NextRequest) {
     personCallsByDate[k] = personCallsByDate[k] || {};
     personCallsByDate[k][date] = Number(r.calls) || 0;
   }
-  const silent3 = Object.entries(personCallsByDate)
+  // 三天必須都有同步資料,否則整段 skip(避免假陽性)
+  const allDaysSynced = last3.every((d) => dayHasData.has(d));
+  const silent3 = !allDaysSynced ? [] : Object.entries(personCallsByDate)
     .filter(([, days]) => last3.every((d) => (days[d] || 0) === 0))
     .map(([email]) => {
       const r = allRows.find((x) => (x.email as string) === email);
@@ -229,9 +240,12 @@ export async function GET(req: NextRequest) {
       };
     });
 
-  // Struggling: today calls >= 100 and closures = 0 (volume but no conversion)
-  const strugglingMap = new Map<string, { name: string; brand: string; calls: number; closes: number }>();
-  for (const r of todayRows) {
+  // Struggling: 用 last3 rolling 平均(不再 today-only,避免早上沒同步全員假陽性)
+  // 2026-04-30 Wave A B10 fix
+  const strugglingMap = new Map<string, { name: string; brand: string; calls: number; closes: number; activeDays: number }>();
+  for (const r of allRows) {
+    const date = r.date as string;
+    if (!last3.includes(date)) continue;
     const k = (r.email as string) || (r.salesperson_id as string);
     if (!k) continue;
     const e = strugglingMap.get(k) || {
@@ -239,13 +253,16 @@ export async function GET(req: NextRequest) {
       brand: (r.brand as string) || "-",
       calls: 0,
       closes: 0,
+      activeDays: 0,
     };
     e.calls += Number(r.calls) || 0;
     e.closes += Number(r.closures) || 0;
+    e.activeDays++;
     strugglingMap.set(k, e);
   }
-  const struggling = Array.from(strugglingMap.values())
-    .filter((p) => p.calls >= 100 && p.closes === 0)
+  // 量多質差:rolling 3 天有 ≥ 2 天資料 + 累計撥打 ≥ 100 + 累計成交 = 0
+  const struggling = !allDaysSynced ? [] : Array.from(strugglingMap.values())
+    .filter((p) => p.activeDays >= 2 && p.calls >= 100 && p.closes === 0)
     .sort((a, b) => b.calls - a.calls)
     .slice(0, 5);
 

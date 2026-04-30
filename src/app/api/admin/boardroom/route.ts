@@ -1,4 +1,5 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
+import { taipeiToday, taipeiDaysAgo } from "@/lib/time";
 
 /**
  * 業務監測生長儀表板 API
@@ -28,36 +29,44 @@ export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
     const now = Date.now();
+    // 2026-04-30 Wave A B6+B8 fix:用台北 TZ + fetchAllRows 防 1000 cap
+    const weekAgo = taipeiDaysAgo(7);
 
     // 並行抓取 5 個專案的核心數據
-    const [
-      usersRes,
-      activityRes,
-      kpisRes,
-      recruitsRes,
-      checkinRes,
-      breakthroughRes,
-      claudeTasksRes,
-    ] = await Promise.all([
+    const [usersRes, activities, kpis, recruits, checkins, breakthroughs, claudeTasks] = await Promise.all([
       supabase.from("users").select("id, email, name, brand, status, role").eq("status", "active"),
-      supabase.from("user_activity").select("user_email, last_heartbeat"),
-      supabase.from("kpi_entries").select("user_id, date, calls, valid_calls, appointments, closures").gte("date", new Date(now - 7 * 86400000).toISOString().slice(0, 10)),
-      supabase.from("recruits").select("id, stage, brand, created_at, stage_entered_at").neq("stage", "rejected"),
-      supabase.from("human_state_checkin").select("user_email, date, energy, mood, comfort_level, ai_score").gte("date", new Date(now - 7 * 86400000).toISOString().slice(0, 10)),
-      supabase.from("breakthrough_log").select("id, user_email, severity, acknowledged, created_at").gte("created_at", new Date(now - 86400000).toISOString()),
-      supabase.from("claude_tasks").select("id, status, priority").in("status", ["pending", "in_progress", "blocked"]),
+      fetchAllRows<{ user_email: string; last_heartbeat: string }>(() =>
+        supabase.from("user_activity").select("user_email, last_heartbeat")
+      ),
+      fetchAllRows<{ user_id: string; date: string; calls: number; valid_calls: number; appointments: number; closures: number }>(() =>
+        supabase.from("kpi_entries")
+          .select("user_id, date, calls, valid_calls, appointments, closures")
+          .gte("date", weekAgo)
+      ),
+      fetchAllRows<{ id: string; stage: string; brand: string; created_at: string; stage_entered_at: string }>(() =>
+        supabase.from("recruits")
+          .select("id, stage, brand, created_at, stage_entered_at")
+          .neq("stage", "rejected")
+      ),
+      fetchAllRows<{ user_email: string; date: string; energy: number; mood: number; comfort_level: number; ai_score: number }>(() =>
+        supabase.from("human_state_checkin")
+          .select("user_email, date, energy, mood, comfort_level, ai_score")
+          .gte("date", weekAgo)
+      ),
+      fetchAllRows<{ id: string; user_email: string; severity: string; acknowledged: boolean; created_at: string }>(() =>
+        supabase.from("breakthrough_log")
+          .select("id, user_email, severity, acknowledged, created_at")
+          .gte("created_at", new Date(now - 86400000).toISOString())
+      ),
+      fetchAllRows<{ id: string; status: string; priority: string }>(() =>
+        supabase.from("claude_tasks").select("id, status, priority").in("status", ["pending", "in_progress", "blocked"])
+      ),
     ]);
 
     const users = usersRes.data || [];
-    const activities = activityRes.data || [];
-    const kpis = kpisRes.data || [];
-    const recruits = recruitsRes.data || [];
-    const checkins = checkinRes.data || [];
-    const breakthroughs = breakthroughRes.data || [];
-    const claudeTasks = claudeTasksRes.data || [];
 
     const totalUsers = users.length;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = taipeiToday();
 
     // ─── 1. 業務戰力 (sales_combat) ─────────────────
     const todayKpis = kpis.filter((k) => k.date === today);

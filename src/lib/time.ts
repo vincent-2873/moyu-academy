@@ -55,3 +55,56 @@ export function formatTaipeiDate(date: Date | string, fmt = 'yyyy-MM-dd EEE'): s
   const d = typeof date === 'string' ? new Date(date) : date;
   return formatInTimeZone(d, TAIPEI_TZ, fmt, { locale: zhTW });
 }
+
+/**
+ * 2026-04-30 第三輪 Wave A:取台北當月第一天(yyyy-MM-01)
+ *
+ * 為什麼要這個 helper:
+ *   ❌ 錯:`new Date(y, m, 1).toISOString().slice(0, 10)`
+ *      → 本機 TZ 00:00 換 UTC 後在台北 UTC+8 會變前一天 16:00
+ *      → toISOString 拿到的是 「上個月最後一天」,月初邊界全錯
+ *   ✅ 對:用 formatInTimeZone 直接取台北日曆下的 yyyy-MM-01
+ */
+export function taipeiMonthStart(date: Date = new Date()): string {
+  // 'yyyy-MM' 拿到 e.g. '2026-04',加 '-01' 即可
+  return formatInTimeZone(date, TAIPEI_TZ, 'yyyy-MM') + '-01';
+}
+
+/** 取台北上個月區間 [start, end] (inclusive),格式 yyyy-MM-dd */
+export function taipeiLastMonthRange(date: Date = new Date()): { start: string; end: string } {
+  const y = Number(formatInTimeZone(date, TAIPEI_TZ, 'yyyy'));
+  const m = Number(formatInTimeZone(date, TAIPEI_TZ, 'M'));   // 1-12
+  // 上月年份 / 月份
+  const lastY = m === 1 ? y - 1 : y;
+  const lastM = m === 1 ? 12 : m - 1;
+  const lastMStr = String(lastM).padStart(2, '0');
+  const start = `${lastY}-${lastMStr}-01`;
+  // 上月最後一天 = 本月第一天往前推 1 天
+  const lastMEnd = new Date(Date.UTC(y, m - 1, 1) - 86400000);
+  const end = formatInTimeZone(lastMEnd, TAIPEI_TZ, 'yyyy-MM-dd');
+  return { start, end };
+}
+
+/**
+ * 取台北當月已過天數(month-to-date)— 月初第 1 天 = 1
+ *   2026-04-15 (Taipei) → 15
+ *   2026-04-01 (Taipei) → 1
+ */
+export function taipeiDayOfMonth(date: Date = new Date()): number {
+  return Number(formatInTimeZone(date, TAIPEI_TZ, 'd'));
+}
+
+/**
+ * 取台北當月總天數(28-31)
+ */
+export function taipeiDaysInMonth(date: Date = new Date()): number {
+  const y = Number(formatInTimeZone(date, TAIPEI_TZ, 'yyyy'));
+  const m = Number(formatInTimeZone(date, TAIPEI_TZ, 'M'));
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();   // m 是 1-12,m 月第 0 天 = (m-1) 月最後一天 → 用 m 拿到本月最後一天
+}
+
+/** 取台北 N 天前的 yyyy-MM-dd */
+export function taipeiDaysAgo(n: number, date: Date = new Date()): string {
+  const past = new Date(date.getTime() - n * 86400000);
+  return formatInTimeZone(past, TAIPEI_TZ, 'yyyy-MM-dd');
+}

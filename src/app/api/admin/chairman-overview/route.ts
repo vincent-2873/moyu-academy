@@ -1,4 +1,5 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
+import { taipeiToday, taipeiDaysAgo } from "@/lib/time";
 
 /**
  * 董事長指揮中心 — 跨公司聚合監測 API
@@ -63,28 +64,30 @@ export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
     const now = Date.now();
-    const today = new Date().toISOString().slice(0, 10);
-    const weekAgo = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
-    const monthAgo = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
+    // 2026-04-30 Wave A B6 fix:用台北 TZ today + B8 fix:fetchAllRows 繞 1000 row cap
+    const today = taipeiToday();
+    const weekAgo = taipeiDaysAgo(7);
+    const monthAgo = taipeiDaysAgo(30);
 
-    // 並行抓取所有資料
-    const [usersRes, kpisRes, recruitsRes, sparringRes] = await Promise.all([
+    // 並行抓取所有資料(kpi_entries / recruits / sparring 都用 fetchAllRows 防 1000 cap)
+    const [usersRes, kpis, recruits, sparrings] = await Promise.all([
       supabase.from("users").select("id, email, name, brand, status, role").eq("status", "active"),
-      supabase
-        .from("kpi_entries")
-        .select("user_id, user_email, brand, date, calls, valid_calls, appointments, closures")
-        .gte("date", weekAgo),
-      supabase.from("recruits").select("id, name, brand, stage, created_at, stage_entered_at"),
-      supabase
-        .from("sparring_records")
-        .select("user_email, brand, score, created_at")
-        .gte("created_at", new Date(now - 7 * 86400000).toISOString()),
+      fetchAllRows<{ user_id: string; user_email: string; brand: string; date: string; calls: number; valid_calls: number; appointments: number; closures: number }>(() =>
+        supabase.from("kpi_entries")
+          .select("user_id, user_email, brand, date, calls, valid_calls, appointments, closures")
+          .gte("date", weekAgo)
+      ),
+      fetchAllRows<{ id: string; name: string; brand: string; stage: string; created_at: string; stage_entered_at: string }>(() =>
+        supabase.from("recruits").select("id, name, brand, stage, created_at, stage_entered_at")
+      ),
+      fetchAllRows<{ user_email: string; brand: string; score: number; created_at: string }>(() =>
+        supabase.from("sparring_records")
+          .select("user_email, brand, score, created_at")
+          .gte("created_at", new Date(now - 7 * 86400000).toISOString())
+      ),
     ]);
 
     const users = usersRes.data || [];
-    const kpis = kpisRes.data || [];
-    const recruits = recruitsRes.data || [];
-    const sparrings = sparringRes.data || [];
 
     // 用 user_id → brand 對照表（KPI 表如果沒記 brand 欄位就 fallback）
     const userBrandMap = new Map<string, string>();

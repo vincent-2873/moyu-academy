@@ -1,5 +1,6 @@
 import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextResponse } from "next/server";
+import { taipeiMonthStart, taipeiLastMonthRange, taipeiDayOfMonth, taipeiDaysInMonth } from "@/lib/time";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,10 +9,10 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const sb = getSupabaseAdmin();
 
+  // 2026-04-30 Wave A B3 fix:用台北 TZ helper 避免月初 off-by-one
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
-  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+  const monthStart = taipeiMonthStart(now);
+  const { start: lastMonthStart, end: lastMonthEnd } = taipeiLastMonthRange(now);
 
   // 北極星 = 本月總營收
   // fetchAllRows 分頁繞過 1000 row hard cap(2026-04-30 fix)
@@ -34,10 +35,13 @@ export async function GET() {
   );
   const lastMonthRevenue = (lastMonth || []).reduce((s, r: any) => s + (Number(r.net_revenue_daily) || 0), 0);
 
-  // 線性預估到月底
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const projectedMonthRevenue = dayOfMonth > 0 ? Math.round((monthRevenue / dayOfMonth) * daysInMonth) : 0;
+  // 線性預估到月底(用台北日)
+  const dayOfMonth = taipeiDayOfMonth(now);
+  const daysInMonth = taipeiDaysInMonth(now);
+  // 月初 1-2 天樣本太少 → 直接用上月做估計避免爆炸
+  const projectedMonthRevenue = dayOfMonth >= 3
+    ? Math.round((monthRevenue / dayOfMonth) * daysInMonth)
+    : 0;
 
   // OKR 完成度 = 本月營收 / KPI 目標(撈月份 KPI 加總)
   const { data: kpiTargets } = await sb
@@ -60,8 +64,9 @@ export async function GET() {
   const cashOnHand = 10_000_000;
   const runwayMonths = monthlyBurn > 0 ? Math.round((cashOnHand / monthlyBurn) * 10) / 10 : 0;
 
-  // LTV/CAC(粗算:近 6 個月 ARPU × 平均存活 / 招聘成本)
-  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString().slice(0, 10);
+  // LTV/CAC(粗算:近 6 個月 ARPU × 平均存活 / 招聘成本)— 台北 TZ
+  const sixMoAgo = new Date(now.getTime() - 6 * 30 * 86400000);
+  const sixMonthsAgo = taipeiMonthStart(sixMoAgo);
   const half = await fetchAllRows<{ net_revenue_daily: number; closures: number }>(() =>
     sb.from("sales_metrics_daily")
       .select("net_revenue_daily, closures")

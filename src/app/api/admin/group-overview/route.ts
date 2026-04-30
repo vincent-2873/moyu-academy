@@ -1,5 +1,6 @@
 import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextResponse } from "next/server";
+import { taipeiMonthStart, taipeiLastMonthRange } from "@/lib/time";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,10 +19,10 @@ const BRAND_LABELS: Record<string, string> = {
 export async function GET() {
   const sb = getSupabaseAdmin();
 
+  // 2026-04-30 Wave A B4 fix:用台北 TZ helper 避免月初 off-by-one
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
-  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+  const monthStart = taipeiMonthStart(now);
+  const { start: lastMonthStart, end: lastMonthEnd } = taipeiLastMonthRange(now);
 
   // 各品牌本月營收 + closures (fetchAllRows 分頁繞 1000 hard cap)
   const thisMonth = await fetchAllRows<{ brand: string; net_revenue_daily: number; closures: number; raw_appointments: number; calls: number }>(() =>
@@ -71,11 +72,12 @@ export async function GET() {
   const totalRev = brands.reduce((s, b) => s + b.revenue, 0);
   const totalUsers = brands.reduce((s, b) => s + b.users_active, 0);
 
-  // 跨品牌人才流動 — 從 user_stage_history 撈 brand 變更
+  // 跨品牌人才流動 — 從 user_stage_history 撈 brand 變更(台北 TZ 推 3 個月)
+  const threeMoAgo = new Date(now.getTime() - 3 * 30 * 86400000);
   const { data: stageHistory } = await sb
     .from("user_stage_history")
     .select("user_id, from_brand, to_brand, changed_at")
-    .gte("changed_at", new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString())
+    .gte("changed_at", taipeiMonthStart(threeMoAgo) + "T00:00:00+08:00")
     .not("from_brand", "is", null)
     .not("to_brand", "is", null);
 

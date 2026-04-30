@@ -104,6 +104,14 @@ function checkIntegrity(r: {
 
   const issues: DataIssue[] = [];
   const who = r.name || r.email || "(unknown)";
+  // 完整漏斗單調性 chain:calls ≥ connected ≥ raw_appointments ≥ appointments_show ≥ closures
+  // 2026-04-30 Wave A B2 fix:補完 chain(原本只有 4 段不完整)
+  if (r.connected > r.calls) {
+    issues.push({ salesperson: who, email: r.email || null, date: r.date, kind: "connected_without_calls", detail: `接通 ${r.connected} > 撥打 ${r.calls}` });
+  }
+  if (r.raw_appointments > r.connected && r.connected > 0) {
+    issues.push({ salesperson: who, email: r.email || null, date: r.date, kind: "appts_without_calls", detail: `邀約 ${r.raw_appointments} > 接通 ${r.connected}` });
+  }
   if (r.connected > 0 && r.calls === 0) {
     issues.push({ salesperson: who, email: r.email || null, date: r.date, kind: "connected_without_calls", detail: `接通 ${r.connected} 通次 0` });
   }
@@ -476,6 +484,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Data integrity issues — 原始 row level 檢查（跨日前）
+  // 2026-04-30 Wave A B1 fix:補帶 is_monthly_rollup → checkIntegrity line 101 skip 邏輯才能生效
+  // (這就是 Vincent 反映「漏斗 39 筆違反」的真 root cause)
   const dataIssues: DataIssue[] = [];
   for (const r of typedRows) {
     for (const issue of checkIntegrity({
@@ -487,6 +497,7 @@ export async function GET(req: NextRequest) {
       raw_appointments: r.raw_appointments,
       appointments_show: r.appointments_show,
       closures: r.closures,
+      is_monthly_rollup: r.is_monthly_rollup,
     })) {
       dataIssues.push(issue);
     }

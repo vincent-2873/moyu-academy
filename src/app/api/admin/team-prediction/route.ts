@@ -1,5 +1,6 @@
 import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+import { taipeiToday, taipeiDayOfMonth, taipeiDaysInMonth, taipeiMonthStart } from "@/lib/time";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,17 +37,12 @@ interface PersonPrediction {
   predictedNextStep: string;
 }
 
-function todayTaipei(): string {
-  const now = new Date();
-  const tp = new Date(now.getTime() + 8 * 3600 * 1000);
-  return tp.toISOString().slice(0, 10);
-}
-
 export async function GET(req: NextRequest) {
   const brand = req.nextUrl.searchParams.get("brand");
   const supabase = getSupabaseAdmin();
-  const today = todayTaipei();
-  const monthStart = today.slice(0, 8) + "01";
+  // 2026-04-30 Wave A B11 fix:用 lib/time.ts 統一台北 TZ helper
+  const today = taipeiToday();
+  const monthStart = taipeiMonthStart();
 
   // Need last 6 months for historical baseline + this month for progress
   const sixMonthsAgo = new Date();
@@ -117,9 +113,12 @@ export async function GET(req: NextRequest) {
     byEmail.set(email, entry);
   }
 
-  const daysInMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0).getDate();
-  const daysElapsed = parseInt(today.slice(-2), 10);
+  // 2026-04-30 Wave A B11 fix:用台北 TZ helper(parseInt(today.slice(-2)) 在月初 ok 但 robust)
+  const daysInMonth = taipeiDaysInMonth();
+  const daysElapsed = taipeiDayOfMonth();
   const daysRemaining = daysInMonth - daysElapsed;
+  // 月初 < 3 天 projection 不可信
+  const projectionInsufficient = daysElapsed < 3;
 
   const predictions: PersonPrediction[] = [];
   for (const [email, e] of byEmail.entries()) {
@@ -130,9 +129,12 @@ export async function GET(req: NextRequest) {
       : 0;
 
     // Projection
-    const actualDaysElapsed = Math.max(1, e.monthDays.size);
-    const dailyAvg = e.monthRev / actualDaysElapsed;
-    const projectedMonthRev = Math.round(e.monthRev + dailyAvg * daysRemaining);
+    // 2026-04-30 Wave A B11 fix:用 daysElapsed 為分母(全月經過天數)而非 e.monthDays.size(該人活躍天數)
+    //   原本「上月新人本月只打 1 天」會被推估「全月每天都這收入」嚴重高估
+    const dailyAvg = daysElapsed > 0 ? e.monthRev / daysElapsed : 0;
+    const projectedMonthRev = projectionInsufficient
+      ? e.monthRev
+      : Math.round(e.monthRev + dailyAvg * daysRemaining);
 
     // vs average
     const vsAvgPct = avgMonthlyRev > 0 ? ((projectedMonthRev - avgMonthlyRev) / avgMonthlyRev) * 100 : null;
@@ -188,7 +190,7 @@ export async function GET(req: NextRequest) {
       avgMonthlyRev: Math.round(avgMonthlyRev),
       vsAvgPct: vsAvgPct != null ? Math.round(vsAvgPct) : null,
       monthCloses: e.monthCloses,
-      daysActive: actualDaysElapsed,
+      daysActive: e.monthDays.size,
       last3DaysAvg: Math.round(last3Avg),
       prev3DaysAvg: Math.round(prev3Avg),
       momentum,

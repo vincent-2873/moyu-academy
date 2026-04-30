@@ -1,5 +1,6 @@
 import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextResponse } from "next/server";
+import { taipeiMonthStart, taipeiDayOfMonth, taipeiDaysInMonth, taipeiDaysAgo } from "@/lib/time";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,11 +9,14 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const sb = getSupabaseAdmin();
 
+  // 2026-04-30 Wave A B5 fix:用台北 TZ helper(避免月初 off-by-one + dayOfMonth=1 時預測爆炸)
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const monthStart = taipeiMonthStart(now);
+  const dayOfMonth = taipeiDayOfMonth(now);
+  const daysInMonth = taipeiDaysInMonth(now);
   const remainingDays = daysInMonth - dayOfMonth;
+  // 月初 1-2 天樣本太少 → projection 不可信
+  const projectionInsufficientData = dayOfMonth < 3;
 
   // 本月已實現 + 線性預估(fetchAllRows 分頁繞 1000 hard cap)
   const thisMonth = await fetchAllRows<{ date: string; net_revenue_daily: number; closures: number; raw_appointments: number; brand: string; email: string }>(() =>
@@ -24,14 +28,17 @@ export async function GET() {
   const monthRev = (thisMonth || []).reduce((s, r: any) => s + Number(r.net_revenue_daily || 0), 0);
   const monthClosures = (thisMonth || []).reduce((s, r: any) => s + Number(r.closures || 0), 0);
   const dailyAvg = dayOfMonth > 0 ? monthRev / dayOfMonth : 0;
-  const projectedRev = Math.round(monthRev + dailyAvg * remainingDays);
-  const projectedClosures = Math.round(monthClosures + (monthClosures / Math.max(dayOfMonth, 1)) * remainingDays);
+  // 月初 < 3 天:不送 projection,避免爆炸
+  const projectedRev = projectionInsufficientData ? monthRev : Math.round(monthRev + dailyAvg * remainingDays);
+  const projectedClosures = projectionInsufficientData
+    ? monthClosures
+    : Math.round(monthClosures + (monthClosures / Math.max(dayOfMonth, 1)) * remainingDays);
 
-  // 抓近 7 天波動算 confidence
+  // 抓近 7 天波動算 confidence(台北 TZ)
   const lastWeek = await fetchAllRows<{ date: string; net_revenue_daily: number }>(() =>
     sb.from("sales_metrics_daily")
       .select("date, net_revenue_daily")
-      .gte("date", new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10))
+      .gte("date", taipeiDaysAgo(7, now))
   );
   const dailyValues = (lastWeek || []).map((r: any) => Number(r.net_revenue_daily || 0));
   const mean = dailyValues.length > 0 ? dailyValues.reduce((s, v) => s + v, 0) / dailyValues.length : 0;
@@ -116,6 +123,7 @@ export async function GET() {
       days_in_month: daysInMonth,
       confidence_pct: confidence,
       daily_avg: Math.round(dailyAvg),
+      insufficient_data: projectionInsufficientData,        // 月初 < 3 天 UI 該標 ⚠️
     },
     hire_gap: {
       target: targetHires,
