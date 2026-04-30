@@ -142,6 +142,7 @@ export async function GET(req: NextRequest) {
     appts: m.appts,
     shows: m.shows,
     closes: m.closes,
+    closures: m.closes,   // alias — 前端 component 讀 .closures (修 Vincent 反饋「undefined 成交」bug, 2026-04-30)
     revenue: m.revenue,
     people: m.people.size,
   });
