@@ -65,14 +65,14 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { start, end } = weekRange();
 
-  const { data: rows, error } = await supabase
-    .from("sales_metrics_daily")
-    .select("date, brand, email, name, team, calls, connected, raw_appointments, appointments_show, raw_demos, closures, net_revenue_daily")
-    .gte("date", start)
-    .lte("date", end);
-  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-
-  const all = rows || [];
+  // fetchAllRows 繞 Supabase 1000 row hard cap (週報 7 天 × 50+ 人 容易超過)
+  const { fetchAllRows } = await import("@/lib/supabase");
+  const all = await fetchAllRows<any>(() =>
+    supabase.from("sales_metrics_daily")
+      .select("date, brand, email, name, team, calls, connected, raw_appointments, appointments_show, raw_demos, closures, net_revenue_daily")
+      .gte("date", start)
+      .lte("date", end)
+  );
   if (all.length === 0) {
     await linePush({
       title: "📊 上週戰情週報",

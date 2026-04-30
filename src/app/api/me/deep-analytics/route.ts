@@ -124,15 +124,17 @@ export async function GET(req: NextRequest) {
     return { month: t.month, ma3: avg };
   });
 
-  // Rankings: this month vs brand / company
+  // Rankings: this month vs brand / company (fetchAllRows 繞 1000 cap — 多用戶 aggregate)
   const thisMonthKey = new Date().toISOString().slice(0, 7);
-  const { data: brandRows } = await supabase
-    .from("sales_metrics_daily")
-    .select("email, net_revenue_daily")
-    .eq("brand", profile.brand)
-    .gte("date", thisMonthKey + "-01");
+  const { fetchAllRows } = await import("@/lib/supabase");
+  const brandRows = await fetchAllRows<{ email: string; net_revenue_daily: number }>(() =>
+    supabase.from("sales_metrics_daily")
+      .select("email, net_revenue_daily")
+      .eq("brand", profile.brand)
+      .gte("date", thisMonthKey + "-01")
+  );
   const brandPerson = new Map<string, number>();
-  for (const r of brandRows || []) {
+  for (const r of brandRows) {
     const k = r.email as string;
     if (!k) continue;
     brandPerson.set(k, (brandPerson.get(k) || 0) + (Number(r.net_revenue_daily) || 0));
@@ -142,12 +144,13 @@ export async function GET(req: NextRequest) {
   const brandRank = brandRankIdx >= 0 ? brandRankIdx + 1 : null;
   const brandTotal = brandRanked.length;
 
-  const { data: allRows } = await supabase
-    .from("sales_metrics_daily")
-    .select("email, net_revenue_daily")
-    .gte("date", thisMonthKey + "-01");
+  const allRowsRanking = await fetchAllRows<{ email: string; net_revenue_daily: number }>(() =>
+    supabase.from("sales_metrics_daily")
+      .select("email, net_revenue_daily")
+      .gte("date", thisMonthKey + "-01")
+  );
   const allPerson = new Map<string, number>();
-  for (const r of allRows || []) {
+  for (const r of allRowsRanking) {
     const k = r.email as string;
     if (!k) continue;
     allPerson.set(k, (allPerson.get(k) || 0) + (Number(r.net_revenue_daily) || 0));

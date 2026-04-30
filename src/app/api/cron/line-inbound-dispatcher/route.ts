@@ -56,18 +56,21 @@ async function gatherContext(supabase: ReturnType<typeof getSupabaseAdmin>): Pro
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const weekAgo = sevenDaysAgo.toISOString().slice(0, 10);
 
-  // 今日業務總況
-  const { data: todayRows } = await supabase
-    .from("sales_metrics_daily")
-    .select("email, name, brand, team, calls, call_minutes, raw_appointments, appointments_show, closures, net_revenue_daily")
-    .eq("date", today);
+  // 今日業務總況 (fetchAllRows 繞 1000 cap)
+  const { fetchAllRows } = await import("@/lib/supabase");
+  const todayRows = await fetchAllRows<any>(() =>
+    supabase.from("sales_metrics_daily")
+      .select("email, name, brand, team, calls, call_minutes, raw_appointments, appointments_show, closures, net_revenue_daily")
+      .eq("date", today)
+  );
 
   // 本週業務總況 (用來算誰掉速度)
-  const { data: weekRows } = await supabase
-    .from("sales_metrics_daily")
-    .select("email, name, calls, closures, net_revenue_daily")
-    .gte("date", weekAgo)
-    .lte("date", today);
+  const weekRows = await fetchAllRows<any>(() =>
+    supabase.from("sales_metrics_daily")
+      .select("email, name, calls, closures, net_revenue_daily")
+      .gte("date", weekAgo)
+      .lte("date", today)
+  );
 
   // 最近的警報 (health_alerts 如果有)
   const { data: recentAlerts } = await supabase

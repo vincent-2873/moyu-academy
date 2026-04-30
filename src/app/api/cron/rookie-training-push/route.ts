@@ -213,15 +213,18 @@ export async function GET(req: NextRequest) {
   twentyFiveDaysAgo.setDate(twentyFiveDaysAgo.getDate() - 25);
   const earliest = twentyFiveDaysAgo.toISOString().slice(0, 10);
 
-  const { data: allRows } = await supabase
-    .from("sales_metrics_daily")
-    .select("email, name, brand, team, date")
-    .gte("date", earliest)
-    .order("date", { ascending: true });
+  // fetchAllRows 繞 1000 cap (25 天 × 50+ 人 = 1000+ row)
+  const { fetchAllRows } = await import("@/lib/supabase");
+  const allRows = await fetchAllRows<{ email: string; name: string; brand: string; team: string; date: string }>(() =>
+    supabase.from("sales_metrics_daily")
+      .select("email, name, brand, team, date")
+      .gte("date", earliest)
+      .order("date", { ascending: true })
+  );
 
   // Determine each person's first_day
   const firstDayMap = new Map<string, { first_day: string; name: string; brand: string; team: string }>();
-  for (const r of allRows || []) {
+  for (const r of allRows) {
     const email = r.email as string;
     if (!email) continue;
     if (!firstDayMap.has(email)) {

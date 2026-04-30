@@ -44,16 +44,18 @@ export async function GET(req: NextRequest) {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const start = sevenDaysAgo.toISOString().slice(0, 10);
 
-  const { data: rows, error } = await supabase
-    .from("sales_metrics_daily")
-    .select("date, email, name, team, brand, calls, raw_appointments, appointments_show, closures")
-    .gte("date", start)
-    .order("date", { ascending: false });
-  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  // fetchAllRows 繞 Supabase 1000 row hard cap
+  const { fetchAllRows } = await import("@/lib/supabase");
+  const rows = await fetchAllRows<any>(() =>
+    supabase.from("sales_metrics_daily")
+      .select("date, email, name, team, brand, calls, raw_appointments, appointments_show, closures")
+      .gte("date", start)
+      .order("date", { ascending: false })
+  );
 
   // Group by email
   const byPerson = new Map<string, PersonStatus>();
-  for (const r of rows || []) {
+  for (const r of rows) {
     const email = r.email as string | null;
     if (!email) continue;
     const existing = byPerson.get(email) || {

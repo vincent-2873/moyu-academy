@@ -1,7 +1,8 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 /**
  * /api/admin/health-overview — 系統健康度總覽
@@ -39,14 +40,15 @@ export async function GET() {
     sb.from("system_table_freshness").select("*").then(r => r, () => ({ data: [] as any[] })),
   ]);
 
-  // sales aggregations
-  const { data: salesData2026 } = await sb
-    .from("sales_metrics_daily")
-    .select("calls, net_revenue_daily")
-    .gte("date", "2026-01-01");
+  // sales aggregations (fetchAllRows 分頁繞 db-max-rows=1000)
+  const salesData2026 = await fetchAllRows<{ calls: number; net_revenue_daily: number }>(() =>
+    sb.from("sales_metrics_daily")
+      .select("calls, net_revenue_daily")
+      .gte("date", "2026-01-01")
+  );
 
-  const sumCalls2026 = (salesData2026 || []).reduce((s: number, r: any) => s + (r.calls || 0), 0);
-  const sumRevenue2026 = (salesData2026 || []).reduce((s: number, r: any) => s + Number(r.net_revenue_daily || 0), 0);
+  const sumCalls2026 = salesData2026.reduce((s: number, r) => s + (Number(r.calls) || 0), 0);
+  const sumRevenue2026 = salesData2026.reduce((s: number, r) => s + Number(r.net_revenue_daily || 0), 0);
 
   // knowledge sources by type
   const sourcesByType: Record<string, number> = {};

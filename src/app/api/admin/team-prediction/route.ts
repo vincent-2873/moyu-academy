@@ -1,5 +1,8 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextRequest } from "next/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 /**
  * 🔮 團隊層級預測 — 給主管看「誰本月會達標 / 誰會炸」
@@ -50,15 +53,16 @@ export async function GET(req: NextRequest) {
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
   const startDate = sixMonthsAgo.toISOString().slice(0, 10);
 
-  let query = supabase
-    .from("sales_metrics_daily")
-    .select("date, email, name, brand, team, calls, closures, net_revenue_daily")
-    .gte("date", startDate);
-  if (brand) query = query.eq("brand", brand);
-
-  const { data: rows, error } = await query;
-  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-  const allRows = (rows || []) as Array<Record<string, unknown>>;
+  // fetchAllRows 分頁繞 Supabase db-max-rows=1000 hard cap
+  // (6 個月 × 50 人 × N brand 遠超 1000 row,Vincent 2026-04-30 反饋同 root cause)
+  const allRows = await fetchAllRows<any>(() => {
+    let query = supabase
+      .from("sales_metrics_daily")
+      .select("date, email, name, brand, team, calls, closures, net_revenue_daily")
+      .gte("date", startDate);
+    if (brand) query = query.eq("brand", brand);
+    return query;
+  });
 
   // Group by email
   const byEmail = new Map<

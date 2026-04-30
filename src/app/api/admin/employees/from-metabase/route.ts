@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 
@@ -10,12 +10,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const sb = getSupabaseAdmin();
 
-  // 從 metabase 同步進來的 sales_metrics_daily
-  const { data: rows, error } = await sb
-    .from("sales_metrics_daily")
-    .select("email, name, brand, date")
-    .not("email", "is", null);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // 從 metabase 同步進來的 sales_metrics_daily (fetchAllRows 繞 1000 cap)
+  const rows = await fetchAllRows<{ email: string; name: string; brand: string; date: string }>(() =>
+    sb.from("sales_metrics_daily")
+      .select("email, name, brand, date")
+      .not("email", "is", null)
+  );
 
   // 用 map dedup,保留最新出現的 name + brand
   const map = new Map<string, { email: string; name: string; brand: string | null; latest_date: string; record_count: number; filtered_reason?: string }>();
@@ -80,14 +80,15 @@ export async function POST(req: NextRequest) {
   }
   const sb = getSupabaseAdmin();
 
-  // 先撈當下 sales_metrics_daily 的 name + brand 對應
-  const { data: rows } = await sb
-    .from("sales_metrics_daily")
-    .select("email, name, brand, date")
-    .in("email", emails)
-    .order("date", { ascending: false });
+  // 先撈當下 sales_metrics_daily 的 name + brand 對應 (fetchAllRows 繞 1000 cap)
+  const rows2 = await fetchAllRows<{ email: string; name: string; brand: string | null; date: string }>(() =>
+    sb.from("sales_metrics_daily")
+      .select("email, name, brand, date")
+      .in("email", emails)
+      .order("date", { ascending: false })
+  );
   const meta = new Map<string, { name: string; brand: string | null }>();
-  for (const r of rows || []) {
+  for (const r of rows2) {
     const email = (r.email || "").toLowerCase();
     if (!meta.has(email)) {
       meta.set(email, { name: r.name || email.split("@")[0], brand: r.brand || null });
