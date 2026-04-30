@@ -27,13 +27,14 @@ import RagReviewQueue from "@/components/admin/RagReviewQueue";
 import RecruitFunnelChart from "@/components/admin/RecruitFunnelChart";
 import CompanyDeepDive from "@/components/admin/CompanyDeepDive";
 import FocusBoard from "@/components/admin/FocusBoard";
+import MetabaseAuditPanel from "@/components/admin/MetabaseAuditPanel";
 import InkLogo from "@/components/wabi/InkLogo";
 import { trainingVideos } from "@/data/videos";
 import { modules as allSystemModules, TrainingResource, DailyScheduleItem } from "@/data/modules";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "line-templates" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub" | "strategy" | "group" | "predict" | "command-center" | "stamp-rules" | "assets" | "employees-sync" | "run-log" | "rag-upload" | "rag-review";
+type AdminTab = "pillars" | "sales" | "legal" | "commands" | "org" | "people" | "people-edit" | "automation" | "training" | "messaging" | "line-templates" | "setup" | "rules" | "kpi" | "health" | "cron" | "knowledge" | "system-hub" | "strategy" | "group" | "predict" | "command-center" | "stamp-rules" | "assets" | "employees-sync" | "run-log" | "rag-upload" | "rag-review" | "metabase-audit";
 type CompanyScope = "all" | "hq" | "nschool" | "xuemi" | "ooschool" | "aischool" | "moyuhunt" | "legal";
 
 const COMPANY_OPTIONS: { id: CompanyScope; label: string; color: string }[] = [
@@ -305,6 +306,7 @@ export default function AdminPage() {
     { id: "run-log", label: "運行紀錄", icon: "📜" },
     { id: "rag-upload", label: "知識上傳", icon: "📤" },
     { id: "rag-review", label: "知識審核", icon: "📥" },
+    { id: "metabase-audit", label: "Metabase 對標", icon: "🔬" },
   ];
 
   // 分組樹狀結構 — 取代 9 tab 平鋪
@@ -538,6 +540,7 @@ export default function AdminPage() {
           {tab === "run-log" && <SystemRunLogPanel />}
           {tab === "rag-upload" && <RagUploadPanel email={session.email} />}
           {tab === "rag-review" && <RagReviewQueue />}
+          {tab === "metabase-audit" && <MetabaseAuditPanel />}
         </div>
       </main>
     </div>
