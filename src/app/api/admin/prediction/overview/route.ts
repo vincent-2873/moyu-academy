@@ -17,7 +17,7 @@ export async function GET() {
   // 本月已實現 + 線性預估
   const { data: thisMonth } = await sb
     .from("sales_metrics_daily")
-    .select("date, net_revenue_daily, closures, raw_appointments, brand, user_email")
+    .select("date, net_revenue_daily, closures, raw_appointments, brand, email")
     .gte("date", monthStart);
 
   const monthRev = (thisMonth || []).reduce((s, r: any) => s + Number(r.net_revenue_daily || 0), 0);
@@ -65,8 +65,8 @@ export async function GET() {
 
   const userRevMap: Record<string, number> = {};
   (thisMonth || []).forEach((r: any) => {
-    if (r.user_email) {
-      userRevMap[r.user_email] = (userRevMap[r.user_email] || 0) + Number(r.net_revenue_daily || 0);
+    if (r.email) {
+      userRevMap[r.email] = (userRevMap[r.email] || 0) + Number(r.net_revenue_daily || 0);
     }
   });
   const expectedMonthRev = Number(dailyRevTarget) * dayOfMonth;

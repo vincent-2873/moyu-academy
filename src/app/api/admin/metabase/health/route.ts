@@ -18,13 +18,13 @@ export async function GET() {
   const brandCount: Record<string, { rows: number; latest: string; users: Set<string> }> = {};
 
   // 統計 distinct emails
-  const { data: emailRows } = await sb.from("sales_metrics_daily").select("user_email, user_name, brand").not("user_email", "is", null);
+  const { data: emailRows } = await sb.from("sales_metrics_daily").select("email, name, brand").not("email", "is", null);
   const emailSet = new Set<string>();
   let xunlianCount = 0;
   for (const r of emailRows || []) {
-    const e = (r.user_email || "").toLowerCase();
+    const e = (r.email || "").toLowerCase();
     if (e) emailSet.add(e);
-    const n = r.user_name || "";
+    const n = r.name || "";
     if (n.startsWith("新訓-") || n.startsWith("新訓 ") || n.startsWith("新訓:")) xunlianCount += 1;
   }
 

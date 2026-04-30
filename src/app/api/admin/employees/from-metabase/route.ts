@@ -6,23 +6,23 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // GET: 撈 sales_metrics_daily distinct (email, name, brand) + 對比 users 表 + 標 new/existing
-// 過濾 user_name LIKE '新訓-%' (Vincent 規則: 新訓 名字呈現但不進系統)
+// 過濾 name LIKE '新訓-%' (Vincent 規則: 新訓 名字呈現但不進系統)
 export async function GET() {
   const sb = getSupabaseAdmin();
 
   // 從 metabase 同步進來的 sales_metrics_daily
   const { data: rows, error } = await sb
     .from("sales_metrics_daily")
-    .select("user_email, user_name, brand, date")
-    .not("user_email", "is", null);
+    .select("email, name, brand, date")
+    .not("email", "is", null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // 用 map dedup,保留最新出現的 user_name + brand
+  // 用 map dedup,保留最新出現的 name + brand
   const map = new Map<string, { email: string; name: string; brand: string | null; latest_date: string; record_count: number; filtered_reason?: string }>();
   for (const r of rows || []) {
-    const email = (r.user_email || "").trim().toLowerCase();
+    const email = (r.email || "").trim().toLowerCase();
     if (!email || !email.includes("@")) continue;
-    const name = (r.user_name || "").trim();
+    const name = (r.name || "").trim();
     const brand = r.brand || null;
     const date = r.date || "";
 
@@ -66,7 +66,7 @@ export async function GET() {
       already_exists: candidates.filter((c) => c.exists).length,
       new_to_create: candidates.filter((c) => !c.exists).length,
       filtered_count: skipped.length,
-      filter_reason: "user_name 開頭 '新訓-' 過濾掉 (Vincent 規則)",
+      filter_reason: "name 開頭 '新訓-' 過濾掉 (Vincent 規則)",
     },
   });
 }
@@ -80,17 +80,17 @@ export async function POST(req: NextRequest) {
   }
   const sb = getSupabaseAdmin();
 
-  // 先撈當下 sales_metrics_daily 的 user_name + brand 對應
+  // 先撈當下 sales_metrics_daily 的 name + brand 對應
   const { data: rows } = await sb
     .from("sales_metrics_daily")
-    .select("user_email, user_name, brand, date")
-    .in("user_email", emails)
+    .select("email, name, brand, date")
+    .in("email", emails)
     .order("date", { ascending: false });
   const meta = new Map<string, { name: string; brand: string | null }>();
   for (const r of rows || []) {
-    const email = (r.user_email || "").toLowerCase();
+    const email = (r.email || "").toLowerCase();
     if (!meta.has(email)) {
-      meta.set(email, { name: r.user_name || email.split("@")[0], brand: r.brand || null });
+      meta.set(email, { name: r.name || email.split("@")[0], brand: r.brand || null });
     }
   }
 
