@@ -5,6 +5,7 @@ import KnowledgeEngineEditor from "@/components/admin/KnowledgeEngineEditor";
 import RagUploadPanel from "@/components/admin/RagUploadPanel";
 import RagReviewQueue from "@/components/admin/RagReviewQueue";
 import IngestLocalTrigger from "@/components/admin/IngestLocalTrigger";
+import WhisperBatchUploader from "@/components/admin/WhisperBatchUploader";
 
 export default function AdminClaudeKnowledgePage() {
   const [adminEmail, setAdminEmail] = useState("");
@@ -32,6 +33,7 @@ export default function AdminClaudeKnowledgePage() {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <IngestLocalTrigger />
+        <WhisperBatchUploader />
         <KnowledgeEngineEditor />
         <RagUploadPanel email={adminEmail} />
         <RagReviewQueue />
