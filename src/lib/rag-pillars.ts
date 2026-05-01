@@ -67,8 +67,10 @@ export function getRolePillars(role: string | null | undefined): Pillar[] {
  */
 export function inferPillarFromPath(filePath: string): Pillar {
   const lower = filePath.toLowerCase().replace(/\\/g, "/");
-  if (/\/legal\//.test(lower)) return "legal";
-  if (/\/sales\//.test(lower)) return "sales";
+  // 注意:ingest-local-training 傳的是 relative path(`sales/...`),
+  // 沒有開頭 / — regex 須允許 ^|/ 前綴
+  if (/(^|\/)legal(\/|$)/.test(lower)) return "legal";
+  if (/(^|\/)sales(\/|$)/.test(lower)) return "sales";
   return "common";
 }
 
