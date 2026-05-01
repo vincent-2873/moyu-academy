@@ -160,27 +160,42 @@ export async function GET() {
       const callToAppt = todayValid > 0 ? todayAppts / todayValid : 0;
       const apptToClose = todayAppts > 0 ? todayCloses / todayAppts : 0;
 
-      // 狀態判定（董事長視角：要嚴格）
+      // 2026-05-02 fix:狀態判定 — 週末/今日未 sync 不該誤判 critical
+      // 邏輯:
+      //   1. 沒在線業務 → unknown
+      //   2. effectiveDate 不是 today + 全員 silent → 「資料未 finalize」(neutral)
+      //   3. 否則才用原本的 silent_ratio 判斷
       let status: BrandSnapshot["status"] = "healthy";
       let diagnosis = "正常運作中";
 
+      const isWorkday = (() => {
+        const d = new Date(effectiveToday + "T00:00:00Z").getUTCDay();
+        return d >= 1 && d <= 5;
+      })();
+      const dataNotReady = !todayHasData;
+
       if (activeReps === 0) {
         status = "unknown";
-        diagnosis = "此品牌沒有任何在線業務 — 沒人在打仗";
+        diagnosis = "此品牌沒有任何在線業務";
+      } else if (dataNotReady && silentRatio === 1) {
+        status = "unknown";
+        diagnosis = isWorkday
+          ? `今日 Metabase 尚未同步(latest=${effectiveToday}),稍後再看`
+          : `週末/假日 不在同步排程,顯示 ${effectiveToday} 的最近工作日資料`;
       } else if (silentRatio > 0.5) {
         status = "critical";
-        diagnosis = `${Math.round(silentRatio * 100)}% 業務今天 0 通電話 — 整團隊偷懶`;
+        diagnosis = `${Math.round(silentRatio * 100)}% 業務今天 0 通電話 — 需立即介入`;
       } else if (silentRatio > 0.2) {
         status = "warning";
-        diagnosis = `${silentReps} 位業務今天還沒開口 — 該逼了`;
+        diagnosis = `${silentReps} 位業務今天還沒開口`;
       } else if (todayCalls < activeReps * 30) {
         status = "warning";
         diagnosis = `平均每人僅 ${(todayCalls / Math.max(1, activeReps)).toFixed(0)} 通 — 未達 30 通底線`;
       } else if (todayCloses === 0 && todayAppts > 0) {
         status = "warning";
-        diagnosis = `${todayAppts} 個邀約 0 成交 — 收網能力有問題`;
+        diagnosis = `${todayAppts} 個邀約 0 成交 — 收網能力要看`;
       } else {
-        diagnosis = `平均 ${(todayCalls / Math.max(1, activeReps)).toFixed(0)} 通／人，正常推進`;
+        diagnosis = `平均 ${(todayCalls / Math.max(1, activeReps)).toFixed(0)} 通／人,正常推進`;
       }
 
       return {
