@@ -124,27 +124,36 @@ VALUES
 ON CONFLICT DO NOTHING;
 
 -- ─── help_requests (人類工作區 SOS)────────────
--- D18 已建 claude_help_requests 表
+-- D18 schema: id, category, source, related_user_id, related_progress_id, title, description,
+--             claude_attempts, claude_recommendation, status, assigned_to, resolution_*
 INSERT INTO claude_help_requests
-  (id, requester, urgency, category, title, body, status, created_at)
+  (id, category, source, title, description, claude_attempts, claude_recommendation, status, created_at)
 VALUES
   (
     gen_random_uuid(),
-    'system_claude',
-    'urgent',
     'data_anomaly',
+    'auto_iterate',
     'Metabase 5/2 同步落後 — 需人工確認',
     '今天(2026-05-02 週六)Metabase Q1381 預期應同步到 5/1 或 5/2,實際 latest=2026-05-01。可能原因:1) 週六不在 cron 觸發範圍(目前設定 Mon-Sat 09-22);2) Q1381 對「今天」未 finalize;3) GitHub Actions 配額。請確認是否需要 manual trigger。',
+    '[
+      {"step":"check sync_log","detail":"最近一筆 q1381-rolling sync 為 5/1 22:00,之後 sleep","outcome":"normal"},
+      {"step":"trigger manual","detail":"嘗試 POST /api/cron/metabase-q1381-rolling-sync 但 cron secret 對不上","outcome":"need human"}
+    ]'::jsonb,
+    'Vincent 在 GitHub Actions secrets 確認 CRON_SECRET 跟 Zeabur env 同值,然後手動 trigger metabase-rolling-sync.yml。',
     'pending',
     NOW() - INTERVAL '15 minutes'
   ),
   (
     gen_random_uuid(),
-    'system_claude',
-    'normal',
     'training_stuck',
+    'rookie_progress',
     '新訓-林裕峰 Steven 連續 3 天 0 邀約',
-    '本月 5/1 通話 30 通但 0 邀約。Claude 觀察:1) 開場白完整但話術過於 SOP;2) 不太處理客戶反問;3) 可能需要 1on1 角色扮演。建議:派 Terry(Steven 的組長)留 voice memo 或 30 分鐘 sparring。',
+    '本月 5/1 通話 30 通但 0 邀約。Claude 觀察:1) 開場白完整但話術過於 SOP;2) 不太處理客戶反問;3) 可能需要 1on1 角色扮演。',
+    '[
+      {"step":"留語音 prompt","detail":"5/1 19:00 推 LINE 提醒,但 Steven 5/2 早上沒回","outcome":"未回應"},
+      {"step":"檢查 sparring","detail":"Steven 本週 0 次 AI 對練","outcome":"沒練"}
+    ]'::jsonb,
+    '建議派 Terry(Steven 的組長)留 voice memo 或 30 分鐘 1on1 sparring。',
     'pending',
     NOW() - INTERVAL '2 hours'
   )
