@@ -12,22 +12,21 @@ import { canUploadRag, RAG_UPLOAD_ROLE_LABELS } from "@/lib/upload-permissions";
  * 用 /api/rag/ingest-upload 統一 backend
  */
 
-type Pillar = "hr" | "sales" | "legal" | "common";
+type Pillar = "sales" | "legal" | "common";
 type Visibility = "public" | "pillar" | "brand" | "role";
 
 interface Props {
   email: string;
 }
 
+// 2026-05-01:hr 體系全砍(對齊 system-tree v2)
 const PILLAR_LABEL: Record<Pillar, string> = {
-  hr: "HR 招聘",
   sales: "業務",
   legal: "法務",
   common: "通用",
 };
 
 const PILLAR_COLOR: Record<Pillar, string> = {
-  hr: "#0891b2",
   sales: "#c9a96e",
   legal: "#b91c1c",
   common: "#4a4a4a",

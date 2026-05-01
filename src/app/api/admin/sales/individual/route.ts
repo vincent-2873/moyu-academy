@@ -45,16 +45,24 @@ export async function GET(req: NextRequest) {
   const today = taipeiToday();
   const week_start = taipeiDaysAgo(7);
 
+  // 2026-05-02 fix:column appointments_show(不是 appointments)+ exclude is_monthly_rollup
   let q = sb.from("sales_metrics_daily")
-    .select("email, name, brand, date, calls, appointments, closures")
+    .select("email, name, brand, date, calls, appointments_show, closures")
     .gte("date", week_start)
-    .not("email", "is", null);
+    .not("email", "is", null)
+    .not("is_monthly_rollup", "is", true);
   if (brand && brand !== "all") q = q.eq("brand", brand);
 
   const rows = await fetchAllRows<{
     email: string; name: string; brand: string | null; date: string;
-    calls: number; appointments: number; closures: number;
+    calls: number; appointments_show: number; closures: number;
   }>(() => q);
+
+  // 2026-05-02 fix:today fallback to latest_workday(週末資料沒 finalize 時)
+  const datesInWeek = Array.from(new Set((rows || []).map(r => r.date))).sort();
+  const latestDate = datesInWeek[datesInWeek.length - 1];
+  const todayHasData = (rows || []).some(r => r.date === today);
+  const effectiveToday = todayHasData ? today : (latestDate || today);
 
   const map = new Map<string, UserMetric>();
   for (const r of rows || []) {
@@ -73,11 +81,11 @@ export async function GET(req: NextRequest) {
       });
     }
     const u = map.get(email)!;
-    const calls = r.calls || 0, app = r.appointments || 0, cls = r.closures || 0;
+    const calls = r.calls || 0, app = r.appointments_show || 0, cls = r.closures || 0;
     u.week_calls += calls;
     u.week_appointments += app;
     u.week_closures += cls;
-    if (r.date === today) {
+    if (r.date === effectiveToday) {
       u.today_calls = calls;
       u.today_appointments = app;
       u.today_closures = cls;

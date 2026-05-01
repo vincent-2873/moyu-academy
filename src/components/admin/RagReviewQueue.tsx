@@ -9,13 +9,14 @@ import { motion, AnimatePresence } from "framer-motion";
  * Admin 看員工(/upload)上傳的待審 chunks,approve/reject
  */
 
-type Pillar = "hr" | "sales" | "legal" | "common";
+type Pillar = "sales" | "legal" | "common";
 
+// 2026-05-01:hr 體系全砍(對齊 system-tree v2)
 const PILLAR_LABEL: Record<string, string> = {
-  hr: "HR 招聘", sales: "業務", legal: "法務", common: "通用",
+  sales: "業務", legal: "法務", common: "通用",
 };
 const PILLAR_COLOR: Record<string, string> = {
-  hr: "#0891b2", sales: "#c9a96e", legal: "#b91c1c", common: "#4a4a4a",
+  sales: "#c9a96e", legal: "#b91c1c", common: "#4a4a4a",
 };
 
 interface Chunk {

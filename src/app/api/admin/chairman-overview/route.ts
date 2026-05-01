@@ -69,13 +69,17 @@ export async function GET() {
     const weekAgo = taipeiDaysAgo(7);
     const monthAgo = taipeiDaysAgo(30);
 
-    // 並行抓取所有資料(kpi_entries / recruits / sparring 都用 fetchAllRows 防 1000 cap)
-    const [usersRes, kpis, recruits, sparrings] = await Promise.all([
+    // 2026-05-02 fix:從 kpi_entries(舊表,沒 sync)→ sales_metrics_daily(Metabase 真資料)
+    // sales_metrics_daily 欄位:salesperson_id / email / brand / date / calls / connected /
+    //   raw_appointments / appointments_show / closures / is_monthly_rollup
+    // mapping:valid_calls → connected,appointments → appointments_show
+    const [usersRes, smdRows, recruits, sparrings] = await Promise.all([
       supabase.from("users").select("id, email, name, brand, status, role").eq("status", "active"),
-      fetchAllRows<{ user_id: string; user_email: string; brand: string; date: string; calls: number; valid_calls: number; appointments: number; closures: number }>(() =>
-        supabase.from("kpi_entries")
-          .select("user_id, user_email, brand, date, calls, valid_calls, appointments, closures")
+      fetchAllRows<{ salesperson_id: string | null; email: string; brand: string | null; date: string; calls: number; connected: number; appointments_show: number; closures: number; name: string }>(() =>
+        supabase.from("sales_metrics_daily")
+          .select("salesperson_id, email, brand, date, calls, connected, appointments_show, closures, name")
           .gte("date", weekAgo)
+          .not("is_monthly_rollup", "is", true)
       ),
       fetchAllRows<{ id: string; name: string; brand: string; stage: string; created_at: string; stage_entered_at: string }>(() =>
         supabase.from("recruits").select("id, name, brand, stage, created_at, stage_entered_at")
@@ -86,6 +90,28 @@ export async function GET() {
           .gte("created_at", new Date(now - 7 * 86400000).toISOString())
       ),
     ]);
+
+    // 過濾「新訓-」名字(同 employees-from-metabase pattern)
+    const kpis = smdRows.filter(r => {
+      const n = (r.name || "").trim();
+      return !n.startsWith("新訓-") && !n.startsWith("新訓 ") && !n.startsWith("新訓:");
+    }).map(r => ({
+      // 對齊舊 kpi_entries shape,讓下游 logic 不用改
+      user_id: r.salesperson_id || null,
+      user_email: (r.email || "").toLowerCase(),
+      brand: r.brand,
+      date: r.date,
+      calls: r.calls || 0,
+      valid_calls: r.connected || 0,
+      appointments: r.appointments_show || 0,
+      closures: r.closures || 0,
+    }));
+
+    // 2026-05-02 fix:today fallback to latest_workday(週末/假日 today 沒資料時)
+    const datesInWeek = Array.from(new Set(kpis.map(k => k.date))).sort();
+    const latestDate = datesInWeek[datesInWeek.length - 1];
+    const todayHasData = kpis.some(k => k.date === today);
+    const effectiveToday = todayHasData ? today : (latestDate || today);
 
     const users = usersRes.data || [];
 
@@ -109,8 +135,8 @@ export async function GET() {
       const brandUsers = users.filter((u) => u.brand === brandId);
       const activeReps = brandUsers.length;
 
-      // 今日 KPI
-      const todayKpis = kpis.filter((k) => k.date === today && kpiBrand(k) === brandId);
+      // 今日 KPI(用 effectiveToday — 週末/假日自動 fallback to latest_workday)
+      const todayKpis = kpis.filter((k) => k.date === effectiveToday && kpiBrand(k) === brandId);
       const weekKpis = kpis.filter((k) => kpiBrand(k) === brandId);
 
       const todayCalls = todayKpis.reduce((s, k) => s + (k.calls || 0), 0);
@@ -254,13 +280,15 @@ export async function GET() {
     return Response.json({
       ok: true,
       generated_at: new Date().toISOString(),
-      // 2026-04-30 Wave B B13:標明數據源讓前端 / Vincent 看到「為什麼跟其他頁不一樣」
+      // 2026-05-02 fix:改用 sales_metrics_daily(Metabase 同步,跟其他頁一致)
       data_source: {
-        sales_kpi: "kpi_entries (用戶手填)",
+        sales_kpi: "sales_metrics_daily (Metabase 同步,排除 is_monthly_rollup + 新訓-)",
         recruit: "recruits (招聘流水)",
         sparring: "sparring_records",
-        note: "與 ceo-overview / strategy / group-overview 用 sales_metrics_daily(Metabase 同步) 不同;若用戶填 kpi 落後,主席頁數字會偏低",
+        note: "本頁 today 自動 fallback to latest workday(週末/假日資料未 finalize 時用最近一個工作日)",
       },
+      effective_date: effectiveToday,
+      effective_date_is_today: todayHasData,
       empire: {
         total_active_reps: totalActiveReps,
         total_silent_today: totalSilent,

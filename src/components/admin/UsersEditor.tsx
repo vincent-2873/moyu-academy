@@ -24,9 +24,9 @@ const STAGES = [
   { value: "master", label: "執印者(master)" },
 ];
 
+// 2026-05-01:recruit 路徑全砍(對齊 system-tree v2「人資招募 104 全砍」)
 const PATHS = [
   { value: "business", label: "業務" },
-  { value: "recruit", label: "招募" },
   { value: "legal", label: "法務" },
   { value: "common", label: "通用" },
 ];
@@ -39,12 +39,14 @@ const SCOPES = [
   { value: "trainee", label: "trainee 新人", color: "var(--ink-mid)" },
 ];
 
+// 2026-05-01:hr / recruit / recruiter / recruit_manager / recruit_rookie 全砍
+// (對齊 system-tree v2「人資招募 104 全砍」)
 const ROLES = [
   "super_admin", "ceo", "coo", "cfo", "director",
-  "brand_manager", "sales_manager", "recruit_manager", "legal_manager",
+  "brand_manager", "sales_manager", "legal_manager",
   "team_leader", "trainer", "mentor",
-  "hr", "legal_staff", "sales_rep", "recruiter",
-  "sales_rookie", "recruit_rookie", "intern",
+  "legal_staff", "sales_rep",
+  "sales_rookie", "intern",
 ];
 
 export default function UsersEditor() {

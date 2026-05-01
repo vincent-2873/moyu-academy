@@ -18,16 +18,15 @@ type Chunk = {
   updated_at: string;
 };
 
-type Pillar = "hr" | "legal" | "sales" | "common";
+type Pillar = "legal" | "sales" | "common";
 
+// 2026-05-01:hr 體系全砍(對齊 system-tree v2),既有 DB row 已 reclassify pillar=common
 const PILLAR_LABEL: Record<string, string> = {
-  hr: "HR 招聘",
   legal: "法務",
   sales: "業務",
   common: "通用",
 };
 const PILLAR_COLOR: Record<string, string> = {
-  hr: "#0891b2",       // 青
   legal: "#b91c1c",    // 朱
   sales: "#c9a96e",    // 金
   common: "#4a4a4a",   // 灰
