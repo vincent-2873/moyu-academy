@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
-import MobileNav from "@/components/MobileNav";
+// MobileNav 已於 Phase A 補刀砍除(layout.tsx 提供共用 nav)
 
 interface CaseDetail {
   id: string;
@@ -192,7 +192,6 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      <MobileNav />
       {newEvent && <NewEventModal caseId={id} email={email} onClose={() => setNewEvent(false)} onDone={() => { setNewEvent(false); load(); }} />}
     </div>
   );

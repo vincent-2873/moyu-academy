@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import MobileNav from "@/components/MobileNav";
+// MobileNav 已於 Phase A 補刀砍除(layout.tsx 提供共用 nav)
 
 interface CaseRow {
   id: string;
@@ -255,7 +255,6 @@ export default function LegalCasesPage() {
         </div>
       </div>
 
-      <MobileNav />
       {newCase && <NewCaseModal email={email} onClose={() => setNewCase(false)} onCreated={() => { setNewCase(false); load(); }} />}
     </div>
   );
