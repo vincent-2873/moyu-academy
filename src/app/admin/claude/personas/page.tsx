@@ -24,11 +24,25 @@ export default function AdminClaudePersonasPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0 }}>🎭 對練 Persona 庫</h1>
-        <p style={{ fontSize: 13, color: "var(--text3, #888)", marginTop: 6 }}>
-          管理對練角色(基於 nSchool 業務開發 8 個逐字 / 楊嘉瑜 / 鄭繁星 等)
-        </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0 }}>🎭 對練 Persona 庫</h1>
+          <p style={{ fontSize: 13, color: "var(--text3, #888)", marginTop: 6 }}>
+            對齊 system-tree v2 §對練 Persona 庫 — 楊嘉瑜 / 鄭繁星 / 客訴客戶 / 反悔已成交 + 新增
+          </p>
+        </div>
+        <button
+          onClick={() => alert("Persona 新增 UI 待 Phase B-6 — 從 nSchool 8 個業務開發 Call 逐字稿建 persona\n\n現有 4 persona 由 D18+D22+D23 SQL seed,直接 INSERT 進 roleplay_personas table。")}
+          style={{
+            padding: "8px 16px",
+            background: "var(--ink-deep, #2A2622)",
+            color: "#fff", border: "none", borderRadius: 6,
+            fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+            whiteSpace: "nowrap",
+          }}
+        >
+          ➕ 新增 Persona
+        </button>
       </div>
 
       {loading && <div style={infoBox}>載入中…</div>}
