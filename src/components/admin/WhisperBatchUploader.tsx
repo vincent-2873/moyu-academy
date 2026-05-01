@@ -67,9 +67,7 @@ export default function WhisperBatchUploader() {
       }),
     });
     const initJson = await initRes.json();
-    if (!initJson.ok) {
-      return { filename: file.name, ok: false, error: `init: ${initJson.error}` };
-    }
+    if (!initJson.ok) return { filename: file.name, ok: false, error: `init: ${initJson.error}` };
     const uploadId = initJson.upload_id as string;
 
     // 2) sequential chunk upload
@@ -85,18 +83,13 @@ export default function WhisperBatchUploader() {
       fd.append("chunk_index", String(i));
       fd.append("chunk", blob);
 
-      const chunkRes = await fetch("/api/admin/rag/whisper-upload/chunk", {
-        method: "POST",
-        body: fd,
-      });
+      const chunkRes = await fetch("/api/admin/rag/whisper-upload/chunk", { method: "POST", body: fd });
       const chunkJson = await chunkRes.json();
-      if (!chunkJson.ok) {
-        return { filename: file.name, ok: false, error: `chunk ${i}: ${chunkJson.error}` };
-      }
+      if (!chunkJson.ok) return { filename: file.name, ok: false, error: `chunk ${i}: ${chunkJson.error}` };
     }
 
-    // 3) finalize(server 跑 ffmpeg + Whisper + INSERT)
-    setStage("處理 ffmpeg + Whisper");
+    // 3) finalize → 立即拿 job_id(non-blocking)
+    setStage("送 server 處理");
     setProgress({ fileIdx, total });
     const finRes = await fetch("/api/admin/rag/whisper-upload/finalize", {
       method: "POST",
@@ -104,19 +97,49 @@ export default function WhisperBatchUploader() {
       body: JSON.stringify({ upload_id: uploadId }),
     });
     const finJson = await finRes.json();
-    if (!finJson.ok) {
-      return { filename: file.name, ok: false, error: `finalize: ${finJson.error}` };
+    if (!finJson.ok) return { filename: file.name, ok: false, error: `finalize: ${finJson.error}` };
+    const jobId = finJson.job_id as string;
+
+    // 4) Polling /status 直到 done/failed(每 3 秒)
+    setStage("ffmpeg + Whisper 處理中");
+    const POLL_INTERVAL = 3000;
+    const MAX_WAIT = 15 * 60 * 1000; // 15 分鐘 hard timeout
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < MAX_WAIT) {
+      await new Promise(r => setTimeout(r, POLL_INTERVAL));
+      try {
+        const statusRes = await fetch(`/api/admin/rag/whisper-upload/status?job_id=${jobId}`);
+        const statusJson = await statusRes.json();
+        if (!statusJson.ok) continue;
+
+        // 更新 stage 顯示
+        if (statusJson.stage === "ffmpeg_split") setStage("ffmpeg 切片中");
+        else if (statusJson.stage === "whisper_transcribe") {
+          const done = statusJson.segments_done ?? 0;
+          const totalSeg = statusJson.segments_total ?? "?";
+          setStage(`Whisper 轉錄中 段 ${done}/${totalSeg}`);
+        } else if (statusJson.stage === "db_insert") setStage("寫進 RAG");
+
+        if (statusJson.status === "done") {
+          return {
+            filename: file.name, ok: true,
+            brand: statusJson.brand,
+            transcript_chars: statusJson.transcript_chars,
+            chunk_id: statusJson.chunk_id,
+            segments: statusJson.segments_total,
+          };
+        }
+        if (statusJson.status === "failed") {
+          return { filename: file.name, ok: false, error: `處理失敗: ${statusJson.error}` };
+        }
+      } catch (e) {
+        // polling error 不立即 fail,繼續 retry
+        console.warn("polling error:", e);
+      }
     }
 
-    return {
-      filename: file.name,
-      ok: true,
-      brand: finJson.brand,
-      segments: finJson.segments,
-      transcript_chars: finJson.transcript_chars,
-      chunk_id: finJson.chunk_id,
-      action: finJson.action,
-    };
+    return { filename: file.name, ok: false, error: "處理超過 15 分鐘 timeout" };
   };
 
   const trigger = async () => {
