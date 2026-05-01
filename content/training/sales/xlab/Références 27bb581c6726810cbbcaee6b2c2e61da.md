@@ -1,0 +1,29 @@
+# Références
+
+- Sky: children of light
+    - 
+- Little nightmares
+    - puzzles, horreur
+- We happy few
+    - dissonance entre joyeux et sombre, perception du joueur
+- Animal crossing
+- Stardew Valley
+- Wytchwood
+- Outer Wilds
+- Shady part of me
+- Aer
+- Alba
+- Doki Doki
+- Kai and zero
+- Palia
+- **Slime Rancher 2**
+- lost skies
+- cozy grove
+- spiritfarer
+- dredge
+- don(t starve
+- tunic
+
+---
+
+[無標題](R%C3%A9f%C3%A9rences/%E7%84%A1%E6%A8%99%E9%A1%8C%2027bb581c672681528728f602644e6e21.csv)

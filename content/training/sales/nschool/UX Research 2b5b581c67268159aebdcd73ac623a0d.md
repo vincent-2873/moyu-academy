@@ -1,0 +1,121 @@
+# UX Research
+
+## Recherche UX & Playtests
+
+Afin de mieux identifier les **points de friction dans l’expérience utilisateur**, j’ai organisé **deux** **sessions de playtest structurées**. La première en M1, la seconde pour le playtest du 17/12 au Trakk.
+
+### Méthodologie
+
+J’ai organisé un questionnaire personnalisé à ALAZIA, sur base de recherches scientifiques : 
+
+**Le formulaire en ligne:**
+
+[https://form.jotform.com/243462526558362](https://form.jotform.com/243462526558362)
+
+|  | Pas du tout | Légèrement | Assez | Fortement | Tout à fait |
+| --- | --- | --- | --- | --- | --- |
+| Je me suis amusé·e | 1 | 2 | 3 | 4 | 5 |
+| J'étais pleinement absorbé·e par le jeu |  |  |  |  |  |
+| Je me suis senti·e heureux·se |  |  |  |  |  |
+|  |  |  |  |  |  |
+| Le jeu est esthétiquement plaisant. |  |  |  |  |  |
+| Je me suis ennuyé·e |  |  |  |  |  |
+| J'avais l'impression de pouvoir explorer librement l’univers |  |  |  |  |  |
+| J'étais rapide pour atteindre les objectifs du jeu |  |  |  |  |  |
+| J'ai ressenti une pression liée au temps |  |  |  |  |  |
+| J’étais tendu·e |  |  |  |  |  |
+| J’ai ressenti du malaise |  |  |  |  |  |
+| J’ai ressenti de la culpabilité |  |  |  |  |  |
+| Je me suis senti désorienté·e |  |  |  |  |  |
+| Je me suis senti·e incapable d’accomplir les objectifs du jeu |  |  |  |  |  |
+| J’aurais eu besoin d’un tutoriel écrit |  |  |  |  |  |
+| **J'ai eu envie de continuer à jouer après la fin de la session** |  |  |  |  |  |
+
+## Compte-rendu — post-playtest
+
+<aside>
+<img src="https://www.notion.so/icons/star_blue.svg" alt="https://www.notion.so/icons/star_blue.svg" width="40px" />
+
+**SCORING**
+
+---
+
+L’objectif est de calculer le *score total des réponses* à chaque question en fonction des catégories définies :
+
+- **Onboarding** (3 questions)
+- **Expérience positive** (3 questions)
+- **Expérience négative** (3 questions)
+- **Challenge** (2 questions)
+- **Tension** (3 questions)
+- Usabilité
+
+Chaque question est notée sur une échelle de 1 à 5 :
+
+- 1 = Pas du tout
+- 2 = Légèrement
+- 3 = Assez
+- 4 = Fortement
+- 5 = Tout à fait
+
+---
+
+### Exemple de calcul pour la catégorie **"Expérience négative"** :
+
+**Questions** :
+
+- "Je me suis senti·e désorienté·e" → **5** (totalement)
+- "Je me suis senti·e fatigué·e" → **3** (assez)
+- "Je me suis ennuyé·e" → **2** (légèrement)
+
+**Calcul du score :**
+
+- Total des scores : 5 + 3 + 2 = 10
+- Moyenne : 10 / 3 = **3.33**
+
+Dans cet exemple, le joueur nous a donc donné un score de **3.33/5** pour la catégorie **"Expérience négative"**. La conclusion dans le tableau est alors qu’il y a des choses **à améliorer.**
+
+### Procédure :
+
+1. Calculez le score moyen pour chaque catégorie (Onboarding, Expérience positive, etc.) pour chaque participant.
+2. Calculez la moyenne générale de tous les participants pour obtenir un score final pour chaque catégorie.
+
+### Score idéal pour chaque catégorie
+
+- **Onboarding** : de 3/5 à 5/5
+- **Expérience positive** : de 3/5 à 5/5
+- **Expérience négative** : 1/5
+- **Challenge** : de 1/5 à 2/5
+- **Tension** : de 2/5 à 3/5
+</aside>
+
+---
+
+[無標題](UX%20Research/%E7%84%A1%E6%A8%99%E9%A1%8C%202b5b581c672681ec901ddedea178569f.csv)
+
+## Sources
+
+---
+
+**Liens** :
+
+[](https://www.sciencedirect.com/science/article/pii/S1071581919301302#bib0041)
+
+[PXI Bench | Theoretical model](https://playerexperienceinventory.org/instrument)
+
+---
+
+**Articles scientifiques :**
+
+IJsselsteijn, W. A., de Kort, Y. A. W., & Poels, K. (2013). *The Game Experience Questionnaire*. Technische Universiteit Eindhoven.
+
+Sánchez, J. L. G., Zea, N. P., & Gutiérrez, F. L. (2009). *Playability: How to Identify the Player Experience in a Video Game. Lecture Notes in Computer Science, 356–359.* doi:10.1007/978-3-642-03655-2_39
+
+---
+
+**Cours :**
+
+“Game Design Avancé — UX Onboarding” G. Gilson, 2024
+
+“Séance 7 — Equilibrage et Testing” G. Gilson, 2022
+
+---
