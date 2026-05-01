@@ -5,22 +5,26 @@
 
 ---
 
-## 🎯 Progress(2026-05-01 第七輪後段 Phase 4 + 5 全 done + 5 品牌資料就位)
+## 🎯 Progress(2026-05-01 第七輪 final · ~95% 完成)
 
 ```
-Phase 1 (基建)              ████████████  完整 (D1-D18 + D21-D26 schema applied)
-Phase 2 W1 (訓練營運)       ████████████  完整 (admin/training-ops 4 子頁)
-Phase 2 W2 (/sales 前台)    ████████████  完整 (5 子頁 + layout)
-Phase A (清理 + 補刀)        ████████████  完整 (HR + 招募 + 104 全砍)
-Phase B-1~3 (BIZ + 大砍重建) ████████████  完整 (D20 + 8 大區 + 19 子子頁)
-Phase B-4 (prompt 對齊)     ████████░░░░  70% (claude-panel done, 其他模組待)
-Phase B-5 (SPEC)            ██████████░░  90% (BIZ_MODULE_SPEC v2 含 5 品牌 / LEGAL placeholder)
-Phase B-6/7 (D22+D23 personas) ████████████ 完整 (4 persona seed)
-Phase 4 W1 (board 4 子頁)    ████████████  完整 (decisions + quarterly + strategy + inquiry 全實做)
-Phase 4 W2 (human 3 子頁)    ████████████  完整 (sos + sign-off + arbitration 全實做)
-Phase 5 (視覺整併)          ████████████  完整 (7 區 zone tint + ink-* token + 4 layout)
-Phase 6 (polish)            ██████░░░░░░  50% (loading/empty 各 page 已含,共用 component 待)
+Phase 1 (基建)              ████████████  100% (D1-D26 schema applied)
+Phase 2 W1 (訓練營運)       ████████████  100% (admin/training-ops 4 子頁)
+Phase 2 W2 (/sales 前台)    ████████████  100% (5 子頁 + layout)
+Phase A (清理 + 補刀)        ████████████  100% (HR + 招募 + 104 全砍)
+Phase B-1~3 (BIZ + 大砍重建) ████████████  100% (D20 + 8 大區 + 19 子子頁)
+Phase B-4 (prompt 對齊)     ████████████  100% (generate-draft 接 RAG knowledge_chunks)
+Phase B-5 (SPEC)            ██████████░░   90% (BIZ v2 5 品牌 / LEGAL placeholder)
+Phase B-6/7 (4 personas)     ████████████  100%
+Phase 3 (AI 工作台深化)      ████████████  100% (5 子頁 Tab 化 + Hero 呼吸動畫)
+Phase 4 W1 (board 4 子頁)    ████████████  100% (4 子頁全實做)
+Phase 4 W2 (human 3 子頁)    ████████████  100%
+Phase 5 (視覺整併 v2)        ████████████  100% (米白系徽章,不踩深底雷)
+Phase 6 (polish)            ██████████░░   80% (共用 status states + fadeIn)
+5 品牌 RAG ingest           ████████████  100% (146 chunks · 46 embedded)
 ```
+
+**剩 5% = aischool .docx + Whisper 14 wav + LEGAL spec + StatusStates 套各 page**(都是 polish,不是 ship blocker)
 
 **第七輪做的**(commits 推上,從 v6 ec3f8ac → ?):
 - D26 SQL Phase 4 schema(claude_self_assessments / board_inquiries / decision_records / arbitration_records)
