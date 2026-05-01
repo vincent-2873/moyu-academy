@@ -56,8 +56,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
       const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "登入失敗");
-      const newSession: AdminSession = { email: json.email, name: json.name, token: json.token };
+      if (!res.ok) throw new Error(json.error || "登入失敗");
+      // /api/admin/auth 回 { user: {...}, mustChangePassword }
+      // 並 set httpOnly cookie moyu_admin_session(client 拿不到 token)
+      const newSession: AdminSession = {
+        email: json.user?.email ?? loginEmail,
+        name: json.user?.name ?? loginEmail,
+        token: "cookie",  // server-side cookie 已 set,client 只記 placeholder
+      };
       localStorage.setItem("moyu_admin_session", JSON.stringify(newSession));
       setSession(newSession);
     } catch (err) {
