@@ -66,7 +66,9 @@ export default function AdminBoardDecisionsPage() {
         </div>
       )}
 
-      {data?.ok && data.counts && (
+      {data?.ok && data.counts && (() => {
+        const counts = data.counts;
+        return (
         <>
           <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
             {(["all", "pending", "approved"] as const).map(f => (
@@ -85,7 +87,7 @@ export default function AdminBoardDecisionsPage() {
                   fontFamily: "inherit",
                 }}
               >
-                {f === "all" ? `全部 (${data.counts.total})` : f === "pending" ? `待拍板 (${data.counts.today_must + data.counts.week_must})` : `已拍板 (${data.counts.approved})`}
+                {f === "all" ? `全部 (${counts.total})` : f === "pending" ? `待拍板 (${counts.today_must + counts.week_must})` : `已拍板 (${counts.approved})`}
               </button>
             ))}
           </div>
@@ -124,7 +126,8 @@ export default function AdminBoardDecisionsPage() {
             ))
           )}
         </>
-      )}
+        );
+      })()}
     </div>
   );
 }
