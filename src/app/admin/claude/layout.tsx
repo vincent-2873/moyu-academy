@@ -24,7 +24,26 @@ export default function AdminClaudeLayout({ children }: { children: React.ReactN
   const pathname = usePathname() || "";
 
   return (
-    <div>
+    <div style={{
+      minHeight: "100%",
+      background: "linear-gradient(180deg, rgba(155, 138, 168, 0.06) 0%, transparent 240px)",
+      borderRadius: 8,
+      padding: "0 0 12px 0",
+      margin: "-4px -4px 0 -4px",
+    }}>
+      <div style={{
+        display: "inline-block",
+        fontSize: 10, letterSpacing: 1.5,
+        padding: "3px 10px",
+        background: "rgba(155, 138, 168, 0.18)",
+        color: "#6B5A7A",
+        border: "1px solid rgba(155, 138, 168, 0.4)",
+        borderRadius: 4,
+        marginBottom: 12,
+        fontWeight: 700,
+      }}>
+        🤖 AI WORKBENCH · 終端機
+      </div>
       <nav style={{
         display: "flex",
         gap: 4,

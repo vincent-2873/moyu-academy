@@ -182,7 +182,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       <main style={{ flex: 1, overflowY: "auto", padding: 28, background: "var(--ink-mist, #F0EFEA)" }}>
-        {children}
+        <div className="admin-fade-in">
+          {children}
+        </div>
+        <style jsx>{`
+          .admin-fade-in {
+            animation: fadeIn 250ms ease-out;
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
       </main>
     </div>
   );
