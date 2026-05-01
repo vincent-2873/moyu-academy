@@ -98,10 +98,11 @@ async function processInBackground(jobId: string, uploadId: string) {
     }
     await new Promise<void>((res) => writeStream.end(res));
 
-    // 2. 判斷:小 audio 跳 ffmpeg 直送 Whisper / 大檔 / 影片走 ffmpeg
-    const isAudio = /\.(wav|mp3|m4a|flac|ogg)$/i.test(filename);
+    // 2. 判斷:小檔(< 24MB)跳 ffmpeg 直送 Whisper / 大檔走 ffmpeg
+    // Groq Whisper API 接受 wav/mp3/m4a/mp4/mpeg/mpga/webm 全自動 decode,< 25MB 即可
+    const isWhisperSupported = /\.(wav|mp3|m4a|flac|ogg|mp4|mpeg|mpga|webm)$/i.test(filename);
     const sizeMB = fs.statSync(fullPath).size / 1024 / 1024;
-    const skipFfmpeg = isAudio && sizeMB < 24;
+    const skipFfmpeg = isWhisperSupported && sizeMB < 24;
 
     let segments: string[] = [];
     if (skipFfmpeg) {
