@@ -20,6 +20,16 @@ interface BatchResult {
   results: FileResult[];
 }
 
+interface Props {
+  /** 強制 pillar(/admin/legal/knowledge 傳 'legal' 隔離 / 預設 sales)*/
+  pillar?: "sales" | "legal" | "common";
+  /** 隱藏品牌下拉(法務不分品牌)*/
+  hideBrandSelector?: boolean;
+  /** 自訂標題 / 描述(法務介面有自己的文案)*/
+  title?: string;
+  description?: React.ReactNode;
+}
+
 const BRAND_OPTIONS = [
   { value: "",         label: "🤖 自動推斷(從檔名)" },
   { value: "nschool",  label: "📈 nSchool 財經學院" },
@@ -40,7 +50,12 @@ const CHUNK_SIZE = 1024 * 1024; // 1 MB per chunk(避免 platform body limit)
  *   - 任何大小 / 錄影 / 音檔都吃(ffmpeg 自動 extract + 切片)
  *   - bypass platform body size limit(每 POST 1MB chunk)
  */
-export default function WhisperBatchUploader() {
+export default function WhisperBatchUploader({
+  pillar,
+  hideBrandSelector = false,
+  title,
+  description,
+}: Props = {}) {
   const [files, setFiles] = useState<File[]>([]);
   const [brand, setBrand] = useState("");
   const [running, setRunning] = useState(false);
@@ -64,6 +79,7 @@ export default function WhisperBatchUploader() {
         mime_type: file.type,
         total_chunks: totalChunks,
         brand: brand || undefined,
+        pillar: pillar || undefined,
       }),
     });
     const initJson = await initRes.json();
@@ -179,33 +195,49 @@ export default function WhisperBatchUploader() {
     }}>
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-          🎤 Whisper 批次上傳 → RAG(全品牌業務開發 Call · 任意大小 / 錄影 / 音檔)
+          {title || "🎤 Whisper 批次上傳 → RAG(全品牌業務開發 Call · 任意大小 / 錄影 / 音檔)"}
+          {pillar && (
+            <span style={{
+              marginLeft: 10, fontSize: 11, padding: "2px 8px",
+              background: pillar === "legal" ? "rgba(107, 122, 90, 0.15)" : "rgba(184, 71, 74, 0.1)",
+              color: pillar === "legal" ? "#6B7A5A" : "#B8474A",
+              borderRadius: 4, fontWeight: 700,
+            }}>
+              pillar={pillar}
+            </span>
+          )}
         </div>
         <div style={{ fontSize: 12, color: "var(--text2, #666)", lineHeight: 1.6 }}>
-          選 .wav / .mp3 / .mp4 / .mov / .m4a 多檔 → server 端 ffmpeg 自動切片 + 提取音訊 → Groq Whisper Large v3 → <code>knowledge_chunks</code>
-          <br />
-          <strong>沒有檔案大小限制</strong>(chunked upload 1MB / chunk),錄影自動 extract audio,大檔自動切段並行轉錄。
+          {description || (
+            <>
+              選 .wav / .mp3 / .mp4 / .mov / .m4a 多檔 → server 端 ffmpeg 自動切片 + 提取音訊 → Groq Whisper Large v3 → <code>knowledge_chunks</code>
+              <br />
+              <strong>沒有檔案大小限制</strong>(chunked upload 1MB / chunk),錄影自動 extract audio,大檔自動切段並行轉錄。
+            </>
+          )}
         </div>
       </div>
 
       <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
-        <div>
-          <label style={{ display: "block", fontSize: 11, color: "var(--text3, #888)", fontWeight: 600, marginBottom: 4 }}>
-            指定品牌
-          </label>
-          <select
-            value={brand}
-            onChange={(e) => setBrand(e.target.value)}
-            style={{
-              padding: "7px 10px",
-              border: "1px solid var(--ink-line, #E5E2DA)",
-              borderRadius: 6, fontSize: 13, background: "#fff",
-              fontFamily: "inherit",
-            }}
-          >
-            {BRAND_OPTIONS.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
-          </select>
-        </div>
+        {!hideBrandSelector && (
+          <div>
+            <label style={{ display: "block", fontSize: 11, color: "var(--text3, #888)", fontWeight: 600, marginBottom: 4 }}>
+              指定品牌
+            </label>
+            <select
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              style={{
+                padding: "7px 10px",
+                border: "1px solid var(--ink-line, #E5E2DA)",
+                borderRadius: 6, fontSize: 13, background: "#fff",
+                fontFamily: "inherit",
+              }}
+            >
+              {BRAND_OPTIONS.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
+            </select>
+          </div>
+        )}
 
         <div style={{ flex: 1, minWidth: 280 }}>
           <label style={{ display: "block", fontSize: 11, color: "var(--text3, #888)", fontWeight: 600, marginBottom: 4 }}>

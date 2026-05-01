@@ -102,8 +102,9 @@ async function processInBackground(jobId: string, uploadId: string) {
 
     const manifestPath = path.join(tempDir, "manifest.json");
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-    const { filename, total_chunks: totalChunks, brand: brandHint, speaker: speakerHint } = manifest;
+    const { filename, total_chunks: totalChunks, brand: brandHint, speaker: speakerHint, pillar: pillarHint } = manifest;
     const brand = brandHint || inferBrand(filename);
+    const pillar: "sales" | "legal" | "common" = pillarHint && ["sales", "legal", "common"].includes(pillarHint) ? pillarHint : "sales";
 
     // 1. 拼接 chunks → full file
     const fullPath = path.join(tempDir, `_full_${filename}`);
@@ -183,13 +184,17 @@ async function processInBackground(jobId: string, uploadId: string) {
       .eq("source_id", sourceId)
       .maybeSingle();
 
+    const titlePrefix = pillar === "legal"
+      ? `法務 ${speakerHint || ""}`.trim()
+      : `${brand} 業務開發 Call`;
+
     const payload = {
       source_type: "recording_transcript" as const,
       source_id: sourceId,
-      title: `${brand} 業務開發 Call — ${speakerHint || filename.replace(/\.[^.]+$/, "")}`,
-      brand,
-      path_type: "business" as const,
-      pillar: "sales" as const,
+      title: `${titlePrefix} — ${speakerHint || filename.replace(/\.[^.]+$/, "")}`,
+      brand: pillar === "legal" ? null : brand,    // 法務不分品牌
+      path_type: pillar === "legal" ? ("legal" as const) : ("business" as const),
+      pillar,
       content: transcript.slice(0, 50000),
       content_hash: contentHash,
       metadata: {
@@ -250,8 +255,9 @@ export async function POST(req: NextRequest) {
 
   // 讀 manifest 拿 metadata
   const manifest = JSON.parse(fs.readFileSync(path.join(tempDir, "manifest.json"), "utf8"));
-  const { filename, size, brand: brandHint, speaker } = manifest;
+  const { filename, size, brand: brandHint, speaker, pillar: pillarHint } = manifest;
   const brand = brandHint || inferBrand(filename);
+  const pillarValue = pillarHint && ["sales", "legal", "common"].includes(pillarHint) ? pillarHint : "sales";
 
   const sb = getSupabaseAdmin();
 
@@ -299,8 +305,8 @@ export async function POST(req: NextRequest) {
       upload_id: uploadId,
       filename,
       file_size: size,
-      brand,
-      pillar: "sales",
+      brand: pillarValue === "legal" ? null : brand,
+      pillar: pillarValue,
       speaker: speaker || null,
       status: "pending",
     })

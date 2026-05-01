@@ -25,6 +25,9 @@ export async function POST(req: NextRequest) {
     const mimeType = String(body.mime_type ?? "");
     const brand = String(body.brand ?? "").trim() || null;
     const speaker = String(body.speaker ?? "").trim() || null;
+    // pillar 隔離(/admin/legal/knowledge 強制 legal,/admin/claude/knowledge 預設 sales)
+    const pillarRaw = String(body.pillar ?? "").trim().toLowerCase();
+    const pillar = ["sales", "legal", "common"].includes(pillarRaw) ? pillarRaw : null;
 
     if (!filename || !size || !totalChunks) {
       return NextResponse.json({ ok: false, error: "filename / size / total_chunks required" }, { status: 400 });
@@ -48,6 +51,7 @@ export async function POST(req: NextRequest) {
         total_chunks: totalChunks,
         brand,
         speaker,
+        pillar,                                // null = 由 finalize 自動推斷預設 sales
         created_at: new Date().toISOString(),
         chunks_received: [],
       }, null, 2)
