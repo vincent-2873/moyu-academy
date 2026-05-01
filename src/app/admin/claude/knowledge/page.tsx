@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import KnowledgeEngineEditor from "@/components/admin/KnowledgeEngineEditor";
 import RagUploadPanel from "@/components/admin/RagUploadPanel";
 import RagReviewQueue from "@/components/admin/RagReviewQueue";
+import IngestLocalTrigger from "@/components/admin/IngestLocalTrigger";
 
 export default function AdminClaudeKnowledgePage() {
   const [adminEmail, setAdminEmail] = useState("");
@@ -30,6 +31,7 @@ export default function AdminClaudeKnowledgePage() {
         </p>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <IngestLocalTrigger />
         <KnowledgeEngineEditor />
         <RagUploadPanel email={adminEmail} />
         <RagReviewQueue />

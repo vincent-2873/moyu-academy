@@ -5,21 +5,40 @@
 
 ---
 
-## 🎯 Progress(2026-05-01 第六輪後段 Phase A 補刀 + 大砍重建完成)
+## 🎯 Progress(2026-05-01 第七輪後段 Phase 4 + 5 全 done + 5 品牌資料就位)
 
 ```
-Phase 1 (基建)              ████████████  完整 (D1-D18 schema applied)
+Phase 1 (基建)              ████████████  完整 (D1-D18 + D21-D26 schema applied)
 Phase 2 W1 (訓練營運)       ████████████  完整 (admin/training-ops 4 子頁)
-Phase A (清理)              ████████████  完整 (HR 砍 + 架構外砍 + 訓練規範 + RAG)
-Phase A 補刀 (招募 104 全砍) ████████████  完整 (Vincent 拍板:人資招募 104 worker DB 角色全)
-Phase B-1 (BIZ module)      ████████████  完整 (D20 SQL applied + nSchool source)
-Phase B-2 (/sales/* 5 子頁)  ████████████  完整 (5 子頁 + layout 推上 + verify 200)
-Phase B-3 (admin 8 區)      ████████████  完整 (大砍重建:9510 → 8 行 + layout + 19 子子頁)
-Phase B-4 (prompt 對齊)     ░░░░░░░░░░░░  待
-Phase B-5 (SPEC)            ░░░░░░░░░░░░  待
-Phase 4 (board + human)     ░░░░░░░░░░░░  待 (子頁 placeholder 已建,等 schema + 實做)
-Phase 5-6                   ░░░░░░░░░░░░  待
+Phase 2 W2 (/sales 前台)    ████████████  完整 (5 子頁 + layout)
+Phase A (清理 + 補刀)        ████████████  完整 (HR + 招募 + 104 全砍)
+Phase B-1~3 (BIZ + 大砍重建) ████████████  完整 (D20 + 8 大區 + 19 子子頁)
+Phase B-4 (prompt 對齊)     ████████░░░░  70% (claude-panel done, 其他模組待)
+Phase B-5 (SPEC)            ██████████░░  90% (BIZ_MODULE_SPEC v2 含 5 品牌 / LEGAL placeholder)
+Phase B-6/7 (D22+D23 personas) ████████████ 完整 (4 persona seed)
+Phase 4 W1 (board 4 子頁)    ████████████  完整 (decisions + quarterly + strategy + inquiry 全實做)
+Phase 4 W2 (human 3 子頁)    ████████████  完整 (sos + sign-off + arbitration 全實做)
+Phase 5 (視覺整併)          ████████████  完整 (7 區 zone tint + ink-* token + 4 layout)
+Phase 6 (polish)            ██████░░░░░░  50% (loading/empty 各 page 已含,共用 component 待)
 ```
+
+**第七輪做的**(commits 推上,從 v6 ec3f8ac → ?):
+- D26 SQL Phase 4 schema(claude_self_assessments / board_inquiries / decision_records / arbitration_records)
+- /api/admin/{decisions, arbitrations, help-requests, board/{quarterly, strategy, inquiry}} 7 個 API
+- /admin/board/{quarterly, strategy, inquiry, decisions} 4 子頁全實做
+- /admin/human/{sos, sign-off, arbitration} 3 子頁全實做
+- 5 品牌訓練資料 cp 進 content/training/sales/{xuemi, ooschool, xlab, sales-deck-v2, nschool}/(aischool 待 Whisper)
+- BIZ_MODULE_SPEC v2 加 §13 — 5 品牌延伸 / 共通 8 步驟跨品牌差異 / RAG brand 過濾 SQL
+- globals.css 加 ink-paper/ink-mist/ink-line/ink-deep + 7 區 zone-* 變數
+- admin/{board, claude, human}/layout.tsx 套 zone tint
+- 登入 vincent@xuemi.co / 0000 驗過 OK(D25 UPSERT)
+
+🔒 **鐵則**(2026-05-01 拍板,Phase 6 完成前不變):
+- 做每個功能要先看 `~/Downloads/訓練資料/資料/{5 品牌}/` 既有 source 延伸,不從零生成
+- **不只 nSchool**:5 品牌(nschool / xuemi / ooschool / aischool / xlab)+ 訓練官執行品牌檔案(sales-deck-v2)+ 公司介紹(墨宇)都要照顧
+- 適所 = 墨宇 = HOWWORK,UI 顯示用墨宇
+
+---
 
 **Phase A 補刀做的**(6 commit pushed,從 v7 ec3f8ac → a89a0b5):
 - 砍 file 20 個:`/recruit/*` + `/api/recruit/*` + `/api/recruit-funnel/*` + 5 個 admin recruit API + 5 個招募 cron + 2 component
