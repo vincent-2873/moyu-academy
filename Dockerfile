@@ -25,6 +25,8 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 # Next.js standalone build
+# 提高 Node heap 到 4GB(content/training/ 有 525 .md,build trace 會 OOM @ 2GB default)
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN pnpm build
 
 
