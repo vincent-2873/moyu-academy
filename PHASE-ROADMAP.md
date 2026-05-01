@@ -5,26 +5,32 @@
 
 ---
 
-## 🎯 Progress(2026-05-01 第七輪 final · ~95% 完成)
+## 🎯 Progress(2026-05-01 第七輪 final v2 · ~98% 完成)
 
 ```
-Phase 1 (基建)              ████████████  100% (D1-D26 schema applied)
-Phase 2 W1 (訓練營運)       ████████████  100% (admin/training-ops 4 子頁)
-Phase 2 W2 (/sales 前台)    ████████████  100% (5 子頁 + layout)
-Phase A (清理 + 補刀)        ████████████  100% (HR + 招募 + 104 全砍)
-Phase B-1~3 (BIZ + 大砍重建) ████████████  100% (D20 + 8 大區 + 19 子子頁)
-Phase B-4 (prompt 對齊)     ████████████  100% (generate-draft 接 RAG knowledge_chunks)
+Phase 1 (基建)              ████████████  100% (D1-D27 schema applied)
+Phase 2 W1 (訓練營運)       ████████████  100%
+Phase 2 W2 (/sales 前台)    ████████████  100%
+Phase A (清理 + 補刀)        ████████████  100%
+Phase B-1~3 (BIZ + 大砍重建) ████████████  100%
+Phase B-4 (prompt 對齊)     ████████████  100% (generate-draft 接 RAG)
 Phase B-5 (SPEC)            ██████████░░   90% (BIZ v2 5 品牌 / LEGAL placeholder)
 Phase B-6/7 (4 personas)     ████████████  100%
 Phase 3 (AI 工作台深化)      ████████████  100% (5 子頁 Tab 化 + Hero 呼吸動畫)
-Phase 4 W1 (board 4 子頁)    ████████████  100% (4 子頁全實做)
+Phase 4 W1 (board 4 子頁)    ████████████  100%
 Phase 4 W2 (human 3 子頁)    ████████████  100%
 Phase 5 (視覺整併 v2)        ████████████  100% (米白系徽章,不踩深底雷)
-Phase 6 (polish)            ██████████░░   80% (共用 status states + fadeIn)
-5 品牌 RAG ingest           ████████████  100% (146 chunks · 46 embedded)
+Phase 6 (polish)            ████████████  100% (共用 status states + fadeIn)
+5 品牌 RAG ingest           ████████████  100% (146 → 161 chunks)
+法務介面 /admin/legal/knowledge ████████████ 100% (本輪加,pillar=legal 隔離)
+Whisper v3 非同步 + chunked   ████████████  100% (3 endpoints + UI polling + idempotent)
+   ├─ < 24MB audio fast path ████████████  100% verified ✓
+   └─ 大檔 / 影片 ffmpeg     ░░░░░░░░░░░░  ?? 待 verify(雙保險:nixPkgs + standalone trace)
+RAG search keyword fallback  ████████████  100% (本輪加,no embedding 也能搜)
+docs/RAG-ARCHITECTURE.md    ████████████  100% (4 圖 + 完整 flow)
 ```
 
-**剩 5% = aischool .docx + Whisper 14 wav + LEGAL spec + StatusStates 套各 page**(都是 polish,不是 ship blocker)
+**剩 2% = Whisper 大檔 ffmpeg verify(下個 Claude 進場立做 — Plan B 已備)+ Phase 6 深化 polish**
 
 **第七輪做的**(commits 推上,從 v6 ec3f8ac → ?):
 - D26 SQL Phase 4 schema(claude_self_assessments / board_inquiries / decision_records / arbitration_records)

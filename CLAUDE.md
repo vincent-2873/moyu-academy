@@ -19,7 +19,7 @@
 - ✅ Phase B-3 大砍重建(舊 9510 行怪獸檔 → 8 行 redirect + layout + 19 子子頁,對齊 system-tree v2 8 大區)
 - ❌ Phase B-4(prompt 對齊)+ B-5(MODULE_SPEC)+ Phase 4(board / human 實做)+ Phase 5-6(整併 + polish)
 
-**最新 handoff:** [`HANDOFF-2026-05-01-v10.md`](../HANDOFF-2026-05-01-v10.md)(第七輪 final,~95% 完成,system-tree v2 全對齊,5 品牌 146 chunks 在 RAG)
+**最新 handoff:** [`HANDOFF-2026-05-01-v11.md`](../HANDOFF-2026-05-01-v11.md)(第七輪 final v2,~98% 完成,Whisper v3 非同步 + 法務介面 + RAG keyword fallback,**剩 ffmpeg 大檔 verify 進場立做**)
 
 ---
 
