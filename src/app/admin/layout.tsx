@@ -35,11 +35,19 @@ interface Zone {
 
 const ZONES: Zone[] = [
   {
+    id: "hub", icon: "🏯", label: "戰情中心",
+    default: "/admin/hub",
+    matchPrefix: "/admin/hub",
+    subs: [
+      { href: "/admin/hub", label: "🏯 集團總覽" },
+    ],
+  },
+  {
     id: "board", icon: "🏛️", label: "投資人中心",
     default: "/admin/board",
     matchPrefix: "/admin/board",
     subs: [
-      { href: "/admin/board", label: "📊 集團成績單" },
+      { href: "/admin/board", label: "📊 週/月/季成績單" },
       { href: "/admin/board/strategy", label: "🎯 戰略報告" },
       { href: "/admin/board/inquiry", label: "💬 質詢 Claude" },
       { href: "/admin/board/decisions", label: "✍️ 拍板紀錄" },
@@ -112,8 +120,10 @@ const ZONES: Zone[] = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname() || "";
+  // 2026-05-02 fix: hydration mismatch root cause:SSR session=null vs client localStorage=有值
+  // 解法:用 hydrated state 確保 SSR + 第一次 client render 都顯一樣的 minimal shell
+  const [hydrated, setHydrated] = useState(false);
   const [session, setSession] = useState<AdminSession | null>(null);
-  const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // login form
@@ -129,7 +139,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       try { setSession(JSON.parse(stored)); }
       catch { localStorage.removeItem("moyu_admin_session"); }
     }
-    setLoading(false);
+    setHydrated(true);
   }, []);
 
   // 切頁時關閉 mobile drawer
@@ -167,7 +177,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push("/");
   }
 
-  if (loading) {
+  // 在 hydrate 完成前 render 跟 SSR 完全一致的 minimal shell(避免 hydration mismatch)
+  if (!hydrated) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ color: "var(--ds-text-3)" }}>載入中…</div>
