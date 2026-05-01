@@ -21,12 +21,12 @@ import Sidebar, { type UserRole } from "@/components/Sidebar";
 import ProfilePage from "@/components/ProfilePage";
 import DailyFeedbackModal, { shouldShowFeedback } from "@/components/DailyFeedbackModal";
 import ScoreRadar from "@/components/ScoreRadar";
-import {
-  RecruiterDashboard,
-  CandidatesPage,
-  AddCandidatePage,
-  FunnelPage,
-} from "@/components/RecruiterPages";
+// RecruiterPages 已於 Phase A 補刀砍除(對齊 system-tree v2,人資招募 104 全砍)
+// 留 stub 讓舊 SPA 渲染不炸,Phase B-3 重組時整個 page.tsx 會徹底拆
+const RecruiterDashboard: React.FC<Record<string, unknown>> = () => null;
+const CandidatesPage: React.FC<Record<string, unknown>> = () => null;
+const AddCandidatePage: React.FC<Record<string, unknown>> = () => null;
+const FunnelPage: React.FC<Record<string, unknown>> = () => null;
 import { scoreConversation, getScoreColor, getScoreLabel, SCORE_LABELS } from "@/lib/scoring";
 
 type Page =
@@ -665,9 +665,8 @@ function AuthPage({ onLogin }: { onLogin: () => void }) {
     const updateTime = () => setStatusTime(new Date().toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }));
     updateTime();
     const t = setInterval(updateTime, 60_000);
-    fetch("/api/admin/104-status", { cache: "no-store" })
-      .then((r) => { setSysStatus(r.ok ? "ok" : "error"); })
-      .catch(() => setSysStatus("error"));
+    // 104 status endpoint 已於 Phase A 補刀砍除(人資招募 104 全砍)
+    setSysStatus("ok");
     return () => clearInterval(t);
   }, []);
 

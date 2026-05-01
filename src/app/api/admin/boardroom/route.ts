@@ -133,7 +133,7 @@ export async function GET() {
           : inFunnel < 5
           ? "漏斗快空了，下個月會無人可用"
           : `各階段：${Object.entries(stageCount).map(([k, v]) => `${k}=${v}`).join(", ")}`,
-      next_action: recruits.length === 0 ? "貼第一批求職者進系統 (POST /api/admin/recruits)" : "補充廣告投放 + 加快面試節奏",
+      next_action: recruits.length === 0 ? "招募功能已於 Phase A 補刀砍除(對齊 system-tree v2)" : "招募功能已砍除",
     };
 
     // ─── 4. 人類狀態 (human_state) ─────────────────

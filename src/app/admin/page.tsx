@@ -24,7 +24,8 @@ import EmployeesFromMetabaseTab from "@/components/admin/EmployeesFromMetabaseTa
 import SystemRunLogPanel from "@/components/admin/SystemRunLogPanel";
 import RagUploadPanel from "@/components/admin/RagUploadPanel";
 import RagReviewQueue from "@/components/admin/RagReviewQueue";
-import RecruitFunnelChart from "@/components/admin/RecruitFunnelChart";
+// RecruitFunnelChart 已於 Phase A 補刀砍除(人資招募 104 全砍 — 對齊 system-tree v2)
+const RecruitFunnelChart: React.FC<{ stages?: unknown; accentColor?: string }> = () => null;
 import CompanyDeepDive from "@/components/admin/CompanyDeepDive";
 import FocusBoard from "@/components/admin/FocusBoard";
 import MetabaseAuditPanel from "@/components/admin/MetabaseAuditPanel";
