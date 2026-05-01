@@ -19,7 +19,7 @@
 - ✅ Phase B-3 大砍重建(舊 9510 行怪獸檔 → 8 行 redirect + layout + 19 子子頁,對齊 system-tree v2 8 大區)
 - ❌ Phase B-4(prompt 對齊)+ B-5(MODULE_SPEC)+ Phase 4(board / human 實做)+ Phase 5-6(整併 + polish)
 
-**最新 handoff:** [`HANDOFF-2026-05-01-v8.md`](../HANDOFF-2026-05-01-v8.md)(在專案上一層)
+**最新 handoff:** [`HANDOFF-2026-05-01-v9.md`](../HANDOFF-2026-05-01-v9.md)(第七輪後段,Phase 4 + 5 全 done,5 品牌訓練資料進 content/ 待 ingest)
 
 ---
 
