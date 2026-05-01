@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/vincent-2873/moyu-academy/actions/workflows/ci.yml/badge.svg)](https://github.com/vincent-2873/moyu-academy/actions/workflows/ci.yml)
 
-**Production**:<https://moyusales.zeabur.app>(`/admin` 後台 / `/me` 個人戰情)
+**Production**:<https://moyusales.zeabur.app>(`/admin` 後台 / `/sales/*` 業務戰場 / `/legal/cases` 法務,Phase B 建設中)
 
 ---
 
@@ -61,7 +61,7 @@ npx vitest run
 
 ```
 墨宇戰情中樞
-├─ 📱 前台 22 page(/me 個人戰情、/learn 訓練、/recruit 招募、/legal 法務 …)
+├─ 📱 前台(/sales/* 業務戰場、/legal/cases 法務、/recruit 招募 daily driver、/account 帳號)
 ├─ 🛠️  後台 /admin(25 tab × 6 group)
 ├─ 🤖 跨層服務(AI 戰情官、Whisper、RAG、LINE Bot、Metabase Sync)
 └─ 🗄️  Supabase 50+ table + 8 GitHub Actions workflow
