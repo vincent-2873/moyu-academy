@@ -57,6 +57,35 @@
   --body-grad-2:    rgba(107, 122, 90, 0.03);
   --body-grad-3:    rgba(184, 71, 74, 0.02);
   --body-grad-4:    rgba(138, 130, 118, 0.04);
+
+  /* ====================================================================
+   * 侘寂 ink token(紙感 / 米霧 / 線條)— Phase 5 視覺整併固化 2026-05-01
+   * 這些 token 之前散在各個 page.tsx 用 fallback 寫,集中到此
+   * ==================================================================== */
+  --ink-paper:      #FAFAF7;   /* 紙底 — 卡片 / 容器 */
+  --ink-mist:       #F0EFEA;   /* 米霧 — 提示框 / 內嵌層 */
+  --ink-line:       #E5E2DA;   /* 線條 — border / divider */
+  --ink-deep:       #2A2622;   /* 墨深 — 主色 button / heading */
+
+  /* ====================================================================
+   * 7 區工作區 zone tint(對齊 system-tree v2 §視覺氛圍對照)
+   * 用法:該區 layout 加 background-color: var(--zone-X-bg)
+   * ==================================================================== */
+  --zone-sales-bg:        #FAFAF7;            /* 前台 /sales 深炭+米白 */
+  --zone-legal-bg:        #FAFAF7;            /* 前台 /legal 純米白 */
+  --zone-board-bg:        #FAF7E8;            /* 後台 /admin/board 米白+米黃(年報莊重)*/
+  --zone-board-accent:    #D4C896;            /* 米黃強調 */
+  --zone-board-text:      #806848;            /* 米黃配文字 */
+  --zone-admin-sales-bg:  #FAFAF7;            /* 後台 /admin/sales 純米白 BI */
+  --zone-admin-legal-bg:  #FAFAF7;            /* 後台 /admin/legal 純米白 */
+  --zone-training-bg:     #FBF7EC;            /* 後台 /admin/training-ops 米白+暖光(訓練營有溫度)*/
+  --zone-training-accent: #F5DEB3;            /* 暖光強調 */
+  --zone-claude-bg:       #1F1B17;            /* 後台 /admin/claude 深炭+紫光(終端機科技感)*/
+  --zone-claude-text:     #E8E5DD;
+  --zone-claude-accent:   #9B8AA8;            /* 紫光 */
+  --zone-human-bg:        #FBF8F3;            /* 後台 /admin/human 米白+紙感(便利貼)*/
+  --zone-human-accent:    #B89968;            /* 老金 — 紙感系強調 */
+  --zone-settings-bg:     #FAFAF7;            /* 後台 /admin/settings 純米白工具 */
 }
 
 /* 深色主題 — 覆蓋在 html[data-theme="dark"] 上 */

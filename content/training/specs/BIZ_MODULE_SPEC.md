@@ -209,6 +209,64 @@ D20 SQL apply 後,Day 1-2 加 4 個 reading module:
 
 ---
 
+## 13. 5 品牌延伸(2026-05-01 v2 補)
+
+> Vincent 提醒「不只 nSchool」— X Platform 6 品牌中 5 個對外電商品牌都有訓練 source。
+
+### 13.1 5 品牌 path(D18 已 seed)
+
+| brand code | 品牌名 | 主檔 source path | RAG ingest 狀態 |
+|---|---|---|---|
+| `nschool` | nSchool 財經學院 | `content/training/sales/nschool/...` | ✅ 已 ingest(60 .md) |
+| `xuemi` | 學米 XUEMI | `content/training/sales/xuemi/{brand-main, all-projects}.md` | 🟡 cp 完成,待 ingest |
+| `ooschool` | 無限學院 OOschool-v.2 | `content/training/sales/ooschool/{brand-main, all-projects}.md` | 🟡 cp 完成,待 ingest |
+| `aischool` | AI 未來學院 | `~/Downloads/訓練資料/資料/AI未來學院/` | ⚠️ 沒主 .md(只有 .docx 開發逐字 + .wav + .pptx),待 Whisper / docx 處理 |
+| `xlab` | X LAB AI 實驗室 | `content/training/sales/xlab/...`(63 .md 完整子目錄) | ✅ 已 ingest |
+| `sales-deck-v2`(跨品牌)| nSchool 銷售簡報 v2(訓練官執行品牌檔案)| `content/training/sales/sales-deck-v2/nschool-sales-deck-v2.md` | 🟡 cp 完成,待 ingest |
+
+### 13.2 各品牌定位(從主檔 ABOUT 抽)
+
+| 品牌 | 一句定位 | 共通標語 |
+|---|---|---|
+| **學米 XUEMI** | 「理想工作的最後一哩 — 職場一線學習資源,頂尖業師線上指導」 | 自己對自己負責,自己的獎金自己賺 |
+| **無限學院 OOschool** | 「知識來自於實踐無限」 | 自己對自己負責,自己的獎金自己賺 |
+| **X LAB AI 實驗室** | 「AI 驅動的新世代實驗室,加速你的專業成長」 | 自己對自己負責,自己的獎金自己賺 |
+| **AI 未來學院** | (無主 .md,4 個開發逐字稿待 Whisper) | (待) |
+| **nSchool 財經學院** | 「凱衛資訊上市櫃股票代碼 5201 + 20-30 年金融軟硬體 + 教育社會責任」 | 同上 |
+
+### 13.3 共通 8 步驟對齊(各品牌延伸點)
+
+8 步驟(破冰 / 信任建立 / 需求探索 / 介紹品牌 / 補充資訊 / 領域架構 / 產品引導與價值說明 / 行動邀請)是**跨品牌共用**架構,差異只在:
+
+| 步驟 | nSchool 特化 | 其他 4 品牌差異 |
+|---|---|---|
+| 步驟 4 介紹品牌 | nSchool 財經學院 / 凱衛 5201 | 學米=理想工作哩 / OOschool=實踐無限 / XLAB=AI 加速 / 未來=待 |
+| 步驟 6 領域架構 | 財經架構(基本/技術/籌碼面)| 學米=職能技能架構 / OOschool=知識實踐架構 / XLAB=AI 工具架構(N8N/GAS/Python 自動化)/ 未來=待 |
+| 步驟 7 產品引導 | 4-5 位分析師團隊 + 投資資金 5-10% 學費 | 各品牌頂尖業師 + 客製化 vs HAHOW |
+
+**鐵則**:每品牌 module 仍從各自 source(brand-main.md / all-projects.md)抽,**不可一篇 nSchool 寫好套五個品牌**。
+
+### 13.4 RAG 檢索 brand 過濾
+
+`/api/rag/search` 帶 `brand` 參數時,從對應品牌 chunks 檢索。前台 `/sales/knowledge` + 戰情官側欄根據 user.brand 自動帶過濾。
+
+```sql
+SELECT * FROM knowledge_chunks
+WHERE pillar = 'sales'
+  AND (brand IS NULL OR brand = $user_brand)
+  AND deprecated_at IS NULL
+ORDER BY embedding <=> $query_vector
+LIMIT 5;
+```
+
+### 13.5 Persona × brand
+
+D18 + D22 + D23 共 4 個 persona(楊嘉瑜風格 / 鄭繁星風格 / 客訴客戶 / 反悔已成交),目前都是 **`brand=NULL` 跨品牌通用**。
+
+未來補(P3):為 5 品牌各加品牌特化 persona(從各品牌 ALL Projects.md 真實客戶反應抽)。
+
+---
+
 ## 12. 鐵則確認(每次新功能必驗)
 
 - [ ] 該功能對應到 nSchool / XLAB / 適所 source path 嗎?
