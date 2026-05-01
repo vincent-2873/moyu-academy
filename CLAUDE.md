@@ -1,4 +1,4 @@
-# CLAUDE.md — moyu-academy(v6,2026-05-01 第六輪 Phase A 清理後)
+# CLAUDE.md — moyu-academy(v7,2026-05-01 第六輪 Phase A 補刀 + 大砍重建後)
 
 > **進來先讀這份,再碰 code。**
 
@@ -10,13 +10,16 @@
 
 每個 Claude **必須先讀** `PHASE-ROADMAP.md` 看完整系統樹狀圖(/sales/* 前台 + /admin/{board, sales, legal, training-ops, claude, human, settings} 後台 + 9 角色權限矩陣 + 17 worker + 視覺氛圍對照)。
 
-**目前進度(2026-05-01 第六輪 Phase A 末)**:
+**目前進度(2026-05-01 第六輪後段 Phase A 補刀 + 大砍重建後)**:
 - ✅ Phase 1 大半(D1-D18 schema)
 - ✅ Phase 2 W1(`/admin/training-ops` 4 子頁)
-- ✅ **Phase A 清理**(HR 全砍 + 架構外舊頁砍 + 訓練體系規範改 + RAG pillar 改)
-- ❌ Phase B 起的工作還沒做(`/sales/*` 前台 5 子頁 / admin 17 tab 重組成 8 區 / Phase 3-6)
+- ✅ Phase A 清理 + Phase A 補刀(HR / 招募 / 104 / 7 角色全砍,worker + cron + DB + UI 全)
+- ✅ Phase B-1 BIZ module 對齊 nSchool(D20 applied + 4 本書 + source_refs)
+- ✅ Phase B-2 `/sales/*` 5 子頁完成 + verify 200
+- ✅ Phase B-3 大砍重建(舊 9510 行怪獸檔 → 8 行 redirect + layout + 19 子子頁,對齊 system-tree v2 8 大區)
+- ❌ Phase B-4(prompt 對齊)+ B-5(MODULE_SPEC)+ Phase 4(board / human 實做)+ Phase 5-6(整併 + polish)
 
-**最新 handoff:** [`HANDOFF-2026-05-01-v6.md`](../HANDOFF-2026-05-01-v6.md)(在專案上一層)
+**最新 handoff:** [`HANDOFF-2026-05-01-v8.md`](../HANDOFF-2026-05-01-v8.md)(在專案上一層)
 
 ---
 
@@ -172,23 +175,35 @@ a46be24  chore(cleanup): 砍 HR 散布 + D19 cleanup SQL
 
 ---
 
-## 現有路由(Phase A 後對齊樹狀圖進度)
+## 現有路由(Phase A 補刀 + 大砍重建後 — 對齊 system-tree v2)
 
-### ✅ 對齊樹狀圖(留)
-- `/` 根登入(SPA)
+### ✅ 已建完整(全部 200)
+
+**前台**:
+- `/` 根登入(minimal 280 行,role-based redirect)
 - `/account` `/account/password` 基礎
-- `/admin/training-ops/{students, attention, materials, report}` Phase 2 W1 完整
-- `/legal/cases` `/legal/cases/[id]` 對齊 system-tree
-- `/recruit` `/recruit/104` `/recruit/calendar` Vincent 104 daily driver(架構沒列但保留)
+- `/sales/{dashboard, training, practice, knowledge, module/[id]}` 5 子頁 + layout
+- `/legal/{cases (含 [id]), draft, training, knowledge}` 4 子頁 + layout
 
-### ❌ 系統樹狀圖規定但**還沒建**(Phase B)
-- `/sales/{dashboard, training, practice, knowledge, module/[id]}` ⭐ Phase B-2
-- `/legal/{draft, training, knowledge}`
-- `/admin/board/{quarterly, strategy, inquiry, decisions}`
-- `/admin/sales/{dashboard, individual}`
-- `/admin/claude/{live, log, knowledge, rules, personas}`
-- `/admin/human/{sos, sign-off, arbitration}`
-- `/admin/settings/{people, cron, health, system}`(既有 admin 重組)
+**後台(8 大區)**:
+- `/admin` 直接 redirect /admin/board/quarterly
+- `/admin/layout.tsx` 共用 sidebar + auth wrap
+- `/admin/board/{quarterly, strategy, inquiry, decisions}` 4 子頁(placeholder,等 Phase 4)
+- `/admin/sales/{dashboard, individual}` 2 子頁(dashboard 接 chairman-overview API)
+- `/admin/legal/cases` 1 子頁(接 legal-cases API)
+- `/admin/training-ops/{students, attention, materials, report}` 4 子頁(Phase 2 W1)
+- `/admin/claude/{live, log, knowledge, rules, personas}` 5 子頁(wrap 既有 component)
+- `/admin/human/{sos, sign-off, arbitration}` 3 子頁(placeholder,等 Phase 4)
+- `/admin/settings/{people, cron, health, system}` 4 子頁(wrap 既有 component)
+
+### ❌ 已砍(對齊 system-tree v2「人資招募 104 全砍」)
+- `/recruit/*` 全砍(招募前台)
+- `/me /home /work /learn /today /articles /my-commands /checkin /upload` 全砍(架構外舊前台)
+- `/training/*` 全砍(舊架構)
+
+### ❌ 待 Phase 4 後續迭代(子頁已建 placeholder,等 schema 補)
+- `/admin/board/*`(claude_self_assessments / board_inquiries / decision_records 等 schema)
+- `/admin/human/*`(D18 已建 claude_help_requests 部分)
 
 ---
 

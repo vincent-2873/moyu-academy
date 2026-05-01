@@ -5,40 +5,45 @@
 
 ---
 
-## 🎯 Progress(2026-05-01 第六輪 Phase A + B-1 + B-2 完成)
+## 🎯 Progress(2026-05-01 第六輪後段 Phase A 補刀 + 大砍重建完成)
 
 ```
-Phase 1 (基建)            ████████████  完整 (D1-D18 schema applied)
-Phase 2 W1 (訓練營運)     ████████████  完整 (admin/training-ops 4 子頁)
-Phase A (清理)            ████████████  完整 (HR 砍 + 架構外砍 + 訓練規範 + RAG)
-Phase B-1 (BIZ module)    ████████████  完整 (D20 SQL applied + nSchool source)
-Phase B-2 (/sales/* 5 子頁) ██████████░░  85% (基礎結構推上,等 deploy verify)
-Phase B-3 (admin 8 區)    ░░░░░░░░░░░░  待
-Phase B-4 (prompt)        ░░░░░░░░░░░░  待
-Phase B-5 (SPEC)          ░░░░░░░░░░░░  待
+Phase 1 (基建)              ████████████  完整 (D1-D18 schema applied)
+Phase 2 W1 (訓練營運)       ████████████  完整 (admin/training-ops 4 子頁)
+Phase A (清理)              ████████████  完整 (HR 砍 + 架構外砍 + 訓練規範 + RAG)
+Phase A 補刀 (招募 104 全砍) ████████████  完整 (Vincent 拍板:人資招募 104 worker DB 角色全)
+Phase B-1 (BIZ module)      ████████████  完整 (D20 SQL applied + nSchool source)
+Phase B-2 (/sales/* 5 子頁)  ████████████  完整 (5 子頁 + layout 推上 + verify 200)
+Phase B-3 (admin 8 區)      ████████████  完整 (大砍重建:9510 → 8 行 + layout + 19 子子頁)
+Phase B-4 (prompt 對齊)     ░░░░░░░░░░░░  待
+Phase B-5 (SPEC)            ░░░░░░░░░░░░  待
+Phase 4 (board + human)     ░░░░░░░░░░░░  待 (子頁 placeholder 已建,等 schema + 實做)
+Phase 5-6                   ░░░░░░░░░░░░  待
 ```
 
-**Phase A 做的**(8 commit pushed):
-- HR 體系全砍(43 file)+ D19 v2 SQL applied
-- 架構外舊前台 page 砍 14 個(/me /home /work /learn /today /articles /my-commands /checkin /upload + /legal 主頁)
-- RAG pillar enum 砍 hr / next.config 砍 /training/methods
-- 訓練體系規範改成 BIZ + LEGAL 兩體系(TRAINING_MASTER v2 + foundation/CLAUDE v2)
-- 砍 4 過時 doc / 修死連結
+**Phase A 補刀做的**(6 commit pushed,從 v7 ec3f8ac → a89a0b5):
+- 砍 file 20 個:`/recruit/*` + `/api/recruit/*` + `/api/recruit-funnel/*` + 5 個 admin recruit API + 5 個招募 cron + 2 component
+- admin/page.tsx 大砍:9510 行 → 8 行 redirect(砍 RecruitsTab / AutomationTab / ChairmanData recruit / 30+ tab 全)
+- page.tsx 大砍:2296 行 SPA → 280 行 minimal(登入 + role redirect)
+- /admin/* 重建:layout.tsx(共用 sidebar + auth) + 6 區 default + 19 子子頁
+- /legal/* 重建:layout.tsx(共用 nav)+ 4 子頁(cases / draft / training / knowledge)
+- cron.yml 砍 5 處招募 cron schedule + if-block
+- D21 SQL 寫好(待 Vincent apply):recruit_default + module + knowledge pillar + 7 招募/hr 角色 → staff
+- 砍 22 個 dead component / data / lib(Sidebar / MobileNav / DailyFocus / personas / brands / modules / knowledge / sync / scoring 等)
+- 對齊 system-tree v2「人資招募 104 全砍 + 系統結構圖固定 + 前後台整合」
 
-**Phase B-1 做的**:
-- copy nSchool 60 .md + XLAB 61 .md + 適所 1 .md 進 content/training/(共 122 .md)
-- D20 SQL applied(workflow #60):UPDATE 21 個 sparring framework 對齊 nSchool 真實 8 步驟,INSERT 4 本書(GROW/黃金圈/OKR/SPIN)reading module,加 source_refs / audio_source_refs
-- RAG Bootstrap #9-#11(54 + 預期 62 chunks ingest 進 knowledge_chunks)
+**大砍重建統計**:
+- 砍除 ~14000 行 dead code
+- 新建 ~2000 行 對齊架構結構
+- 既有好 component 全保留(21 個 admin/*)wrap 進新 8 大區子路徑
 
-**Phase B-2 做的**:
-- /sales/{layout, page, dashboard, training, practice, knowledge, module/[id]} 7 個 page 推上(commit `37cc47a`)
-- 基礎結構 + API 接(/api/me/sales-metrics, /api/me/training)
-- 視覺對齊 system-tree spec(深炭+米白 熱血競技 HUD)
+**Phase B-1 / B-2 做的**(同 v7,不重述):見 [HANDOFF v8](../HANDOFF-2026-05-01-v8.md)
 
-**Phase B-3/4/5 待**(完整脈絡見 [HANDOFF v7](../HANDOFF-2026-05-01-v7.md)):
-- B-3: admin 17 tab 重組成樹狀圖 8 大區
+**待**:
 - B-4: claude-panel chat prompt 對齊 nSchool 8 步驟
-- B-5: 寫 BIZ_MODULE_SPEC + LEGAL_MODULE_SPEC
+- B-5: BIZ / LEGAL MODULE_SPEC
+- Phase 4: board / human 子頁實做 + schema (claude_self_assessments / board_inquiries / decision_records / arbitration_records)
+- Phase 5-6: 整併 + polish
 
 🔒 **鐵則**(2026-05-01 拍板,Phase 6 前不變):做每個功能要先看 `~/Downloads/訓練資料/_unzipped/` 既有 source 延伸,不從零生成。
 
