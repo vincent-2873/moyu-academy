@@ -5,25 +5,37 @@
 
 ---
 
-## 🎯 Progress(2026-05-01 第六輪 Phase A 末)
+## 🎯 Progress(2026-05-01 第六輪 Phase A + B-1 + B-2 完成)
 
 ```
-Phase 1 (基建)         ████████████  完整 (D1-D18 schema applied)
-Phase 2 W1 (訓練營運)  ████████████  完整 (admin/training-ops 4 子頁)
-Phase A (清理)         ████████████  完整 (HR 全砍 + 架構外舊頁砍 + 訓練規範改 + RAG 改)
-Phase 2 W2+ Phase 3-6  ░░░░░░░░░░░░  待 Phase B 啟動
+Phase 1 (基建)            ████████████  完整 (D1-D18 schema applied)
+Phase 2 W1 (訓練營運)     ████████████  完整 (admin/training-ops 4 子頁)
+Phase A (清理)            ████████████  完整 (HR 砍 + 架構外砍 + 訓練規範 + RAG)
+Phase B-1 (BIZ module)    ████████████  完整 (D20 SQL applied + nSchool source)
+Phase B-2 (/sales/* 5 子頁) ██████████░░  85% (基礎結構推上,等 deploy verify)
+Phase B-3 (admin 8 區)    ░░░░░░░░░░░░  待
+Phase B-4 (prompt)        ░░░░░░░░░░░░  待
+Phase B-5 (SPEC)          ░░░░░░░░░░░░  待
 ```
 
-**Phase A 做的**(5 commit pushed):
-- HR 體系全砍(43 file)+ D19 SQL(待 Vincent apply)
+**Phase A 做的**(8 commit pushed):
+- HR 體系全砍(43 file)+ D19 v2 SQL applied
 - 架構外舊前台 page 砍 14 個(/me /home /work /learn /today /articles /my-commands /checkin /upload + /legal 主頁)
 - RAG pillar enum 砍 hr / next.config 砍 /training/methods
 - 訓練體系規範改成 BIZ + LEGAL 兩體系(TRAINING_MASTER v2 + foundation/CLAUDE v2)
-- 修死連結
+- 砍 4 過時 doc / 修死連結
 
-**Phase B 待 Vincent 點頭啟動**(完整脈絡見 [HANDOFF v6](../HANDOFF-2026-05-01-v6.md)):
-- B-1: 基於 nSchool 真實 source 重做 BIZ module 內容
-- B-2: /sales/* 前台 5 子頁建
+**Phase B-1 做的**:
+- copy nSchool 60 .md + XLAB 61 .md + 適所 1 .md 進 content/training/(共 122 .md)
+- D20 SQL applied(workflow #60):UPDATE 21 個 sparring framework 對齊 nSchool 真實 8 步驟,INSERT 4 本書(GROW/黃金圈/OKR/SPIN)reading module,加 source_refs / audio_source_refs
+- RAG Bootstrap #9-#11(54 + 預期 62 chunks ingest 進 knowledge_chunks)
+
+**Phase B-2 做的**:
+- /sales/{layout, page, dashboard, training, practice, knowledge, module/[id]} 7 個 page 推上(commit `37cc47a`)
+- 基礎結構 + API 接(/api/me/sales-metrics, /api/me/training)
+- 視覺對齊 system-tree spec(深炭+米白 熱血競技 HUD)
+
+**Phase B-3/4/5 待**(完整脈絡見 [HANDOFF v7](../HANDOFF-2026-05-01-v7.md)):
 - B-3: admin 17 tab 重組成樹狀圖 8 大區
 - B-4: claude-panel chat prompt 對齊 nSchool 8 步驟
 - B-5: 寫 BIZ_MODULE_SPEC + LEGAL_MODULE_SPEC
