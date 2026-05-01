@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { loginUser, registerUser } from "@/lib/store";
+import { loginUser, registerUser, getCurrentUser } from "@/lib/store";
 
 const HQ_ROLES = ["super_admin", "ceo", "coo", "cfo", "director"];
 
@@ -68,22 +68,11 @@ export default function LoginPage() {
       }
     }
 
-    // 已有 localStorage user → role-based redirect
-    const stored = localStorage.getItem("moyu_user_email");
-    if (stored) {
-      const usersJson = localStorage.getItem("moyu_users");
-      if (usersJson) {
-        try {
-          const users = JSON.parse(usersJson);
-          const u = users.find((x: { email: string }) => x.email === stored);
-          if (u) {
-            redirectByRole(router, u.role);
-            return;
-          }
-        } catch {
-          // ignore
-        }
-      }
+    // 已有既有 session → role-based redirect
+    const u = getCurrentUser();
+    if (u) {
+      redirectByRole(router, u.role);
+      return;
     }
 
     setBootLoading(false);
@@ -94,16 +83,14 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      let user;
       if (isRegister) {
-        user = registerUser(email, password, name, "sales", "moyu-default");
-      } else {
-        user = loginUser(email, password);
+        const r = registerUser(email, password, name, "moyu-default");
+        if (!r.success) throw new Error(r.error || "註冊失敗");
       }
-      if (!user) {
-        throw new Error(isRegister ? "註冊失敗" : "Email 或密碼錯誤");
-      }
-      redirectByRole(router, user.role);
+      const loginResult = loginUser(email, password);
+      if (!loginResult.success) throw new Error(loginResult.error || "Email 或密碼錯誤");
+      const u = getCurrentUser();
+      redirectByRole(router, u?.role);
     } catch (err) {
       setError(err instanceof Error ? err.message : "登入失敗");
     } finally {

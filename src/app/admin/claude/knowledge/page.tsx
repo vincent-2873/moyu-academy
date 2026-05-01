@@ -1,10 +1,26 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import KnowledgeEngineEditor from "@/components/admin/KnowledgeEngineEditor";
 import RagUploadPanel from "@/components/admin/RagUploadPanel";
 import RagReviewQueue from "@/components/admin/RagReviewQueue";
 
 export default function AdminClaudeKnowledgePage() {
+  const [adminEmail, setAdminEmail] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("moyu_admin_session");
+    if (stored) {
+      try {
+        const json = JSON.parse(stored);
+        setAdminEmail(json.email || "");
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
@@ -15,7 +31,7 @@ export default function AdminClaudeKnowledgePage() {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <KnowledgeEngineEditor />
-        <RagUploadPanel />
+        <RagUploadPanel email={adminEmail} />
         <RagReviewQueue />
       </div>
     </div>
