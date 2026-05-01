@@ -45,12 +45,12 @@ export async function GET(req: NextRequest) {
   const today = taipeiToday();
   const week_start = taipeiDaysAgo(7);
 
-  // 2026-05-02 fix:column appointments_show(不是 appointments)+ exclude is_monthly_rollup
+  // 2026-05-02 fix:column appointments_show(不是 appointments)
+  // 注意:is_monthly_rollup column 沒建過(grep 確認 0 migration 寫過),filter 它會觸發 PostgREST column-not-found → 整個 query 回 [] → individual 全 0
   let q = sb.from("sales_metrics_daily")
     .select("email, name, brand, date, calls, appointments_show, closures")
     .gte("date", week_start)
-    .not("email", "is", null)
-    .not("is_monthly_rollup", "is", true);
+    .not("email", "is", null);
   if (brand && brand !== "all") q = q.eq("brand", brand);
 
   const rows = await fetchAllRows<{

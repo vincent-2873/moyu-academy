@@ -79,7 +79,8 @@ export async function GET() {
         supabase.from("sales_metrics_daily")
           .select("salesperson_id, email, brand, date, calls, connected, appointments_show, closures, name")
           .gte("date", weekAgo)
-          .not("is_monthly_rollup", "is", true)
+        // 2026-05-02 fix: is_monthly_rollup column 在 schema 從沒建過,filter 觸發 PostgREST 錯誤導致整個 query 回 [] → chairman 全 0
+        // Metabase Q1381 只同步 daily row,沒 monthly rollup,所以暫時不需要這個 filter
       ),
       fetchAllRows<{ id: string; name: string; brand: string; stage: string; created_at: string; stage_entered_at: string }>(() =>
         supabase.from("recruits").select("id, name, brand, stage, created_at, stage_entered_at")
