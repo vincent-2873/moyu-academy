@@ -92,7 +92,7 @@ export default function RagReviewQueue() {
 
           <div className="flex flex-wrap gap-1 mb-2">
             <Chip label="全部" active={pillarFilter === null} onClick={() => setPillarFilter(null)} count={Object.values(stats).reduce((s, n) => s + n, 0)} />
-            {(["hr", "sales", "legal", "common"] as Pillar[]).map((p) => (
+            {(["sales", "legal", "common"] as Pillar[]).map((p) => (
               <Chip
                 key={p}
                 label={PILLAR_LABEL[p]}
@@ -172,7 +172,7 @@ export default function RagReviewQueue() {
               <div style={{ display: "grid", gap: 12, padding: 16, background: "var(--bg-elev)", borderRadius: 4, marginBottom: 16 }}>
                 <div style={{ fontSize: 11, color: "var(--ink-mid)", letterSpacing: 2, fontWeight: 600 }}>核准前可改 pillar</div>
                 <div className="flex gap-2 flex-wrap">
-                  {(["hr", "sales", "legal", "common"] as Pillar[]).map((p) => (
+                  {(["sales", "legal", "common"] as Pillar[]).map((p) => (
                     <button
                       key={p}
                       onClick={() => setEditPillar(p)}

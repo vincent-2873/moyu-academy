@@ -190,7 +190,7 @@ export default function KnowledgeEngineEditor() {
               <div style={{ ...labelStyle, fontSize: 9, marginBottom: 4 }}>池 PILLAR</div>
               <div className="flex flex-wrap gap-1">
                 <SourceChip label="全部" active={pillarFilter === null} onClick={() => setPillarFilter(null)} count={data?.total_chunks || 0} />
-                {(["hr", "legal", "sales", "common"] as Pillar[]).map((p) => {
+                {(["legal", "sales", "common"] as Pillar[]).map((p) => {
                   const stats = data.pillar_counts[p] || { total: 0, embedded: 0 };
                   return (
                     <SourceChip
@@ -271,7 +271,7 @@ export default function KnowledgeEngineEditor() {
               填 Notion database_id 後 → 「同步」會撈該 DB 全部 page 進對應 pillar
             </div>
             <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-              {(["hr", "sales", "legal"] as Pillar[]).map((p) => {
+              {(["sales", "legal"] as Pillar[]).map((p) => {
                 const cfg = notionConfig.find((c) => c.id === p);
                 const editing = notionConfigEdits[p] !== undefined;
                 const dbIdVal = editing ? notionConfigEdits[p] : (cfg?.notion_database_id || "");
@@ -371,7 +371,7 @@ export default function KnowledgeEngineEditor() {
                     fontWeight: 600,
                   }}
                 >
-                  {(["hr", "legal", "sales", "common"] as Pillar[]).map((p) => (
+                  {(["legal", "sales", "common"] as Pillar[]).map((p) => (
                     <option key={p} value={p}>{PILLAR_LABEL[p]}</option>
                   ))}
                 </select>

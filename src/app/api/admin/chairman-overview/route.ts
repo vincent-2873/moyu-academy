@@ -92,14 +92,14 @@ export async function GET() {
     ]);
 
     // 過濾「新訓-」名字(同 employees-from-metabase pattern)
+    // mapping shape 用 undefined(不用 null)以對齊下游 kpiBrand 函數簽名
     const kpis = smdRows.filter(r => {
       const n = (r.name || "").trim();
       return !n.startsWith("新訓-") && !n.startsWith("新訓 ") && !n.startsWith("新訓:");
     }).map(r => ({
-      // 對齊舊 kpi_entries shape,讓下游 logic 不用改
-      user_id: r.salesperson_id || null,
+      user_id: r.salesperson_id || undefined,
       user_email: (r.email || "").toLowerCase(),
-      brand: r.brand,
+      brand: r.brand || undefined,
       date: r.date,
       calls: r.calls || 0,
       valid_calls: r.connected || 0,

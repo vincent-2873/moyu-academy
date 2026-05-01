@@ -172,7 +172,7 @@ export default function RagUploadPanel({ email }: Props) {
         {/* pillar selector */}
         <Field label="池 PILLAR">
           <div className="flex gap-2 flex-wrap">
-            {(["hr", "sales", "legal", "common"] as Pillar[]).map((p) => (
+            {(["sales", "legal", "common"] as Pillar[]).map((p) => (
               <button
                 key={p}
                 onClick={() => setPillar(p)}
