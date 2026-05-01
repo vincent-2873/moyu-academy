@@ -10,10 +10,10 @@
 
 ## 📌 基本資訊
 
-- **單元代號**：`[必填]` 例如 `HR-011`
-- **單元名稱**：`[必填]` 例如「請假規則與操作」
-- **所屬體系**：`[必填]` HR / BIZ / LEGAL
-- **受眾代號**：`[必填]` ALL / NEW / MGR / HR-INT（可複選）
+- **單元代號**：`[必填]` 例如 `BIZ-001-破冰`
+- **單元名稱**：`[必填]` 例如「破冰 — 30 秒建立信任 + 取得通話許可」
+- **所屬體系**：`[必填]` BIZ / LEGAL（HR 已砍 2026-05-01）
+- **受眾代號**：`[必填]` ALL / NEW / MGR（可複選）
 - **優先級**：`[必填]` P0 / P1 / P2
 - **預估總時長**：`[必填]` 例如「影片 4 分鐘 + 互動 8 分鐘」
 - **前置單元**：`[選填]` 例如「HR-001」（沒有就寫「無」）
@@ -68,7 +68,7 @@
 ## 🎨 產出需求
 
 ### 影片腳本（必產出）
-- 主講角色：`[必填]` 阿凱 / 小美 / Ray / 情境劇（多人）
+- 主講角色：`[必填]` 待 Vincent 拍板（Phase B 開動時設定；阿凱 KAI 已隨 HR 體系砍除 2026-05-01）
 - 風格偏好：`[選填]` 例如「輕鬆一點、可加冷笑話」「嚴肅專業」
 - 時長限制：`[選填]` 預設 3–5 分鐘
 
@@ -105,12 +105,13 @@
 把整份 `input.md` 交給：
 
 **選項 A：丟給 Claude（對話介面）**
-> 「請依照 TRAINING_MASTER.md、HR_MODULE_SPEC.md 和這份 input.md，產出 script.md、interactive.html、handbook.md（如需要）」
+> 「請依照 TRAINING_MASTER.md、{BIZ|LEGAL}_MODULE_SPEC.md 和這份 input.md，產出 script.md、interactive.html、handbook.md（如需要）。
+> 內容必須對齊 ~/Downloads/訓練資料/_unzipped/ 既有 nSchool source（鐵則,不從零生）」
 
 **選項 B：丟給 Claude Code（專案內）**
 ```bash
-# 把檔案放在對的路徑，Claude Code 會自動依照總則產出
-units/HR/HR-011-leave-policy/input.md
+# 把檔案放在對的路徑，Claude Code 會自動依照總則 + nSchool source 產出
+units/BIZ/BIZ-001-破冰/input.md
 ```
 然後在 Claude Code 裡下指令：
-> 「請產出 HR-011 的所有產出檔案」
+> 「請產出 BIZ-001 的所有產出檔案,記得對齊 nSchool 開發檢核「破冰」步驟既有內容」
