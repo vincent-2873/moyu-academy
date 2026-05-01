@@ -101,16 +101,27 @@ async function main() {
 
     console.log(`[${i + 1}/${unique.length}] ▶ 壓縮 ${path.basename(src)}(${(size / 1024 / 1024).toFixed(1)}MB)…`);
     try {
-      // 16kHz mono 32kbps mp3 = 約 4 KB/s,1 小時 ~14MB,絕對 < 24MB
-      // 如果原檔超長(>1.5h),再降到 24kbps:
-      const bitrate = size > 100 * 1024 * 1024 ? "24k" : "32k";
+      // 24kbps mono 16kHz mp3 + 切段 90 min(對 2h+ 銷售錄影一定 < 24MB / 段)
+      // 1h ~ 10MB · 2h → 2 段(16+5MB)· 3h → 2 段(16+16)· 4h → 3 段
+      const segPattern = path.join(OUTPUT_DIR, `${filename}_part%03d.mp3`);
       await runFfmpeg([
         "-y", "-i", src,
-        "-vn", "-ac", "1", "-ar", "16000", "-b:a", bitrate,
-        outPath,
+        "-vn", "-ac", "1", "-ar", "16000", "-b:a", "24k",
+        "-f", "segment", "-segment_time", "5400", // 90 min
+        "-reset_timestamps", "1",
+        segPattern,
       ]);
-      const outSize = fs.statSync(outPath).size;
-      console.log(`           ✅ → ${path.basename(outPath)}(${(outSize / 1024 / 1024).toFixed(1)}MB)`);
+
+      // 列出產生的 segments
+      const parts = fs.readdirSync(OUTPUT_DIR)
+        .filter(f => f.startsWith(`${filename}_part`) && f.endsWith(".mp3"))
+        .sort();
+
+      const totalSize = parts.reduce((acc, p) => acc + fs.statSync(path.join(OUTPUT_DIR, p)).size, 0);
+      console.log(`           ✅ → ${parts.length} 段:${parts.map(p => {
+        const s = fs.statSync(path.join(OUTPUT_DIR, p)).size / 1024 / 1024;
+        return `${p}(${s.toFixed(1)}MB)`;
+      }).join(", ")}`);
       ok++;
     } catch (e) {
       console.log(`           ❌ ${e.message}`);
@@ -121,8 +132,12 @@ async function main() {
   console.log(`\n=== 總結 ===`);
   console.log(`✅ 成功:${ok}/${unique.length}`);
   if (failed > 0) console.log(`❌ 失敗:${failed}`);
-  console.log(`\n📁 壓縮檔在:${OUTPUT_DIR}`);
-  console.log(`📤 拖到 https://moyusales.zeabur.app/admin/claude/knowledge 走 fast path 即可`);
+
+  const allOutputs = fs.readdirSync(OUTPUT_DIR).filter(f => f.endsWith(".mp3"));
+  console.log(`📦 輸出 ${allOutputs.length} 個 .mp3 段`);
+  console.log(`📁 位置:${OUTPUT_DIR}`);
+  console.log(`📤 拖全部 .mp3 到 https://moyusales.zeabur.app/admin/claude/knowledge 走 fast path`);
+  console.log(`💡 同檔分段(如 _part001.mp3 / _part002.mp3)獨立進 RAG 各一筆 chunk,語意搜尋反而更精準`);
 }
 
 main().catch(e => {
