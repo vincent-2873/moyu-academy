@@ -64,9 +64,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. search_knowledge() RPC (含 pillar + allowed_roles ACL + visibility=self)
-    const { data: results, error } = await sb.rpc("search_knowledge", {
+    const matchCount = top_k || 5;
+    const { data: vectorResults, error } = await sb.rpc("search_knowledge", {
       query_embedding: queryEmbedding,
-      match_count: top_k || 5,
+      match_count: matchCount,
       filter_brand: brand || null,
       filter_path_type: path_type || null,
       filter_stage_tag: stage_tag || null,
@@ -79,11 +80,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    let results = vectorResults || [];
+    let usedFallback = false;
+
+    // Keyword fallback:vector 沒命中(剛 INSERT 沒 embedding 的 chunk)→ ilike 模糊搜 content/title
+    if (results.length < Math.min(3, matchCount)) {
+      const seenIds = new Set(results.map((r: { id: string }) => r.id));
+      const keywordPattern = `%${query.slice(0, 50).replace(/[%_]/g, "")}%`;
+
+      let kwQuery = sb.from("knowledge_chunks")
+        .select("id, source_type, source_id, title, content, brand, pillar, path_type, metadata")
+        .is("deprecated_at", null)
+        .or(`title.ilike.${keywordPattern},content.ilike.${keywordPattern}`)
+        .limit(matchCount);
+
+      if (allowedPillars && allowedPillars.length > 0) {
+        kwQuery = kwQuery.in("pillar", allowedPillars);
+      }
+      if (brand) kwQuery = kwQuery.eq("brand", brand);
+      if (path_type) kwQuery = kwQuery.eq("path_type", path_type);
+
+      const { data: kwResults } = await kwQuery;
+      const newOnes = (kwResults || []).filter(r => !seenIds.has(r.id))
+        .map(r => ({ ...r, similarity: null, source: "keyword_fallback" }));
+
+      if (newOnes.length > 0) {
+        results = [...results, ...newOnes].slice(0, matchCount);
+        usedFallback = true;
+      }
+    }
+
     return NextResponse.json({
       query,
       filters: { brand, path_type, stage_tag, top_k, pillars: allowedPillars, user_role },
-      results: results || [],
-      count: results?.length || 0,
+      results,
+      count: results.length,
+      keyword_fallback_used: usedFallback,
     });
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
