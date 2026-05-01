@@ -19,6 +19,12 @@
 --     如果要回復,從 D2 / D18 重新 seed(SQL 在 repo 內可重跑)。
 
 -- ─── PART 1: 衍生表 cascade(避免 FK constraint 卡)─────────────────────────
+-- 注意 schema(D18):
+--   path_completeness.path_id            (砍 path_default 前先清)
+--   module_effectiveness.module_id        (砍 module 前先清)
+--   training_module_progress.module_id   (ON DELETE CASCADE,DELETE module 時自動)
+--   training_stuck_handlings.progress_id (砍 progress 前先清,但 progress 自動 CASCADE)
+--   claude_help_requests.related_progress_id (砍 progress 前先清)
 
 -- 1.1 path_completeness
 DELETE FROM path_completeness
@@ -31,30 +37,32 @@ WHERE module_id IN (
   WHERE path_id IN (SELECT id FROM training_paths WHERE name = 'recruit_default')
 );
 
--- 1.3 training_module_progress
+-- 1.3 training_stuck_handlings(用 progress_id)
+DELETE FROM training_stuck_handlings
+WHERE progress_id IN (
+  SELECT id FROM training_module_progress
+  WHERE module_id IN (
+    SELECT id FROM training_modules
+    WHERE path_id IN (SELECT id FROM training_paths WHERE name = 'recruit_default')
+  )
+);
+
+-- 1.4 claude_help_requests(用 related_progress_id)
+DELETE FROM claude_help_requests
+WHERE related_progress_id IN (
+  SELECT id FROM training_module_progress
+  WHERE module_id IN (
+    SELECT id FROM training_modules
+    WHERE path_id IN (SELECT id FROM training_paths WHERE name = 'recruit_default')
+  )
+);
+
+-- 1.5 training_module_progress(自己手動清,也可以 ON DELETE CASCADE 自動)
 DELETE FROM training_module_progress
 WHERE module_id IN (
   SELECT id FROM training_modules
   WHERE path_id IN (SELECT id FROM training_paths WHERE name = 'recruit_default')
 );
-
--- 1.4 training_stuck_handlings
-DELETE FROM training_stuck_handlings
-WHERE module_id IN (
-  SELECT id FROM training_modules
-  WHERE path_id IN (SELECT id FROM training_paths WHERE name = 'recruit_default')
-);
-
--- 1.5 claude_help_requests
-DELETE FROM claude_help_requests
-WHERE module_id IN (
-  SELECT id FROM training_modules
-  WHERE path_id IN (SELECT id FROM training_paths WHERE name = 'recruit_default')
-);
-
--- 1.6 roleplay_sessions(persona-related,非 module-bound 但 hr/recruit persona 也清)
--- 暫不動 roleplay_sessions(BIZ persona 有用),只清 module 綁的
--- 已存在 module_id 引用會 cascade 因為已 DELETE 上面
 
 -- ─── PART 2: training_modules + training_paths(主表)──────────────────────
 
