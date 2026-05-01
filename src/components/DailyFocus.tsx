@@ -240,7 +240,7 @@ export default function DailyFocus({ email }: Props) {
             {data.pending_commands.map((c) => (
               <a
                 key={c.id}
-                href="/today"
+                href="/"
                 style={{
                   display: "grid",
                   gridTemplateColumns: "60px 1fr 80px",

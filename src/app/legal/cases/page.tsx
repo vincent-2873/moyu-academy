@@ -128,8 +128,8 @@ export default function LegalCasesPage() {
         </div>
         <div style={{ flex: 1 }} />
         <button onClick={() => setNewCase(true)} style={S.btnPrimary}>+ 新建案件</button>
-        <a href="/today" style={S.linkBtn}>📋 今日待辦</a>
-        <a href="/legal" style={S.linkBtn}>← 概覽</a>
+        <a href="/" style={S.linkBtn}>📋 今日待辦</a>
+        <a href="/admin" style={S.linkBtn}>← 後台</a>
         <button onClick={() => { sessionStorage.clear(); window.location.href = "/"; }} style={S.logoutBtn}>登出</button>
       </div>
 

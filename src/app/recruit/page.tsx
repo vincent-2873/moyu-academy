@@ -448,7 +448,7 @@ function RecruitDashboard({ funnelStats }: { funnelStats: { sent: number; replie
         <a href="/recruit/calendar" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 10, background: "#eff6ff", color: "#2563eb", fontSize: 13, fontWeight: 700, textDecoration: "none", border: "1px solid #bfdbfe" }}>
           📅 日曆
         </a>
-        <a href="/today" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 10, background: "#f0fdf4", color: "#16a34a", fontSize: 13, fontWeight: 700, textDecoration: "none", border: "1px solid #bbf7d0" }}>
+        <a href="/" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 10, background: "#f0fdf4", color: "#16a34a", fontSize: 13, fontWeight: 700, textDecoration: "none", border: "1px solid #bbf7d0" }}>
           📋 今日待辦
         </a>
       </div>
