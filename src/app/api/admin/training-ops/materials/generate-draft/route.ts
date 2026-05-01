@@ -89,13 +89,62 @@ nSchool 真實 8 步驟(每個 sparring module 必須對齊這 8 步):
 不要加 markdown 或解釋,只回 strict JSON。`;
 
 /**
+ * 從 RAG knowledge_chunks 撈真實 source 內容,帶進 prompt context
+ *
+ * 策略:
+ *   1. nSchool 8 步驟核心 chunk(所有品牌共用骨幹)
+ *   2. 該 brand 特化 chunk(brand 自己的領域知識 / ALL Projects)
+ *
+ * 對齊鐵則:每個 module 都從 Vincent 既有 source 延伸,不從零 AI 生成
+ */
+async function fetchRagContext(
+  sb: ReturnType<typeof getSupabaseAdmin>,
+  brand: string
+): Promise<{ context: string; chunk_count: number }> {
+  // 1. nSchool 8 步驟核心(永遠帶,所有 brand sparring framework 對齊這 8 步)
+  const { data: coreChunks } = await sb.from("knowledge_chunks")
+    .select("title, content, source_id")
+    .eq("pillar", "sales")
+    .like("source_id", "training/sales/nschool/%")
+    .is("deprecated_at", null)
+    .limit(8);
+
+  // 2. brand 特化 chunk(若不是 nschool 才補,避免重複)
+  let brandChunks: Array<{ title: string | null; content: string; source_id: string }> = [];
+  if (brand && brand !== "nschool") {
+    const { data } = await sb.from("knowledge_chunks")
+      .select("title, content, source_id")
+      .eq("pillar", "sales")
+      .like("source_id", `training/sales/${brand}/%`)
+      .is("deprecated_at", null)
+      .limit(4);
+    brandChunks = data ?? [];
+  }
+
+  const all = [...(coreChunks ?? []), ...brandChunks];
+  if (all.length === 0) {
+    return { context: "(暫無 RAG source — 先用既有 8 步驟綱要)", chunk_count: 0 };
+  }
+
+  // 每個 chunk 截前 1200 字,避免爆 token
+  const context = all
+    .map(c => `## ${c.title || c.source_id}\n${(c.content ?? "").slice(0, 1200)}`)
+    .join("\n\n---\n\n");
+
+  return { context, chunk_count: all.length };
+}
+
+/**
  * POST /api/admin/training-ops/materials/generate-draft
  *
  * Body: { path_id: string, brand: string }
  * 用 OpenAI gpt-4o-mini 為指定品牌 + path 生成 28 個 module 草稿
  * 寫到 path_completeness.claude_drafts(jsonb 暫存,等採用才寫進 training_modules)
  *
- * Cost: ~3K token × $0.15/1M = $0.0005 per call
+ * Phase B-4(2026-05-01):接 RAG knowledge_chunks 帶真實 source 進 prompt,
+ *                       不再只靠 hardcode 8 步驟綱要(但綱要保留當作 fallback)
+ *
+ * Cost: ~5K token × $0.15/1M = $0.00075 per call(加 RAG context 後略增)
  */
 export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -135,13 +184,27 @@ export async function POST(req: NextRequest) {
       .join("\n");
 
     const pathLabel = PATH_LABEL[pathRow.code] ?? pathRow.code;
+
+    // Phase B-4:撈 RAG 真實 source 進 prompt(對齊鐵則)
+    const { context: ragContext, chunk_count: ragChunkCount } = await fetchRagContext(sb, brand);
+
     const userPrompt = `Path: ${pathLabel}(code: ${pathRow.code} / brand: ${brand})
 total_days: ${pathRow.total_days ?? 14}
 
-既有 ${existingModules?.length ?? 0} 個 module(以下這些別重複生):
+# 真實 source 內容(${ragChunkCount} chunks · 從 RAG knowledge_chunks pillar='sales' 撈)
+**鐵則**:每個 module 必須引用以下真實 source(不從零生)。標題 / 描述要對應到 source 主題。
+
+${ragContext}
+
+---
+
+# 既有 module(${existingModules?.length ?? 0} 個 — 別重複生這些)
 ${existingSummary || "(空,新品牌 path)"}
 
-請補滿 14 天節奏 — 對齊 nSchool 8 步驟 + 4 本書,基於既有 D2 結構延伸,**不創新主題**。
+# 你的任務
+基於上面真實 source + 既有 8 步驟 + 4 本書,補滿 14 天節奏,**不創新主題**。
+每個 module 的 description 應該明確引用 source 中的關鍵概念(例如:「複利效應(10萬投30年到174萬)」「凱衛 5201 上市櫃」「KPI 漏斗:撥通→通次→通時」)。
+
 回 strict JSON,modules 陣列只列「需要補的」module(不含既有的)。`;
 
     const oaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -245,6 +308,7 @@ ${existingSummary || "(空,新品牌 path)"}
       drafts_count: validated.length,
       invalid_count: invalid.length,
       invalid,
+      rag_chunks_used: ragChunkCount,
       drafts: validated,
     });
   } catch (err) {
