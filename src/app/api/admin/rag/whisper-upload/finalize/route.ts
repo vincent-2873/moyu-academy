@@ -1,12 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import Groq from "groq-sdk";
-import ffmpegPath from "ffmpeg-static";
+import ffmpegStatic from "ffmpeg-static";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import crypto from "crypto";
+
+/**
+ * 優先用 system ffmpeg(nixpacks.toml apt install)
+ * Fallback ffmpeg-static(npm package binary)
+ *
+ * Zeabur container 加 system ffmpeg 後,這裡會抓 /usr/bin/ffmpeg(穩)
+ */
+function resolveFfmpegPath(): string | null {
+  try {
+    // 優先 PATH ffmpeg
+    const sysPath = execSync("which ffmpeg", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    if (sysPath) return sysPath;
+  } catch {}
+  return ffmpegStatic ?? null;
+}
+const FFMPEG_PATH = resolveFfmpegPath();
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,15 +51,15 @@ function inferBrand(filename: string): string {
   return "nschool";
 }
 
-function runFfmpeg(args: string[], timeoutMs = 180_000): Promise<void> {
+function runFfmpeg(args: string[], timeoutMs = 600_000): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (!ffmpegPath) {
-      reject(new Error("ffmpeg-static binary 未安裝(ffmpegPath null)"));
+    if (!FFMPEG_PATH) {
+      reject(new Error("ffmpeg 沒安裝(system + ffmpeg-static 都找不到)"));
       return;
     }
     let proc: ReturnType<typeof spawn>;
     try {
-      proc = spawn(ffmpegPath as string, args, { stdio: ["ignore", "pipe", "pipe"] });
+      proc = spawn(FFMPEG_PATH, args, { stdio: ["ignore", "pipe", "pipe"] });
     } catch (e) {
       reject(new Error(`ffmpeg spawn 失敗:${(e as Error).message}`));
       return;
@@ -52,7 +68,7 @@ function runFfmpeg(args: string[], timeoutMs = 180_000): Promise<void> {
     proc.stderr?.on("data", (d) => (stderr += d.toString()));
     const timer = setTimeout(() => {
       proc.kill("SIGKILL");
-      reject(new Error(`ffmpeg timeout ${timeoutMs}ms — Zeabur container 可能不能跑 ffmpeg`));
+      reject(new Error(`ffmpeg timeout ${timeoutMs / 1000}s`));
     }, timeoutMs);
     proc.on("error", (err) => {
       clearTimeout(timer);
@@ -111,13 +127,15 @@ async function processInBackground(jobId: string, uploadId: string) {
       await updateJob({ stage: "whisper_transcribe", segments_total: 1, segments_done: 0 });
     } else {
       // 大檔 / 影片 / 其他需要 ffmpeg 提取音訊 + 切片
+      // 24kbps mono 16kHz mp3 + 切 90 min 段(對 2h+ 銷售錄影,單段 < 16MB)
       const segPattern = path.join(tempDir, `seg_%03d.mp3`);
       await runFfmpeg([
         "-y", "-i", fullPath,
-        "-vn", "-ac", "1", "-ar", "16000", "-b:a", "32k",
-        "-f", "segment", "-segment_time", "600",
+        "-vn", "-ac", "1", "-ar", "16000", "-b:a", "24k",
+        "-f", "segment", "-segment_time", "5400", // 90 min
+        "-reset_timestamps", "1",
         segPattern,
-      ], 180_000);
+      ], 600_000); // 10 min hard timeout(對 4h+ 影片足夠)
       segments = fs.readdirSync(tempDir)
         .filter(f => f.startsWith("seg_") && f.endsWith(".mp3"))
         .sort()

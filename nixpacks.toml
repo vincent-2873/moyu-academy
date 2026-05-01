@@ -1,0 +1,17 @@
+# Zeabur build config
+# 對齊 Vincent 鐵則:不要 server / 不要本地 script,UI 拖檔即可
+#
+# 加 system ffmpeg 進 container,讓 /api/admin/rag/whisper-upload/finalize
+# 能處理大檔 + 影片(extract audio + 切片)
+#
+# ffmpeg-static npm package 在某些容器環境跑不起來(arch / permission),
+# 改用 apt 系統 ffmpeg(穩定 + 不依賴 npm install 階段)
+
+[phases.setup]
+aptPkgs = ["ffmpeg"]
+
+[phases.install]
+# 沿用 nixpacks 預設 Node install
+
+[phases.build]
+# 沿用 nixpacks 預設 Next.js build
