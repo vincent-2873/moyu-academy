@@ -1,17 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { getRolePillars, inferPillarFromPath, pillarFromNotionDbId } from "./rag-pillars";
 
-describe("rag-pillars", () => {
+describe("rag-pillars (post-2026-05-01: HR 體系已砍)", () => {
   it("sales_rep 看 sales + common", () => {
     expect(getRolePillars("sales_rep").sort()).toEqual(["common", "sales"]);
   });
 
-  it("super_admin 看全 4 池", () => {
-    expect(getRolePillars("super_admin").sort()).toEqual(["common", "hr", "legal", "sales"]);
+  it("super_admin 看 legal + sales + common(HR 已砍)", () => {
+    expect(getRolePillars("super_admin").sort()).toEqual(["common", "legal", "sales"]);
   });
 
-  it("trainer 跨 hr+sales+common", () => {
-    expect(getRolePillars("trainer").sort()).toEqual(["common", "hr", "sales"]);
+  it("trainer 看 sales + common(HR 已砍)", () => {
+    expect(getRolePillars("trainer").sort()).toEqual(["common", "sales"]);
+  });
+
+  it("recruiter 只看 common(招募 pillar 不存在,合併至 common)", () => {
+    expect(getRolePillars("recruiter")).toEqual(["common"]);
+  });
+
+  it("hr role 只看 common(HR pillar 已 deprecated)", () => {
+    expect(getRolePillars("hr")).toEqual(["common"]);
   });
 
   it("legal_staff 限 legal + common", () => {
@@ -22,10 +30,6 @@ describe("rag-pillars", () => {
     expect(getRolePillars(null)).toEqual(["common"]);
     expect(getRolePillars(undefined)).toEqual(["common"]);
     expect(getRolePillars("__nonexistent__")).toEqual(["common"]);
-  });
-
-  it("inferPillarFromPath hrbp_series", () => {
-    expect(inferPillarFromPath("content/training/hrbp_series/EP1.md")).toBe("hr");
   });
 
   it("inferPillarFromPath legal", () => {
@@ -40,14 +44,23 @@ describe("rag-pillars", () => {
     expect(inferPillarFromPath("content/training/foundation/intro.md")).toBe("common");
   });
 
-  it("inferPillarFromPath 反斜線 windows path 也 ok", () => {
-    expect(inferPillarFromPath("content\\training\\hrbp_series\\EP2.md")).toBe("hr");
+  it("inferPillarFromPath legacy hrbp 路徑 fallback common(hr pillar 已砍)", () => {
+    expect(inferPillarFromPath("content/training/hrbp_series/EP1.md")).toBe("common");
+    expect(inferPillarFromPath("content\\training\\hrbp_series\\EP2.md")).toBe("common");
   });
 
-  it("pillarFromNotionDbId 找到 hr config", () => {
-    const cfgs = [{ id: "hr", notion_database_id: "abc123" }, { id: "sales", notion_database_id: "xyz" }];
-    expect(pillarFromNotionDbId("abc123", cfgs)).toBe("hr");
+  it("pillarFromNotionDbId 找到 sales config", () => {
+    const cfgs = [
+      { id: "sales", notion_database_id: "xyz" },
+      { id: "legal", notion_database_id: "abc" },
+    ];
     expect(pillarFromNotionDbId("xyz", cfgs)).toBe("sales");
+    expect(pillarFromNotionDbId("abc", cfgs)).toBe("legal");
+  });
+
+  it("pillarFromNotionDbId legacy hr config → common", () => {
+    const cfgs = [{ id: "hr", notion_database_id: "old" }];
+    expect(pillarFromNotionDbId("old", cfgs)).toBe("common");
   });
 
   it("pillarFromNotionDbId 找不到 → common", () => {

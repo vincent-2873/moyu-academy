@@ -9,10 +9,10 @@ import path from "path";
  *
  * 把本機 content/training/ 資料夾的 .md 全部 ingest 進 knowledge_chunks
  *
- * 預期內容:
- *   content/training/foundation/
- *   content/training/hrbp_series/
- *   content/training/source_materials/
+ * 預期內容(2026-05-01 後 — HR 全砍):
+ *   content/training/foundation/  (通用訓練體系規範)
+ *   content/training/sales/       (業務 — 對齊 nSchool 真實架構)
+ *   content/training/legal/       (法務 — 待建)
  *
  * 不需要 NOTION token, 純讀本機檔案
  */
@@ -50,12 +50,11 @@ export async function POST(req: NextRequest) {
         const title = path.basename(file, path.extname(file));
 
         // 推斷 path_type / brand from path
-        const pathType = relPath.includes("hrbp") ? "recruit"
+        const pathType = relPath.includes("legal") ? "legal"
           : relPath.includes("sales") || relPath.includes("foundation") ? "business"
           : "common";
 
-        // 推斷 pillar(RAG 三池) — Vincent 2026-04-30 反饋
-        // hrbp_series / hr/* → hr ; legal/* → legal ; sales/* → sales ; 其他 → common
+        // 推斷 pillar(RAG 池) — 2026-05-01 後:legal / sales / common
         const pillar = inferPillarFromPath(relPath);
 
         const hash = await sha256(content);

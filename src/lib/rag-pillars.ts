@@ -1,50 +1,54 @@
 /**
- * RAG 三池 helper — role → pillar mapping + retrieval filter
+ * RAG 池 helper — role → pillar mapping + retrieval filter
  *
- * Vincent 2026-04-30 反饋:RAG 要分 HR / 法務 / 業務 3 個 namespace
+ * Vincent 2026-05-01 拍板:HR 體系全砍 + 依 system-tree 走。
+ * RAG 池只剩 sales / legal / common 三種;'hr' 保留在 type union 是為了向後相容
+ * 既有 DB row(D19 已 reclassify hr → common,但保留 string 兼容)。
  *
  * 設計:
- *   - pillar 4 種:hr / legal / sales / common
+ *   - 有效 pillar:legal / sales / common
+ *   - 'hr' deprecated:不再有新 hr 內容,既有 22 chunks 已改 pillar='common'
  *   - role → 可看的 pillar 清單(common 永遠可見)
- *   - allowed_roles[] 額外 ACL(細粒度,e.g. 公司年度策略 限 ceo/director)
+ *   - allowed_roles[] 額外 ACL(細粒度)
  */
 
-export type Pillar = "hr" | "legal" | "sales" | "common";
+export type Pillar = "legal" | "sales" | "common" | "hr"; // 'hr' deprecated 2026-05-01,留型兼容既有 DB 資料
 
-/** Role → 該 role 可看的 pillar 清單(common 自動加入) */
+/** Role → 該 role 可看的 pillar 清單(common 自動可見)*/
 const ROLE_PILLAR_MAP: Record<string, Pillar[]> = {
-  // 員工層級
+  // 業務體系
   sales_rep: ["sales", "common"],
   sales_rookie: ["sales", "common"],
   sales_manager: ["sales", "common"],
 
-  recruiter: ["hr", "common"],
-  hr: ["hr", "common"],
-  recruit_manager: ["hr", "common"],
+  // 招募類 role(架構沒 HR pillar,合併至 common)
+  recruiter: ["common"],
+  hr: ["common"],
+  recruit_manager: ["common"],
 
+  // 法務體系
   legal_staff: ["legal", "common"],
   legal_manager: ["legal", "common"],
 
   // 跨 pillar(中層)
-  brand_manager: ["sales", "common"],     // 業務管理 — 只看自己 brand
+  brand_manager: ["sales", "common"],
   team_leader: ["sales", "common"],
-  trainer: ["hr", "sales", "common"],     // 訓練師需要看員工資料
-  mentor: ["hr", "sales", "common"],
+  trainer: ["sales", "common"], // 訓練師對業務 + 通用(HR 已砍)
+  mentor: ["sales", "common"],
 
-  // 學員(只看 common training material)
+  // 學員
   student: ["common"],
 
-  // 高層(全看)
-  super_admin: ["hr", "legal", "sales", "common"],
-  ceo: ["hr", "legal", "sales", "common"],
-  coo: ["hr", "legal", "sales", "common"],
-  cfo: ["hr", "legal", "sales", "common"],
-  director: ["hr", "legal", "sales", "common"],
+  // 高層(全看 — sales + legal + common)
+  super_admin: ["legal", "sales", "common"],
+  ceo: ["legal", "sales", "common"],
+  coo: ["legal", "sales", "common"],
+  cfo: ["legal", "sales", "common"],
+  director: ["legal", "sales", "common"],
 };
 
 const DEFAULT_PILLARS: Pillar[] = ["common"];
 
-/** 取出該 role 可看的 pillar 清單 */
 export function getRolePillars(role: string | null | undefined): Pillar[] {
   if (!role) return DEFAULT_PILLARS;
   return ROLE_PILLAR_MAP[role] || DEFAULT_PILLARS;
@@ -53,32 +57,32 @@ export function getRolePillars(role: string | null | undefined): Pillar[] {
 /**
  * 從本機 training md 路徑推斷 pillar
  *
- * 規則:
- *   content/training/hrbp_series/  → hr
+ * 規則(2026-05-01 後):
  *   content/training/legal/        → legal
  *   content/training/sales/        → sales (新建)
  *   content/training/foundation/   → common
- *   content/training/source_materials/ → common
  *   其他                          → common(safe default)
+ *
+ * (legacy hrbp_series 路徑 2026-05-01 已砍,如果遇到舊資料 fallback common)
  */
 export function inferPillarFromPath(filePath: string): Pillar {
   const lower = filePath.toLowerCase().replace(/\\/g, "/");
-  if (/\/hrbp_series\//.test(lower) || /\/hr\//.test(lower)) return "hr";
   if (/\/legal\//.test(lower)) return "legal";
   if (/\/sales\//.test(lower)) return "sales";
   return "common";
 }
 
 /**
- * 從 Notion database id 推斷 pillar(由 rag_notion_config 表查 — caller 應 pre-fetch)
+ * 從 Notion database id 推斷 pillar
  *
- * Caller pattern:
- *   const cfg = await sb.from('rag_notion_config').select('id').eq('notion_database_id', dbId).maybeSingle();
- *   const pillar = (cfg?.data?.id as Pillar) || 'common';
+ * (僅 legal/sales 是有效新值;舊 hr config 視為 common)
  */
-export function pillarFromNotionDbId(dbId: string, dbConfigs: Array<{ id: string; notion_database_id: string | null }>): Pillar {
+export function pillarFromNotionDbId(
+  dbId: string,
+  dbConfigs: Array<{ id: string; notion_database_id: string | null }>,
+): Pillar {
   const found = dbConfigs.find((c) => c.notion_database_id === dbId);
-  if (found && (found.id === "hr" || found.id === "legal" || found.id === "sales")) {
+  if (found && (found.id === "legal" || found.id === "sales")) {
     return found.id as Pillar;
   }
   return "common";
@@ -86,21 +90,12 @@ export function pillarFromNotionDbId(dbId: string, dbConfigs: Array<{ id: string
 
 /**
  * 對 supabase chunks query 加 pillar + allowed_roles filter
- *
- * 用法:
- *   let q = sb.from('knowledge_chunks').select(...);
- *   q = applyPillarFilter(q, userRole);
- *   const { data } = await q;
  */
-export function applyPillarFilter<T extends { in: (col: string, vals: unknown[]) => T; or: (filter: string) => T }>(
-  query: T,
-  userRole: string | null | undefined
-): T {
+export function applyPillarFilter<
+  T extends { in: (col: string, vals: unknown[]) => T; or: (filter: string) => T },
+>(query: T, userRole: string | null | undefined): T {
   const pillars = getRolePillars(userRole);
-  // pillar IN (...)
   query = query.in("pillar", pillars);
-  // allowed_roles IS NULL OR userRole = ANY(allowed_roles)
-  // Postgrest format: 'allowed_roles.is.null,allowed_roles.cs.{role}'
   if (userRole) {
     query = query.or(`allowed_roles.is.null,allowed_roles.cs.{${userRole}}`);
   } else {
