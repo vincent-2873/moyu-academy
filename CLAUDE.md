@@ -1,7 +1,49 @@
 # CLAUDE.md — moyu-academy
 
 > **給未來 Claude agent 的導覽書。進來先讀這份，再碰 code。**
-> 最後更新：2026-04-24（Vercel 撤退隔天，CLAUDE.md 初次建立）
+> 最後更新：2026-05-01（v5 Phase 2 Week 1 上線 + roadmap 永久化）
+
+---
+
+## 🌳 永遠先看 PHASE-ROADMAP.md(2026-05-01 加)
+
+**Vincent 拍板:8 週完整 roadmap 在 [PHASE-ROADMAP.md](./PHASE-ROADMAP.md),永遠保留到 Phase 6 全做完才能砍。**
+
+每個進 moyu-academy 的 Claude **必須先讀** `PHASE-ROADMAP.md`,看到完整系統樹狀圖(/sales/* 前台 + /admin/board /admin/training-ops /admin/claude /admin/human /admin/settings 後台 + 9 角色權限矩陣 + 17 worker + 視覺氛圍對照),才能對齊整體方向動手。
+
+**目前進度(2026-05-01 v5 末):**
+- ✅ Phase 1 大半(D18 schema + users 補欄位)
+- ✅ Phase 2 Week 1(`/admin/training-ops` 4 子頁完整 + e2e demo)
+- ❌ Phase 2 Week 2 起的 6 週還沒做
+
+**最新 handoff:** [HANDOFF-2026-05-01-v5.md](../HANDOFF-2026-05-01-v5.md)(在專案上一層)
+
+---
+
+## 🔒 鐵則:基於 Vincent 既有資料延伸,不從零 AI 生成(2026-05-01 拍板)
+
+> Vincent 親口:「做每一個功能都是要去找 Vincent 提供的資料延伸優化生成,不是透過 AI 從零生成就好。Vincent 資料是有意義的。**這個原則直到整個 8 週 roadmap 建置好都不變**。」
+
+**前一個 Claude(v5)違反過**:OpenAI 生 nschool 28 module 沒參考 `content/training/` 30 個 source file,生出來內容對齊不到既有訓練體系。教訓詳見 HANDOFF v5 的「🔒 鐵則」段。
+
+### 30 個 Source materials 永遠優先
+
+| 群組 | 路徑 | 用途 |
+|---|---|---|
+| **訓練體系規範** | `content/training/foundation/` | TRAINING_MASTER + HR_MODULE_SPEC + CLAUDE.md(訓練守則)+ UNIT_INPUT_TEMPLATE |
+| **既有 4 個 HRBP episode**(學格式)| `content/training/hrbp_series/EP{1..4}_HR-{053..056}/` | input.md + README.md + script.md ×4 + HRBP_CORE_METHODS + CHANGELOG |
+| **EP1 真實 production** | `content/training/ep1_production/` | avatar_script + cards.html(互動網頁範本)+ 阿凱角色設定書 + HeyGen 指南 + 剪輯工作單 |
+| **真實源頭素材** | `content/training/source_materials/` | Vincent/Lynn 真實逐字稿 + LINE 群組 log |
+| **工作流程規範** | `content/training/workflow/` | OUTPUT_RULES + SLASH_COMMANDS + WORKFLOW_PATTERNS |
+| **既有 audit** | `content/training/AUDIT_REPORT_20260423.md` | 4/23 audit |
+
+### 做每個功能前,先回去找的 source(對照)
+
+- 訓練 module 設計 → `foundation/TRAINING_MASTER` + `HR_MODULE_SPEC` + 4 個 EP
+- 對練 Persona / 評分 prompt → `ep1_production/阿凱角色設定書.md` + `source_materials/*.md`
+- 互動網頁產出 → fork `ep1_production/EP1_cards.html`,改內容不改架構
+- 任何 UI 文案 → `foundation/TRAINING_MASTER` Section 3 用字規範(禁用詞)
+- 任何角色 / 真實人名 → `foundation/CLAUDE.md` 只允許 Vincent / Lynn / Page
 
 ---
 
