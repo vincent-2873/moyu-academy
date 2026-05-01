@@ -4,7 +4,7 @@ export default function SalesKnowledge() {
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>問 Claude</h1>
         <p style={{ fontSize: 14, opacity: 0.7, marginTop: 6 }}>
-          Claude 戰情官已 ingest 整套 nSchool 真實 source(60+ 個 .md / 訓練中心 8 步驟 / 4 本書 / 8 個逐字 / 銷售簡報 v4 + XLAB AI 實驗室 + 適所介紹 + 通用知識)
+          Claude 戰情官已 ingest 整套真實 source(墨宇集團介紹 + nSchool 60+ 個 .md / 訓練中心 8 步驟 / 4 本書 / 8 個逐字 / 銷售簡報 v4 + XLAB AI 實驗室 + 通用知識)
         </p>
       </div>
 
