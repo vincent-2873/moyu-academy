@@ -35,12 +35,31 @@ function inferBrand(filename: string): string {
   return "nschool";
 }
 
-function runFfmpeg(args: string[]): Promise<void> {
+function runFfmpeg(args: string[], timeoutMs = 180_000): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(ffmpegPath as string, args, { stdio: ["ignore", "pipe", "pipe"] });
+    if (!ffmpegPath) {
+      reject(new Error("ffmpeg-static binary 未安裝(ffmpegPath null)"));
+      return;
+    }
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(ffmpegPath as string, args, { stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      reject(new Error(`ffmpeg spawn 失敗:${(e as Error).message}`));
+      return;
+    }
     let stderr = "";
-    proc.stderr.on("data", (d) => (stderr += d.toString()));
+    proc.stderr?.on("data", (d) => (stderr += d.toString()));
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      reject(new Error(`ffmpeg timeout ${timeoutMs}ms — Zeabur container 可能不能跑 ffmpeg`));
+    }, timeoutMs);
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      reject(new Error(`ffmpeg subprocess error: ${err.message}`));
+    });
     proc.on("close", (code) => {
+      clearTimeout(timer);
       if (code === 0) resolve();
       else reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-300)}`));
     });
@@ -79,22 +98,33 @@ async function processInBackground(jobId: string, uploadId: string) {
     }
     await new Promise<void>((res) => writeStream.end(res));
 
-    // 2. ffmpeg 切片
-    const segPattern = path.join(tempDir, `seg_%03d.mp3`);
-    await runFfmpeg([
-      "-y", "-i", fullPath,
-      "-vn", "-ac", "1", "-ar", "16000", "-b:a", "32k",
-      "-f", "segment", "-segment_time", "600",
-      segPattern,
-    ]);
-    const segments = fs.readdirSync(tempDir)
-      .filter(f => f.startsWith("seg_") && f.endsWith(".mp3"))
-      .sort()
-      .map(f => path.join(tempDir, f));
+    // 2. 判斷:小 audio 跳 ffmpeg 直送 Whisper / 大檔 / 影片走 ffmpeg
+    const isAudio = /\.(wav|mp3|m4a|flac|ogg)$/i.test(filename);
+    const sizeMB = fs.statSync(fullPath).size / 1024 / 1024;
+    const skipFfmpeg = isAudio && sizeMB < 24;
 
-    if (segments.length === 0) throw new Error("ffmpeg 沒產生切片(可能不是 audio/video)");
+    let segments: string[] = [];
+    if (skipFfmpeg) {
+      // 小 audio 直接當 1 段送 Whisper(避免 ffmpeg-static 在 Zeabur 跑不起來的風險)
+      segments = [fullPath];
+      await updateJob({ stage: "whisper_transcribe", segments_total: 1, segments_done: 0 });
+    } else {
+      // 大檔 / 影片 / 其他需要 ffmpeg 提取音訊 + 切片
+      const segPattern = path.join(tempDir, `seg_%03d.mp3`);
+      await runFfmpeg([
+        "-y", "-i", fullPath,
+        "-vn", "-ac", "1", "-ar", "16000", "-b:a", "32k",
+        "-f", "segment", "-segment_time", "600",
+        segPattern,
+      ], 180_000);
+      segments = fs.readdirSync(tempDir)
+        .filter(f => f.startsWith("seg_") && f.endsWith(".mp3"))
+        .sort()
+        .map(f => path.join(tempDir, f));
 
-    await updateJob({ stage: "whisper_transcribe", segments_total: segments.length, segments_done: 0 });
+      if (segments.length === 0) throw new Error("ffmpeg 沒產生切片(可能不是 audio/video)");
+      await updateJob({ stage: "whisper_transcribe", segments_total: segments.length, segments_done: 0 });
+    }
 
     // 3. 並行 Whisper(throttle 3 + 即時更新進度)
     const transcripts: string[] = new Array(segments.length);
