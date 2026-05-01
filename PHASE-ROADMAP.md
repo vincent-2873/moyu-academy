@@ -5,6 +5,34 @@
 
 ---
 
+## 🎯 Progress(2026-05-01 第六輪 Phase A 末)
+
+```
+Phase 1 (基建)         ████████████  完整 (D1-D18 schema applied)
+Phase 2 W1 (訓練營運)  ████████████  完整 (admin/training-ops 4 子頁)
+Phase A (清理)         ████████████  完整 (HR 全砍 + 架構外舊頁砍 + 訓練規範改 + RAG 改)
+Phase 2 W2+ Phase 3-6  ░░░░░░░░░░░░  待 Phase B 啟動
+```
+
+**Phase A 做的**(5 commit pushed):
+- HR 體系全砍(43 file)+ D19 SQL(待 Vincent apply)
+- 架構外舊前台 page 砍 14 個(/me /home /work /learn /today /articles /my-commands /checkin /upload + /legal 主頁)
+- RAG pillar enum 砍 hr / next.config 砍 /training/methods
+- 訓練體系規範改成 BIZ + LEGAL 兩體系(TRAINING_MASTER v2 + foundation/CLAUDE v2)
+- 修死連結
+
+**Phase B 待 Vincent 點頭啟動**(完整脈絡見 [HANDOFF v6](../HANDOFF-2026-05-01-v6.md)):
+- B-1: 基於 nSchool 真實 source 重做 BIZ module 內容
+- B-2: /sales/* 前台 5 子頁建
+- B-3: admin 17 tab 重組成樹狀圖 8 大區
+- B-4: claude-panel chat prompt 對齊 nSchool 8 步驟
+- B-5: 寫 BIZ_MODULE_SPEC + LEGAL_MODULE_SPEC
+
+🔒 **鐵則**(2026-05-01 拍板,Phase 6 前不變):做每個功能要先看 `~/Downloads/訓練資料/_unzipped/` 既有 source 延伸,不從零生成。
+
+---
+
+
 ## 🌐 系統總覽
 
 ```
