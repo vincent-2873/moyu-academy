@@ -192,7 +192,10 @@ export default function WhisperBatchUploader() {
             type="file"
             accept="audio/*,video/*,.wav,.mp3,.m4a,.mp4,.mov,.webm"
             multiple
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+            onChange={(e) => {
+              setFiles(Array.from(e.target.files ?? []));
+              setResult(null); // 清掉上次殘留 error
+            }}
             style={{ fontSize: 12, fontFamily: "inherit" }}
           />
         </div>
