@@ -733,10 +733,8 @@ interface ChairmanData {
     avg_sparring_week: number;
     critical_count: number;
     warning_count: number;
-    recruit_funnel_total: number;
   };
   sales_brands: ChairmanBrand[];
-  recruit: ChairmanBrand;
   alerts: { level: string; company: string; message: string }[];
 }
 
@@ -792,7 +790,7 @@ function CommandCenterAggregate() {
   if (!data) return null;
 
   const empire = data.empire;
-  const allCompanies: ChairmanBrand[] = [...data.sales_brands, data.recruit];
+  const allCompanies: ChairmanBrand[] = [...data.sales_brands];
 
   return (
     <div>
@@ -831,7 +829,6 @@ function CommandCenterAggregate() {
           <EmpireStat label="今日通數" value={empire.total_calls_today} sub={`/ ${empire.total_active_reps * 30} 目標`} accent="#B89968" />
           <EmpireStat label="今日邀約" value={empire.total_appointments_today} accent="#B8474A" />
           <EmpireStat label="今日成交" value={empire.total_closures_today} accent="#6B7A5A" />
-          <EmpireStat label="招聘漏斗" value={empire.recruit_funnel_total} sub="人在跑" accent="#B89968" />
           <EmpireStat label="本週對練" value={empire.total_sparring_week} sub={empire.avg_sparring_week > 0 ? `平均 ${empire.avg_sparring_week.toFixed(1)} 分` : ""} accent="#6B7E94" />
         </div>
 
