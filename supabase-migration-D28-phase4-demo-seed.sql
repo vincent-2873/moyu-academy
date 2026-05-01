@@ -83,6 +83,7 @@ VALUES
     '更新 Metabase Q1381 SQL — 加入「is_monthly_rollup」欄位防 sum 翻倍',
     '4 月底 Vincent 發現某員工營收顯示 1.1M 但實際 ~550K,是 daily rollup 加月底 rollup 造成翻倍',
     '建議由 Lance 在 Metabase Q1381 加 is_monthly_rollup boolean,Sync 後系統 filter 掉 rollup row',
+    NULL,
     'approved',
     'normal',
     NULL,
