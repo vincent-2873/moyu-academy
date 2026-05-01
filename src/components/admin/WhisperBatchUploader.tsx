@@ -42,29 +42,62 @@ export default function WhisperBatchUploader() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BatchResult | null>(null);
 
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+
   const trigger = async () => {
     if (!files.length || running) return;
     setRunning(true);
     setResult(null);
-    try {
-      const fd = new FormData();
-      for (const f of files) fd.append("files", f);
-      if (brand) fd.append("brand", brand);
 
-      const res = await fetch("/api/admin/rag/whisper-batch", {
-        method: "POST",
-        body: fd,
-      });
-      const json = await res.json();
-      setResult(json);
-      if (json.ok) {
-        setFiles([]); // 清空已處理的
+    // Sequential upload(避免 platform body size limit / Whisper 25MB / timeout)
+    const allResults: FileResult[] = [];
+    setProgress({ current: 0, total: files.length });
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      setProgress({ current: i + 1, total: files.length });
+
+      try {
+        // 預檢:Groq Whisper 限 25MB
+        if (f.size > 25 * 1024 * 1024) {
+          allResults.push({
+            filename: f.name,
+            ok: false,
+            error: `檔案 ${(f.size / 1024 / 1024).toFixed(1)}MB 超過 Groq Whisper 25MB 限制,需先切片或壓縮`,
+          });
+          continue;
+        }
+
+        const fd = new FormData();
+        fd.append("files", f);
+        if (brand) fd.append("brand", brand);
+
+        const res = await fetch("/api/admin/rag/whisper-batch", {
+          method: "POST",
+          body: fd,
+        });
+        const json = await res.json();
+        if (json.ok && json.results) {
+          allResults.push(...json.results);
+        } else {
+          allResults.push({ filename: f.name, ok: false, error: json.error || "未知錯誤" });
+        }
+      } catch (e) {
+        allResults.push({ filename: f.name, ok: false, error: (e as Error).message });
       }
-    } catch (e) {
-      setResult({ ok: false, error: (e as Error).message });
-    } finally {
-      setRunning(false);
     }
+
+    const okCount = allResults.filter(r => r.ok).length;
+    setResult({
+      ok: true,
+      total: allResults.length,
+      success: okCount,
+      failed: allResults.length - okCount,
+      results: allResults,
+    });
+    setProgress(null);
+    setRunning(false);
+    if (okCount > 0) setFiles([]);
   };
 
   const totalSizeMB = (files.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(1);
@@ -131,7 +164,9 @@ export default function WhisperBatchUploader() {
             fontFamily: "inherit", whiteSpace: "nowrap",
           }}
         >
-          {running ? "⏳ Whisper 處理中…" : `🚀 上傳 ${files.length} 檔(${totalSizeMB} MB)`}
+          {running
+            ? (progress ? `⏳ 處理中 ${progress.current}/${progress.total}…` : "⏳ Whisper 處理中…")
+            : `🚀 上傳 ${files.length} 檔(${totalSizeMB} MB)`}
         </button>
       </div>
 
