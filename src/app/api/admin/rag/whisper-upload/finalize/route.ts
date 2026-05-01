@@ -204,8 +204,47 @@ export async function POST(req: NextRequest) {
   const { filename, size, brand: brandHint, speaker } = manifest;
   const brand = brandHint || inferBrand(filename);
 
-  // INSERT whisper_jobs(status=pending)
   const sb = getSupabaseAdmin();
+
+  // idempotent:同 upload_id 已 finalize 過就直接回現有 job_id
+  const { data: existing } = await sb.from("whisper_jobs")
+    .select("id, status")
+    .eq("upload_id", uploadId)
+    .maybeSingle();
+
+  if (existing) {
+    // done / processing / pending → 直接回現有 job_id,client polling 會看到結果
+    if (existing.status === "done" || existing.status === "processing" || existing.status === "pending") {
+      return NextResponse.json({
+        ok: true,
+        job_id: existing.id,
+        status: existing.status,
+        upload_id: uploadId,
+        resumed: true,
+      });
+    }
+    // failed → reset 重跑
+    await sb.from("whisper_jobs").update({
+      status: "pending",
+      stage: null,
+      segments_done: 0,
+      error: null,
+      started_at: null,
+      finished_at: null,
+    }).eq("id", existing.id);
+
+    processInBackground(existing.id, uploadId).catch(e => console.error("[whisper-bg-retry]", e));
+
+    return NextResponse.json({
+      ok: true,
+      job_id: existing.id,
+      status: "pending",
+      upload_id: uploadId,
+      retried: true,
+    });
+  }
+
+  // 全新 INSERT
   const { data: job, error: jobErr } = await sb.from("whisper_jobs")
     .insert({
       upload_id: uploadId,
@@ -223,14 +262,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: false,
       error: `INSERT whisper_jobs failed: ${jobErr?.message ?? "unknown"}`,
-      hint: "若 'relation does not exist',D27 SQL 還沒 apply",
+      hint: "若 'relation does not exist',D27 SQL 還沒 apply。請進 GitHub Actions 跑 Apply Supabase Migration workflow,選 supabase-migration-D27-whisper-jobs.sql",
     }, { status: 500 });
   }
 
-  // 立刻回 job_id,background 開跑(不 await)
-  processInBackground(job.id, uploadId).catch(e => {
-    console.error("[whisper-bg]", e);
-  });
+  processInBackground(job.id, uploadId).catch(e => console.error("[whisper-bg]", e));
 
   return NextResponse.json({
     ok: true,
