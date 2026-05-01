@@ -2,8 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  serverExternalPackages: ["@anthropic-ai/sdk"],
-  // 註:/training/methods 頁面 2026-05-01 已砍(HR 訓練體系全砍),outputFileTracingIncludes 不再需要
+  serverExternalPackages: ["@anthropic-ai/sdk", "ffmpeg-static", "fluent-ffmpeg", "mammoth"],
+  // 把 ffmpeg-static binary 強制帶進 standalone output
+  // 否則 Next.js standalone trace 只 copy JS files,binary 找不到 → ENOENT
+  outputFileTracingIncludes: {
+    "/api/admin/rag/whisper-upload/finalize/**": [
+      "./node_modules/.pnpm/ffmpeg-static@*/node_modules/ffmpeg-static/ffmpeg",
+      "./node_modules/ffmpeg-static/ffmpeg",
+    ],
+  },
   async redirects() {
     return [];
   },
