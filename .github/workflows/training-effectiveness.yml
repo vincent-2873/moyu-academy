@@ -1,0 +1,36 @@
+name: Training Effectiveness Weekly Analysis
+
+# 每週日 02:00 台北 (UTC 18:00 週六) 跑
+# 計算過去 7 天的 module_effectiveness:完訓率 / 平均分 / 卡關率
+on:
+  schedule:
+    - cron: "0 18 * * 6"
+  workflow_dispatch: {}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger training-effectiveness endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repo secret 沒設,workflow 跑不了"
+            exit 1
+          fi
+          response=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
+            "https://moyusales.zeabur.app/api/cron/training-effectiveness" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            --max-time 120)
+          http_code=$(echo "$response" | tail -1 | sed 's/HTTP_CODE://')
+          body=$(echo "$response" | sed '$d')
+          echo "HTTP $http_code"
+          echo "$body" | head -c 2000
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Endpoint returned $http_code"
+            exit 1
+          fi

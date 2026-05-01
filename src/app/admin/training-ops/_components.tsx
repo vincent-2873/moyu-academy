@@ -435,6 +435,136 @@ export function AttentionPreviewItem({ item }: { item: AttentionPreview }) {
   );
 }
 
+// ─── DraftPreviewBlock(教材草稿預覽 + 採用)────────────────────────
+
+export interface DraftModule {
+  day_offset: number;
+  sequence: number;
+  module_type: string;
+  title: string;
+  description: string;
+  duration_min: number;
+}
+
+const MODULE_TYPE_ICON: Record<string, string> = {
+  video:        "📺",
+  reading:      "📖",
+  quiz:         "📝",
+  sparring:     "🎤",
+  task:         "✍️",
+  reflection:   "💭",
+  live_session: "🎥",
+};
+
+export function DraftPreviewBlock({ drafts, onAdoptAll, adopting, adoptError }: {
+  drafts: DraftModule[];
+  onAdoptAll: () => void;
+  adopting: boolean;
+  adoptError: string | null;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const sorted = [...drafts].sort((a, b) =>
+    a.day_offset !== b.day_offset ? a.day_offset - b.day_offset : a.sequence - b.sequence
+  );
+
+  return (
+    <div style={{
+      marginTop: 12,
+      marginBottom: 24,
+      padding: 20,
+      background: "var(--card2)",
+      border: "1px solid var(--gold)",
+      borderRadius: 12,
+    }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: 12, gap: 12, flexWrap: "wrap",
+      }}>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            background: "none", border: "none", padding: 0, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 8,
+            color: "var(--text)", fontSize: 14, fontWeight: 600,
+          }}
+        >
+          ✨ Claude 已生成 {drafts.length} 個 module 草稿
+          <span style={{ fontSize: 12, color: "var(--text3)", fontWeight: 400 }}>
+            ({expanded ? "收合 ▲" : "展開預覽 ▼"})
+          </span>
+        </button>
+        <button
+          onClick={onAdoptAll}
+          disabled={adopting}
+          style={{
+            padding: "8px 16px",
+            background: adopting ? "var(--card)" : "var(--accent)",
+            color: adopting ? "var(--text3)" : "var(--bg)",
+            border: "1px solid var(--accent)",
+            borderRadius: 6,
+            fontSize: 13, fontWeight: 600,
+            cursor: adopting ? "not-allowed" : "pointer",
+          }}
+        >
+          {adopting ? "寫入中…" : `✓ 採用全部 (${drafts.length} 個)`}
+        </button>
+      </div>
+
+      {adoptError && (
+        <div style={{
+          padding: 12, marginBottom: 12,
+          background: "var(--card)", border: "1px solid var(--accent)",
+          borderRadius: 6, color: "var(--accent)", fontSize: 13,
+        }}>
+          採用失敗:{adoptError}
+        </div>
+      )}
+
+      {expanded && (
+        <div style={{
+          display: "flex", flexDirection: "column", gap: 4,
+          maxHeight: 400, overflowY: "auto",
+          background: "var(--bg2)", padding: 12, borderRadius: 8,
+        }}>
+          {sorted.map((m, i) => (
+            <div key={`${m.day_offset}-${m.sequence}-${i}`} style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "6px 8px",
+              fontSize: 12,
+              borderBottom: i < sorted.length - 1 ? "1px dashed var(--border)" : "none",
+            }}>
+              <span style={{
+                fontFamily: '"JetBrains Mono", monospace', color: "var(--text3)",
+                width: 60, flexShrink: 0,
+              }}>
+                D{m.day_offset}#{m.sequence}
+              </span>
+              <span style={{ width: 24, flexShrink: 0, fontSize: 14 }}>
+                {MODULE_TYPE_ICON[m.module_type] ?? "•"}
+              </span>
+              <span style={{
+                width: 80, flexShrink: 0, color: "var(--text3)",
+                fontFamily: '"JetBrains Mono", monospace',
+              }}>
+                {m.module_type}
+              </span>
+              <span style={{ flex: 1, color: "var(--text)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                {m.title}
+              </span>
+              <span style={{
+                fontSize: 11, color: "var(--text3)", flexShrink: 0,
+                fontFamily: '"JetBrains Mono", monospace',
+              }}>
+                {m.duration_min} min
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── auto_handled 區塊 ────────────────────────────────────────
 
 export function AutoHandledBlock({ total, byBrand }: {

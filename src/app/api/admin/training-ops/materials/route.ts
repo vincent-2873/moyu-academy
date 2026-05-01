@@ -39,6 +39,7 @@ export async function GET() {
       : "complete";
       return {
         brand: p.brand ?? "(common)",
+        path_id: p.id,
         path_code: p.code,
         expected,
         actual,
