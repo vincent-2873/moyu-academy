@@ -6,18 +6,18 @@ interface FileResult {
   filename: string;
   ok: boolean;
   brand?: string;
-  chars?: number;
+  segments?: number;
+  transcript_chars?: number;
   chunk_id?: string;
+  action?: string;
   error?: string;
 }
 
 interface BatchResult {
-  ok: boolean;
-  total?: number;
-  success?: number;
-  failed?: number;
-  results?: FileResult[];
-  error?: string;
+  total: number;
+  success: number;
+  failed: number;
+  results: FileResult[];
 }
 
 const BRAND_OPTIONS = [
@@ -29,78 +29,124 @@ const BRAND_OPTIONS = [
   { value: "xlab",     label: "🧪 X LAB AI 實驗室" },
 ];
 
+const CHUNK_SIZE = 1024 * 1024; // 1 MB per chunk(避免 platform body limit)
+
 /**
- * Whisper 批次上傳(/admin/claude/knowledge)
- * 對齊 system-tree v2 §RAG 知識庫 §audio source
+ * Whisper 批次上傳 v2(chunked upload + ffmpeg + Whisper)
  *
- * Vincent 一次選多 .wav/.mp3 → Groq Whisper Large v3 → INSERT knowledge_chunks
- * 適用:nSchool 8 通 / XLAB 6 通 / 學米 2 通 / AI 未來 3 通 + 散落 wav
+ * 對齊 Vincent 鐵則 + 紅線 1:
+ *   - 0 個 client-side secret 要 paste
+ *   - 完整 server-side 處理(用 Zeabur env 既有 GROQ_API_KEY)
+ *   - 任何大小 / 錄影 / 音檔都吃(ffmpeg 自動 extract + 切片)
+ *   - bypass platform body size limit(每 POST 1MB chunk)
  */
 export default function WhisperBatchUploader() {
   const [files, setFiles] = useState<File[]>([]);
   const [brand, setBrand] = useState("");
   const [running, setRunning] = useState(false);
+  const [stage, setStage] = useState<string>("");
+  const [progress, setProgress] = useState<{ fileIdx: number; total: number; chunk?: number; chunkTotal?: number } | null>(null);
   const [result, setResult] = useState<BatchResult | null>(null);
 
-  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+  const totalSizeMB = (files.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(1);
+
+  const uploadOneFile = async (file: File, fileIdx: number, total: number): Promise<FileResult> => {
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+    // 1) init
+    setStage("初始化");
+    const initRes = await fetch("/api/admin/rag/whisper-upload/init", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: file.name,
+        size: file.size,
+        mime_type: file.type,
+        total_chunks: totalChunks,
+        brand: brand || undefined,
+      }),
+    });
+    const initJson = await initRes.json();
+    if (!initJson.ok) {
+      return { filename: file.name, ok: false, error: `init: ${initJson.error}` };
+    }
+    const uploadId = initJson.upload_id as string;
+
+    // 2) sequential chunk upload
+    setStage("上傳中");
+    for (let i = 0; i < totalChunks; i++) {
+      setProgress({ fileIdx, total, chunk: i + 1, chunkTotal: totalChunks });
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const blob = file.slice(start, end);
+
+      const fd = new FormData();
+      fd.append("upload_id", uploadId);
+      fd.append("chunk_index", String(i));
+      fd.append("chunk", blob);
+
+      const chunkRes = await fetch("/api/admin/rag/whisper-upload/chunk", {
+        method: "POST",
+        body: fd,
+      });
+      const chunkJson = await chunkRes.json();
+      if (!chunkJson.ok) {
+        return { filename: file.name, ok: false, error: `chunk ${i}: ${chunkJson.error}` };
+      }
+    }
+
+    // 3) finalize(server 跑 ffmpeg + Whisper + INSERT)
+    setStage("處理 ffmpeg + Whisper");
+    setProgress({ fileIdx, total });
+    const finRes = await fetch("/api/admin/rag/whisper-upload/finalize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ upload_id: uploadId }),
+    });
+    const finJson = await finRes.json();
+    if (!finJson.ok) {
+      return { filename: file.name, ok: false, error: `finalize: ${finJson.error}` };
+    }
+
+    return {
+      filename: file.name,
+      ok: true,
+      brand: finJson.brand,
+      segments: finJson.segments,
+      transcript_chars: finJson.transcript_chars,
+      chunk_id: finJson.chunk_id,
+      action: finJson.action,
+    };
+  };
 
   const trigger = async () => {
     if (!files.length || running) return;
     setRunning(true);
     setResult(null);
+    setStage("");
 
-    // Sequential upload(避免 platform body size limit / Whisper 25MB / timeout)
-    const allResults: FileResult[] = [];
-    setProgress({ current: 0, total: files.length });
-
+    const results: FileResult[] = [];
     for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      setProgress({ current: i + 1, total: files.length });
-
       try {
-        // 預檢:Groq Whisper 限 25MB
-        if (f.size > 25 * 1024 * 1024) {
-          allResults.push({
-            filename: f.name,
-            ok: false,
-            error: `檔案 ${(f.size / 1024 / 1024).toFixed(1)}MB 超過 Groq Whisper 25MB 限制,需先切片或壓縮`,
-          });
-          continue;
-        }
-
-        const fd = new FormData();
-        fd.append("files", f);
-        if (brand) fd.append("brand", brand);
-
-        const res = await fetch("/api/admin/rag/whisper-batch", {
-          method: "POST",
-          body: fd,
-        });
-        const json = await res.json();
-        if (json.ok && json.results) {
-          allResults.push(...json.results);
-        } else {
-          allResults.push({ filename: f.name, ok: false, error: json.error || "未知錯誤" });
-        }
+        const r = await uploadOneFile(files[i], i + 1, files.length);
+        results.push(r);
       } catch (e) {
-        allResults.push({ filename: f.name, ok: false, error: (e as Error).message });
+        results.push({ filename: files[i].name, ok: false, error: (e as Error).message });
       }
     }
 
-    const okCount = allResults.filter(r => r.ok).length;
+    const okCount = results.filter(r => r.ok).length;
     setResult({
-      ok: true,
-      total: allResults.length,
+      total: results.length,
       success: okCount,
-      failed: allResults.length - okCount,
-      results: allResults,
+      failed: results.length - okCount,
+      results,
     });
+    setStage("");
     setProgress(null);
     setRunning(false);
     if (okCount > 0) setFiles([]);
   };
-
-  const totalSizeMB = (files.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(1);
 
   return (
     <div style={{
@@ -110,13 +156,12 @@ export default function WhisperBatchUploader() {
     }}>
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-          🎤 Whisper 批次上傳 → RAG(全品牌業務開發 Call)
+          🎤 Whisper 批次上傳 → RAG(全品牌業務開發 Call · 任意大小 / 錄影 / 音檔)
         </div>
         <div style={{ fontSize: 12, color: "var(--text2, #666)", lineHeight: 1.6 }}>
-          選 .wav / .mp3 多檔 → Groq Whisper Large v3 轉錄 →{" "}
-          <code>knowledge_chunks</code>(source_type=recording_transcript)
+          選 .wav / .mp3 / .mp4 / .mov / .m4a 多檔 → server 端 ffmpeg 自動切片 + 提取音訊 → Groq Whisper Large v3 → <code>knowledge_chunks</code>
           <br />
-          適用:nSchool 8 通 / XLAB 6 通 / 學米 2 通 / AI 未來 3 通 / 訓練官執行品牌檔案
+          <strong>沒有檔案大小限制</strong>(chunked upload 1MB / chunk),錄影自動 extract audio,大檔自動切段並行轉錄。
         </div>
       </div>
 
@@ -141,11 +186,11 @@ export default function WhisperBatchUploader() {
 
         <div style={{ flex: 1, minWidth: 280 }}>
           <label style={{ display: "block", fontSize: 11, color: "var(--text3, #888)", fontWeight: 600, marginBottom: 4 }}>
-            選擇 .wav / .mp3 檔案(可多選)
+            選擇 .wav / .mp3 / .mp4 / .mov / .m4a 檔案(可多選)
           </label>
           <input
             type="file"
-            accept="audio/wav,audio/mpeg,audio/mp3,.wav,.mp3"
+            accept="audio/*,video/*,.wav,.mp3,.m4a,.mp4,.mov,.webm"
             multiple
             onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
             style={{ fontSize: 12, fontFamily: "inherit" }}
@@ -165,48 +210,60 @@ export default function WhisperBatchUploader() {
           }}
         >
           {running
-            ? (progress ? `⏳ 處理中 ${progress.current}/${progress.total}…` : "⏳ Whisper 處理中…")
+            ? `⏳ 處理中…`
             : `🚀 上傳 ${files.length} 檔(${totalSizeMB} MB)`}
         </button>
       </div>
 
+      {/* 即時 progress(running 時) */}
+      {running && progress && (
+        <div style={{
+          padding: 12, marginBottom: 12,
+          background: "var(--ink-mist, #F0EFEA)",
+          borderRadius: 6, fontSize: 12,
+          color: "var(--text2, #555)",
+        }}>
+          📦 檔案 {progress.fileIdx}/{progress.total} · {stage}
+          {progress.chunk !== undefined && progress.chunkTotal !== undefined && (
+            <> · chunk {progress.chunk}/{progress.chunkTotal}</>
+          )}
+        </div>
+      )}
+
       {files.length > 0 && !running && !result && (
         <div style={{ fontSize: 11, color: "var(--text3, #888)" }}>
-          選了 {files.length} 檔:{files.map((f) => f.name).join(" · ")}
+          選了 {files.length} 檔:{files.map((f) => `${f.name}(${(f.size / 1024 / 1024).toFixed(1)}MB)`).join(" · ")}
         </div>
       )}
 
       {result && (
         <div style={{
           marginTop: 14, padding: 12,
-          background: result.ok ? "var(--ink-mist, #F0EFEA)" : "rgba(184, 71, 74, 0.08)",
-          border: `1px solid ${result.ok ? "var(--ink-line, #E5E2DA)" : "#B8474A"}`,
+          background: "var(--ink-mist, #F0EFEA)",
+          border: "1px solid var(--ink-line, #E5E2DA)",
           borderRadius: 6, fontSize: 12,
         }}>
-          {result.error ? (
-            <div style={{ color: "#B8474A" }}>❌ {result.error}</div>
-          ) : (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 10, marginBottom: 10 }}>
-                <Stat label="總計" value={result.total ?? 0} />
-                <Stat label="成功" value={result.success ?? 0} accent="#6B7A5A" />
-                <Stat label="失敗" value={result.failed ?? 0} accent="#B8474A" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 10, marginBottom: 10 }}>
+            <Stat label="總計" value={result.total} />
+            <Stat label="成功" value={result.success} accent="#6B7A5A" />
+            <Stat label="失敗" value={result.failed} accent="#B8474A" />
+          </div>
+          <div style={{ borderTop: "1px solid var(--ink-line, #E5E2DA)", paddingTop: 8, maxHeight: 280, overflowY: "auto" }}>
+            {result.results.map((r, i) => (
+              <div key={i} style={{
+                fontSize: 11, padding: "4px 0",
+                color: r.ok ? "var(--text2, #555)" : "#B8474A",
+                lineHeight: 1.6,
+              }}>
+                {r.ok ? "✅" : "❌"} <strong>{r.filename}</strong>
+                {r.brand && ` · brand=${r.brand}`}
+                {r.segments && ` · ${r.segments} 段`}
+                {r.transcript_chars && ` · ${r.transcript_chars} chars`}
+                {r.action && r.action !== "inserted" && ` · ${r.action}`}
+                {r.error && ` · ${r.error}`}
               </div>
-              <div style={{ borderTop: "1px solid var(--ink-line, #E5E2DA)", paddingTop: 8, maxHeight: 240, overflowY: "auto" }}>
-                {(result.results ?? []).map((r, i) => (
-                  <div key={i} style={{
-                    fontSize: 11, padding: "4px 0",
-                    color: r.ok ? "var(--text2, #555)" : "#B8474A",
-                  }}>
-                    {r.ok ? "✅" : "❌"} <strong>{r.filename}</strong>
-                    {r.brand && ` · brand=${r.brand}`}
-                    {r.chars !== undefined && ` · ${r.chars} chars`}
-                    {r.error && ` · ${r.error}`}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+            ))}
+          </div>
         </div>
       )}
     </div>
