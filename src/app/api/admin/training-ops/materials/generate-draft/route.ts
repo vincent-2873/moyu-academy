@@ -16,46 +16,77 @@ interface DraftModule {
   duration_min: number;
 }
 
-const BRAND_CHINESE: Record<string, string> = {
-  nschool:  "nSchool 財經學院",
-  xuemi:    "XUEMI 學米",
-  ooschool: "ooschool 無限學院",
-  aischool: "aischool 未來學院",
-  xlab:     "X LAB AI 實驗室",
+// Phase B-4 後對齊:砍 X Platform 6 brand(system-tree v2 不在系統範圍)
+// 統一以 path 區分(business_default / legal_default 等)
+const PATH_LABEL: Record<string, string> = {
+  business_default: "墨宇業務養成(BIZ)— 對齊 nSchool 真實 8 步驟 + 4 本書",
+  legal_default:    "墨宇法務養成(LEGAL)— 待 Vincent 給法務 source",
 };
 
-const SYSTEM_PROMPT = `你是墨宇集團的訓練設計專家。
+const SYSTEM_PROMPT = `你是墨宇集團的業務訓練設計專家。
 
-任務:為指定品牌設計 14 天業務養成 SOP,共 28 個 training modules(每天 2 個 module)。
+# 鐵則(2026-05-01 Vincent 拍板,Phase 6 前不變)
+做每個 module 都要「基於 nSchool 既有 source 延伸」,**不從零生成**。違反鐵則的 28 個 stub 已被 D19 SQL 砍除。
 
-設計原則(必須遵守):
-1. D0-D6 是基礎期(認識公司 / 顧問式開發 / 開場白 / 探詢需求)
-2. D7-D10 是進階期(異議處理 / 客戶分群 / 案例拆解)
-3. D11-D13 是實戰期(模擬電話 / Demo 演練 / 收尾簽約)
-4. 每天 sequence=1 多為「輸入」(video / reading),sequence=2 多為「輸出」(sparring / task / reflection)
-5. duration_min 控制在 5-30 分鐘(新人專注度有限)
-6. 標題要敘述性,不要用「Module 1 / D3 #2」這種代號(新人不會買單)
-7. description 要 1 句說「為什麼學這個」
+# 真實素材源(content/training/sales/nschool/.../Categories/訓練中心/開發檢核/)
+nSchool 真實 8 步驟(每個 sparring module 必須對齊這 8 步):
+1. 破冰 — IG 引入理財話題,問開放問題挖客戶投資領域興趣
+2. 信任建立 — 第三人視角(你/我/他)+ 數據+案例+複利效應(10萬投30年到174萬)
+3. 需求探索 — 基本面/技術面/籌碼面 + 痛點(被套/不知何時買賣/追高被坑)
+4. 介紹nSchool — 凱衛資訊 5201 上市櫃 + 20-30 年金融軟硬體 + nStock/Cmoney 同集團
+5. 補充資訊 — 蒐集需求/預算 + 起承轉合架構(別太早介紹「我是誰」)
+6. 財經架構 — 盈虧不對稱(賺10賠10時間成本)→ 時間複利演算 → 3 面分析導入
+7. 產品引導與價值說明 — 客製化 vs HAHOW + 財經教練 + 5-10% 學習成本論
+8. 行動邀請 — 30 min Google Meet 免費試聽 + 2 選 1 漏斗 + 加 LINE @5201nschool
 
-module_type 只能用以下 7 種(其他會被資料庫拒絕):
-- video       講師影片
-- reading     文章閱讀
-- quiz        小測驗
-- sparring    跟 Claude 對練(D2 後才開始,D7 後增加頻率)
-- task        實作任務(打第一通電話 / 寫客戶輪廓)
-- reflection  反思題(寫 100 字感想)
-- live_session 直播 / Workshop(可選,通常 D14 結業)
+# 4 本書 reading module(D20 SQL applied)
+- GROW(Goal/Reality/Options/Will)
+- 黃金圈(Why → How → What)
+- OKR(Objectives / Key Results,KPI 漏斗拆解)
+- SPIN(Situation/Problem/Implication/Need-Payoff)
 
-JSON output 格式(strict):
+# 訓練官 Yu 三點評估準則(對練必對齊)
+順暢性 / 邏輯性(依架構順序) / 語氣語調
+
+# KPI 漏斗(Yu 反覆強調)
+撥多少通 → 通次 → 通時 → 邀約 → 出席 → 成交
+
+# 14 天節奏(D2 既有結構)
+- D0 報到 → 合約 / 集團 / 業務制度 / 聽 5 份開發 Call / 兩兩對練(20:00+)
+- D1-2 顧問式開發說明 → nSchool 8 步驟逐字稿對練 + 4 本書 reading
+- D3-4 邀約嘗試(Pass 給學長帶)
+- D5 Demo 教學
+- D6 第一單
+- D7 第一週驗收(KPI 漏斗檢核)
+- D8-13 量 + 質提升
+- D14 出師驗收
+
+# 設計原則
+1. **每個 module 必須對應到 nSchool 8 步驟之一 / 4 本書之一 / D2 既有架構**(不創造新主題)
+2. sequence=1 偏「輸入」(video / reading);sequence=2 偏「輸出」(sparring / task / reflection)
+3. duration_min 5-30 min(新人專注度有限)
+4. 標題敘述性,不用代號(「Module 1 / D3 #2」NG)
+5. description 1 句說「為什麼學這個」+ 引用 nSchool source 主題
+6. sparring framework 對齊 nSchool 真實 8 步驟,不用 X-LAB 8 步(已砍)
+
+# module_type(7 種,違反會被 DB 拒)
+- video      講師影片
+- reading    文章閱讀(4 本書專用)
+- quiz       小測驗
+- sparring   跟 Claude 對練(D1 後開始,framework 對齊 nSchool 8 步驟)
+- task       實作任務
+- reflection 反思題
+- live_session 直播 / Workshop
+
+# JSON output 格式
 {
   "modules": [
-    { "day_offset": 0, "sequence": 1, "module_type": "video", "title": "歡迎來到 X 學院 · 首日報到", "description": "了解 X 的使命、3 大產品線、你的角色", "duration_min": 15 },
-    { "day_offset": 0, "sequence": 2, "module_type": "task", "title": "今日反思:我對銷售的想像 vs 現實", "description": "寫下你來這之前對銷售的想像,以及你想學會的事", "duration_min": 10 },
-    ... 28 entries total
+    { "day_offset": 0, "sequence": 1, "module_type": "video", "title": "...", "description": "...", "duration_min": 15 },
+    ...
   ]
 }
 
-不要加任何 markdown 或解釋,只回 strict JSON。`;
+不要加 markdown 或解釋,只回 strict JSON。`;
 
 /**
  * POST /api/admin/training-ops/materials/generate-draft
@@ -80,7 +111,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "path_id and brand required" }, { status: 400 });
   }
 
-  const brandLabel = BRAND_CHINESE[brand] ?? brand;
   const sb = getSupabaseAdmin();
 
   try {
@@ -93,11 +123,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: `Path not found: ${pathId}` }, { status: 404 });
     }
 
-    const userPrompt = `為「${brandLabel}」(brand code: ${brand})設計 14 天業務養成 SOP,共 28 個 module。
-此品牌特色請考量:
-${getBrandContext(brand)}
+    // 撈既有 module 看缺哪些(對齊鐵則:延伸既有,不重複生)
+    const { data: existingModules } = await sb.from("training_modules")
+      .select("day_offset, sequence, module_type, title")
+      .eq("path_id", pathId)
+      .order("day_offset", { ascending: true })
+      .order("sequence", { ascending: true });
 
-回 strict JSON。`;
+    const existingSummary = (existingModules ?? [])
+      .map(m => `D${m.day_offset}#${m.sequence} [${m.module_type}] ${m.title}`)
+      .join("\n");
+
+    const pathLabel = PATH_LABEL[pathRow.code] ?? pathRow.code;
+    const userPrompt = `Path: ${pathLabel}(code: ${pathRow.code} / brand: ${brand})
+total_days: ${pathRow.total_days ?? 14}
+
+既有 ${existingModules?.length ?? 0} 個 module(以下這些別重複生):
+${existingSummary || "(空,新品牌 path)"}
+
+請補滿 14 天節奏 — 對齊 nSchool 8 步驟 + 4 本書,基於既有 D2 結構延伸,**不創新主題**。
+回 strict JSON,modules 陣列只列「需要補的」module(不含既有的)。`;
 
     const oaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -175,12 +220,13 @@ ${getBrandContext(brand)}
     }
 
     // 寫到 path_completeness.claude_drafts(upsert)
+    const expectedTotal = (existingModules?.length ?? 0) + validated.length;
     const { error: upsertErr } = await sb.from("path_completeness")
       .upsert({
         path_id: pathId,
         brand,
-        total_modules_expected: 28,
-        total_modules_actual: 0,
+        total_modules_expected: expectedTotal,
+        total_modules_actual: existingModules?.length ?? 0,
         missing_modules: validated.map(m => ({ day: m.day_offset, sequence: m.sequence, suggested_title: m.title })),
         claude_drafts: { modules: validated, generated_at: new Date().toISOString() },
         computed_at: new Date().toISOString(),
@@ -194,7 +240,8 @@ ${getBrandContext(brand)}
       ok: true,
       path_code: pathRow.code,
       brand,
-      brand_label: brandLabel,
+      path_label: pathLabel,
+      existing_count: existingModules?.length ?? 0,
       drafts_count: validated.length,
       invalid_count: invalid.length,
       invalid,
@@ -205,22 +252,5 @@ ${getBrandContext(brand)}
       { ok: false, error: err instanceof Error ? err.message : String(err) },
       { status: 500 }
     );
-  }
-}
-
-function getBrandContext(brand: string): string {
-  switch (brand) {
-    case "nschool":
-      return "- 財經教育(投資理財 / 股票分析 / 個人理財規劃)\n- 客群:30-50 歲想學投資理財的上班族\n- 銷售重點:具體投報案例、信任感";
-    case "xuemi":
-      return "- 學米(技能成長 / 自我品牌 / 產品力)\n- 客群:25-45 歲想轉職或創業的上班族\n- 銷售重點:故事 / 個人品牌轉變的案例";
-    case "ooschool":
-      return "- 無限學院(全方位個人成長)\n- 客群:25-50 歲想精進通用能力的上班族\n- 銷售重點:跨領域應用、人脈、社群";
-    case "aischool":
-      return "- 未來學院(AI 應用 / 數位技能)\n- 客群:25-50 歲想學 AI / 工具的職場人\n- 銷售重點:具體 AI 工具示範、效率提升";
-    case "xlab":
-      return "- X LAB AI 實驗室(實體班 / Workshop)\n- 客群:25-50 歲想要實體互動學習的人\n- 銷售重點:現場體驗、講師近距離、實作";
-    default:
-      return "- 通用業務養成";
   }
 }

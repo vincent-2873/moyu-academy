@@ -152,7 +152,7 @@ export default function MaterialsPage() {
                                 marginTop: 8,
                               }}
                             >
-                              {generating[key] ? "Claude 生成中…" : "✨ 生成 28 個草稿"}
+                              {generating[key] ? "Claude 生成中…" : "✨ Claude 補缺 module(基於 nSchool 8 步驟+4 本書)"}
                             </button>
                           )}
                           {generateErr[key] && (
@@ -176,9 +176,11 @@ export default function MaterialsPage() {
           )}
 
           <StubNotice tasks={[
-            "Task 1.5 ✓ generate-draft + adopt-draft API 已上線(用 OpenAI gpt-4o-mini 一次生 28 module)",
-            "Task 1.6 待實作:Top 5 / Bottom 5 modules + Claude 評估",
-            "Phase 2 用戶開始用後:可加「reference brand」選項,從 nschool 改寫到 ooschool 等",
+            "✓ generate-draft + adopt-draft API(對齊 nSchool 真實 8 步驟 + 4 本書,延伸 D2 既有,不從零生)",
+            "✓ Phase B-4 後修:砍「28 module」hardcode,改成依 path 既有 module 補缺",
+            "✓ Phase B-5 後修:對齊 BIZ_MODULE_SPEC §8 教材管理規範",
+            "Task 1.6 待實作:Top 5 / Bottom 5 modules 成效 + Claude 評估",
+            "後續迭代:加 RAG retrieval(從 knowledge_chunks pillar='sales' 撈 nSchool chunk 進 prompt)",
           ]} />
         </>
       )}
