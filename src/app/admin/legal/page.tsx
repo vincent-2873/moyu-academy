@@ -1,5 +1,8 @@
-import { redirect } from "next/navigation";
-
+"use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 export default function AdminLegalRoot() {
-  redirect("/admin/legal/cases");
+  const router = useRouter();
+  useEffect(() => { router.replace("/admin/legal/cases"); }, [router]);
+  return null;
 }

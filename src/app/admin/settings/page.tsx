@@ -1,5 +1,8 @@
-import { redirect } from "next/navigation";
-
+"use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 export default function AdminSettingsRoot() {
-  redirect("/admin/settings/people");
+  const router = useRouter();
+  useEffect(() => { router.replace("/admin/settings/people"); }, [router]);
+  return null;
 }
