@@ -79,6 +79,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "ANTHROPIC_API_KEY env not set" }, { status: 500 });
   }
 
+  // ?info=1 → 只回 key 公開特徵(前 16 chars Anthropic console 本來就顯,不違反紅線 1)
+  if (url.searchParams.get("info") === "1") {
+    const prefix16 = apiKey.slice(0, 16);
+    const last4 = apiKey.slice(-4);
+    return NextResponse.json({
+      ok: true,
+      key_prefix_16: prefix16,
+      key_last_4: last4,
+      key_length: apiKey.length,
+      hint: "比對 Anthropic console 4 個 key 前 16 chars + 後 4 chars 看 prod 用哪個",
+    });
+  }
+
   const client = new Anthropic({ apiKey });
 
   // batch 模式
