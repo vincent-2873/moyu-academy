@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import FocusBoard from "@/components/admin/FocusBoard";
+import { useAdminDateRange } from "@/components/admin/TimeRangePicker";
+import { dateRangeQS } from "@/lib/dateRange";
 
 interface ChairmanBrand {
   id: string;
@@ -19,6 +21,9 @@ interface ChairmanBrand {
 interface ChairmanData {
   ok: boolean;
   generated_at: string;
+  period?: { from: string; to: string; custom: boolean };
+  effective_date?: string;
+  effective_date_is_today?: boolean;
   empire: {
     total_active_reps: number;
     total_silent_today: number;
@@ -30,18 +35,21 @@ interface ChairmanData {
 }
 
 export default function AdminSalesDashboardPage() {
+  const { range, hydrated } = useAdminDateRange();
   const [data, setData] = useState<ChairmanData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/chairman-overview", { cache: "no-store" })
+    if (!hydrated) return;
+    setLoading(true);
+    fetch(`/api/admin/chairman-overview?${dateRangeQS(range)}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
         if (j.ok) setData(j);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [hydrated, range.from, range.to]);
 
   return (
     <div>
@@ -49,6 +57,11 @@ export default function AdminSalesDashboardPage() {
         <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0 }}>📊 業務戰況</h1>
         <p style={{ fontSize: 13, color: "var(--text3, #888)", marginTop: 6 }}>
           集團漏斗 / 5 品牌橫向對比 / 排行榜 / 三層下鑽
+          {data?.period?.custom && (
+            <span style={{ marginLeft: 10, color: "var(--ds-primary, #b43c28)", fontWeight: 600 }}>
+              · 區間:{data.period.from} ~ {data.period.to}
+            </span>
+          )}
         </p>
       </div>
 

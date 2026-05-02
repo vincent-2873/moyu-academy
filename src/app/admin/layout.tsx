@@ -13,6 +13,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { AdminDateRangeProvider, TimeRangePicker } from "@/components/admin/TimeRangePicker";
+import { useAdminMe } from "@/components/admin/useAdminMe";
 
 interface AdminSession {
   email: string;
@@ -316,9 +318,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main content */}
       <main className="ds-shell__main">
         <div className="ds-page admin-fade-in">
-          {children}
+          <AdminDateRangeProvider>
+            <AdminToprail />
+            {children}
+          </AdminDateRangeProvider>
         </div>
       </main>
+    </div>
+  );
+}
+
+function AdminToprail() {
+  const { data: me } = useAdminMe();
+  const personaRole = me?.user.persona_role;
+  const isBoardAudience = me?.permissions.is_board_audience;
+  return (
+    <div className="admin-toprail">
+      {personaRole && (
+        <div className={`admin-persona-chip${isBoardAudience ? " admin-persona-chip--board" : ""}`}>
+          {isBoardAudience ? "🏛️ 投資人視角(只讀)" :
+           personaRole === "human_ops" ? "🛠️ Vincent 副手(完整權限)" :
+           personaRole === "employee_sales" ? "📊 業務員" :
+           personaRole === "employee_legal" ? "⚖️ 法務員" :
+           personaRole}
+        </div>
+      )}
+      <TimeRangePicker />
     </div>
   );
 }

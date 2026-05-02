@@ -18,6 +18,7 @@ import {
   Gavel, MessageQuote, Activity, TrendingUp, AlertTriangle, Flame, Clock,
   CheckCircle, XCircle, Edit3, Sparkles, FileText, Send, Loader,
 } from "../_icons";
+import { useAdminMe } from "@/components/admin/useAdminMe";
 
 interface Narrative {
   date: string;
@@ -58,10 +59,14 @@ interface ReportData {
   pending_decisions: PendingDecision[];
   recent_worker_runs: Array<{ source: string; status: string; created_at: string }>;
   recent_inquiries: Array<{ id: string; question: string; claude_answer: string | null; asker_role: string; asked_at: string }>;
+  prediction_history?: Array<{ target_period: string; metric: string; predicted_value: number; actual_value: number; accuracy_pct: number; predicted_at: string }>;
   has_today_narrative: boolean;
 }
 
 export default function ClaudeReportPage() {
+  const { data: me } = useAdminMe();
+  const canApprove = me?.permissions.can_approve ?? false;
+  const isBoardAudience = me?.permissions.is_board_audience ?? false;
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDrill, setShowDrill] = useState(false);
@@ -320,22 +325,30 @@ export default function ClaudeReportPage() {
               </div>
             )}
             <div className="memo-decision-actions">
-              <button
-                onClick={() => approveDecision(d.id, d.title)}
-                disabled={actingId === d.id}
-                className="ds-btn ds-btn--primary ds-btn--sm"
-              >
-                {actingId === d.id ? <Loader size={14} /> : <CheckCircle size={14} />}
-                核准 Claude 建議
-              </button>
-              <button
-                onClick={() => setRejectModalId(d.id)}
-                disabled={actingId === d.id}
-                className="ds-btn ds-btn--sm"
-              >
-                <XCircle size={14} />
-                駁回(寫原因)
-              </button>
+              {canApprove ? (
+                <>
+                  <button
+                    onClick={() => approveDecision(d.id, d.title)}
+                    disabled={actingId === d.id}
+                    className="ds-btn ds-btn--primary ds-btn--sm"
+                  >
+                    {actingId === d.id ? <Loader size={14} /> : <CheckCircle size={14} />}
+                    核准 Claude 建議
+                  </button>
+                  <button
+                    onClick={() => setRejectModalId(d.id)}
+                    disabled={actingId === d.id}
+                    className="ds-btn ds-btn--sm"
+                  >
+                    <XCircle size={14} />
+                    駁回(寫原因)
+                  </button>
+                </>
+              ) : (
+                <span style={{ fontSize: 12, color: "var(--ds-text-3)", fontStyle: "italic" }}>
+                  {isBoardAudience ? "🏛️ 投資人視角(只讀)— 拍板權在 Vincent" : "拍板權限不足"}
+                </span>
+              )}
             </div>
           </div>
         ))}
@@ -396,6 +409,55 @@ export default function ClaudeReportPage() {
           {toast.type === "info" && <Sparkles size={16} />}
           <span>{toast.msg}</span>
         </div>
+      )}
+
+      <hr className="memo-rule" />
+
+      {/* Claude 預測準度(Wave 8 #2)*/}
+      {data.prediction_history && data.prediction_history.length > 0 && (
+        <section className="memo-section">
+          <h3 className="memo-h3"><TrendingUp size={20} /> 我的預測 vs 實際</h3>
+          <p className="memo-help">
+            投資人最愛問「Claude 多準?」— 這裡是我過去 {data.prediction_history.length} 個 prediction 的真實對帳。
+          </p>
+          <div className="prediction-table">
+            <div className="prediction-table__head">
+              <span>週/月</span>
+              <span>指標</span>
+              <span>我預測</span>
+              <span>實際</span>
+              <span>準度</span>
+            </div>
+            {data.prediction_history.slice(0, 8).map((p, i) => {
+              const acc = Number(p.accuracy_pct || 0);
+              const accClass = acc >= 90 ? "good" : acc >= 70 ? "ok" : "warn";
+              const metricLabel: Record<string, string> = {
+                calls: "通話",
+                closures: "成交",
+                revenue: "營收",
+                conversion_rate: "轉換率",
+              };
+              return (
+                <div key={i} className="prediction-table__row">
+                  <span className="prediction-period">{p.target_period}</span>
+                  <span>{metricLabel[p.metric] || p.metric}</span>
+                  <span>{p.metric === "conversion_rate" ? `${(p.predicted_value * 100).toFixed(1)}%` : Math.round(p.predicted_value).toLocaleString()}</span>
+                  <span>{p.metric === "conversion_rate" ? `${(p.actual_value * 100).toFixed(1)}%` : Math.round(p.actual_value).toLocaleString()}</span>
+                  <span className={`prediction-acc prediction-acc--${accClass}`}>{acc.toFixed(0)}%</span>
+                </div>
+              );
+            })}
+          </div>
+          {(() => {
+            const avg = data.prediction_history.reduce((s, p) => s + Number(p.accuracy_pct || 0), 0) / data.prediction_history.length;
+            return (
+              <div className="prediction-summary">
+                平均準度 <strong>{avg.toFixed(1)}%</strong>
+                {avg >= 85 ? " — 我這個高管擔得起" : avg >= 70 ? " — 還在學,但比 baseline 強" : " — 我承認最近抓不準,我會調 prompt"}
+              </div>
+            );
+          })()}
+        </section>
       )}
 
       <hr className="memo-rule" />
@@ -954,6 +1016,58 @@ export default function ClaudeReportPage() {
         .memo-drill-icon { font-size: 24px; margin-bottom: 8px; }
         .memo-drill-title { font-weight: 700; font-family: 'Source Serif Pro', serif; font-size: 16px; }
         .memo-drill-hint { font-size: 12px; color: var(--ds-text-3); font-family: var(--ds-font-sans); margin-top: 4px; }
+
+        /* Wave 8 #2 — prediction table */
+        .prediction-table {
+          font-family: var(--ds-font-sans);
+          background: var(--ds-surface);
+          border: 1px solid var(--ds-border);
+          border-radius: 8px;
+          overflow: hidden;
+          margin-bottom: 12px;
+        }
+        .prediction-table__head, .prediction-table__row {
+          display: grid;
+          grid-template-columns: 1.4fr 0.8fr 1fr 1fr 0.7fr;
+          padding: 10px 14px;
+          align-items: center;
+          font-size: 13px;
+          gap: 8px;
+        }
+        .prediction-table__head {
+          background: var(--ds-surface-2);
+          font-size: 11px;
+          color: var(--ds-text-3);
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          border-bottom: 1px solid var(--ds-border);
+        }
+        .prediction-table__row {
+          border-bottom: 1px solid var(--ds-border-soft, rgba(120, 80, 30, 0.06));
+        }
+        .prediction-table__row:last-child { border-bottom: none; }
+        .prediction-period {
+          font-family: var(--ds-font-mono);
+          font-size: 12px;
+          color: var(--ds-text-2);
+        }
+        .prediction-acc {
+          font-weight: 700;
+          font-family: var(--ds-font-mono);
+          text-align: right;
+        }
+        .prediction-acc--good { color: var(--ds-success, #10b981); }
+        .prediction-acc--ok { color: var(--ds-warning, #f59e0b); }
+        .prediction-acc--warn { color: var(--ds-danger, #b43c28); }
+        .prediction-summary {
+          font-family: var(--ds-font-sans);
+          font-size: 13px;
+          color: var(--ds-text-2);
+          padding: 10px 14px;
+          background: var(--ds-surface-2);
+          border-radius: 6px;
+        }
       `}</style>
     </article>
   );

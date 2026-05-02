@@ -800,4 +800,126 @@ body::before { display: none; }
 @media print {
   .ds-shell__sidebar, .ds-shell__topbar { display: none; }
   .ds-page { padding: 0; }
+  .admin-toprail { display: none; }
 }
+
+/* ─────────────────────────────────────────────
+   Admin top-rail + TimeRangePicker(Wave 8 #1)
+   ───────────────────────────────────────────── */
+.admin-toprail {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 0 0 16px 0;
+  padding: 10px 14px;
+  background: var(--ds-surface-2, rgba(255, 248, 235, 0.5));
+  border: 1px solid var(--ds-border-soft, rgba(120, 80, 30, 0.12));
+  border-radius: var(--ds-radius-md, 10px);
+  backdrop-filter: blur(8px);
+}
+
+.admin-persona-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--ds-surface-1, white);
+  border: 1px solid var(--ds-border, rgba(120, 80, 30, 0.2));
+  border-radius: 999px;
+  color: var(--ds-text-2);
+  margin-right: auto;  /* 推到左,跟 picker 分開 */
+}
+
+.admin-persona-chip--board {
+  background: rgba(180, 60, 40, 0.06);
+  border-color: var(--ds-primary, #b43c28);
+  color: var(--ds-primary, #b43c28);
+}
+
+.trp-shell {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: var(--ds-fs-sm, 13px);
+}
+
+.trp-shell[data-compact="true"] {
+  gap: 4px;
+  font-size: 12px;
+}
+
+.trp-label {
+  font-weight: 700;
+  color: var(--ds-text-2, #5a4a30);
+  margin-right: 4px;
+}
+
+.trp-chip {
+  border: 1px solid var(--ds-border, rgba(120, 80, 30, 0.2));
+  background: transparent;
+  color: var(--ds-text-2, #5a4a30);
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: inherit;
+  transition: all 0.15s ease;
+}
+
+.trp-chip:hover {
+  background: var(--ds-primary-soft, rgba(180, 60, 40, 0.08));
+  border-color: var(--ds-primary, #b43c28);
+}
+
+.trp-chip--active {
+  background: var(--ds-primary, #b43c28);
+  color: white;
+  border-color: var(--ds-primary, #b43c28);
+  font-weight: 600;
+}
+
+.trp-current {
+  margin-left: 8px;
+  padding: 4px 10px;
+  background: var(--ds-surface-1, rgba(255, 255, 255, 0.7));
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--ds-text-1, #2c1810);
+  font-size: inherit;
+}
+
+.trp-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--ds-border-soft, rgba(120, 80, 30, 0.12));
+}
+
+.trp-date {
+  border: 1px solid var(--ds-border, rgba(120, 80, 30, 0.2));
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 12px;
+  background: white;
+  color: var(--ds-text-1, #2c1810);
+  font-family: inherit;
+}
+
+@media (max-width: 720px) {
+  .admin-toprail {
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .trp-shell {
+    flex-wrap: nowrap;
+  }
+  .trp-current {
+    display: none; /* 手機隱藏 label,只顯 chip 跟 picker */
+  }
+}
+

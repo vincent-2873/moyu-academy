@@ -1,13 +1,15 @@
+import { NextRequest } from "next/server";
 import { getSupabaseAdmin, fetchAllRows } from "@/lib/supabase";
 import { taipeiToday, taipeiDaysAgo } from "@/lib/time";
+import { parseDateRangeQS } from "@/lib/dateRange";
 
 /**
  * 董事長指揮中心 — 5 個業務品牌橫向比對
  *
  * 2026-05-02 Wave 7 fix:Vincent 拍板「HR/招募全砍」
- * - 拿掉 moyuhunt 獵頭快照、recruit funnel、sparring metric
- * - 加 xlab 到 5 個業務品牌
- * - 純 sales-only 視角(招募系統已下架)
+ * 2026-05-02 Wave 8 #1:支援 ?from=&to= query(TimeRangePicker 整頁聯動)
+ * - 沒帶 from/to → 維持原本 today + 過去 7 天視窗
+ * - 帶了 → today_xxx 表「該區間最後一天 KPI」、week_xxx 表「整個區間累計」
  */
 
 const SALES_BRANDS = ["nschool", "xuemi", "ooschool", "aischool", "xlab"];
@@ -39,18 +41,25 @@ const BRAND_META: Record<string, { name: string; color: string }> = {
   xlab: { name: "X LAB 實驗室", color: "#B8474A" },
 };
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     const today = taipeiToday();
-    const weekAgo = taipeiDaysAgo(7);
+
+    // Wave 8 #1: 接受 ?from=&to= 從 TimeRangePicker
+    const url = new URL(req.url);
+    const { from: qFrom, to: qTo } = parseDateRangeQS(url.searchParams);
+    const periodFrom = qFrom || taipeiDaysAgo(7);
+    const periodTo = qTo || today;
+    const usingCustomRange = !!(qFrom && qTo);
 
     const [usersRes, smdRows] = await Promise.all([
       supabase.from("users").select("id, email, name, brand, status, role").eq("status", "active"),
       fetchAllRows<{ salesperson_id: string | null; email: string; brand: string | null; date: string; calls: number; connected: number; appointments_show: number; closures: number; name: string }>(() =>
         supabase.from("sales_metrics_daily")
           .select("salesperson_id, email, brand, date, calls, connected, appointments_show, closures, name")
-          .gte("date", weekAgo)
+          .gte("date", periodFrom)
+          .lte("date", periodTo)
       ),
     ]);
 
@@ -70,8 +79,13 @@ export async function GET() {
 
     const datesInWeek = Array.from(new Set(kpis.map(k => k.date))).sort();
     const latestDate = datesInWeek[datesInWeek.length - 1];
-    const todayHasData = kpis.some(k => k.date === today);
-    const effectiveToday = todayHasData ? today : (latestDate || today);
+    // Wave 8 #1: 自訂區間時,effectiveToday = 區間最後一天(periodTo)有資料則取它,否則 latestDate
+    const todayHasData = usingCustomRange
+      ? kpis.some(k => k.date === periodTo)
+      : kpis.some(k => k.date === today);
+    const effectiveToday = usingCustomRange
+      ? (todayHasData ? periodTo : (latestDate || periodTo))
+      : (todayHasData ? today : (latestDate || today));
 
     const users = usersRes.data || [];
     const userBrandMap = new Map<string, string>();
@@ -181,6 +195,11 @@ export async function GET() {
       data_source: {
         sales_kpi: "sales_metrics_daily (Metabase Q1381 incremental sync)",
         note: "本頁 today 自動 fallback to latest workday(週末/假日資料未 finalize 時用最近一個工作日)。HR/招募系統已於 Wave 7 (2026-05-02) 砍除。",
+      },
+      period: {
+        from: periodFrom,
+        to: periodTo,
+        custom: usingCustomRange,
       },
       effective_date: effectiveToday,
       effective_date_is_today: todayHasData,
