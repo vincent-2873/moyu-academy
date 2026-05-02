@@ -41,6 +41,8 @@ on:
     - cron: '15 * * * *'        # 每小時 :15 — cron-failure-alert
     # 2026-04-30 末段 — auto-classify-pillar 週日 02:00 TPE = UTC 週六 18:00
     - cron: '0 18 * * 6'        # 週日 02:00 — auto-classify-pillar
+    # 2026-05-02 Wave 6 — claude-daily-narrative 每天 06:00 TPE = UTC 22:00 前一天
+    - cron: '0 22 * * *'        # 每天 22:00 UTC = 06:00 台北 — claude-daily-narrative
   workflow_dispatch:  # 允許 manual trigger
 
 jobs:
@@ -147,6 +149,10 @@ jobs:
           # 2026-04-30 末段 — auto-classify-pillar 週日 02:00 TPE = UTC 週六 18:00
           if [ "$SCHEDULE" = "0 18 * * 6" ] || [ "$MANUAL" = "true" ]; then
             call_cron auto-classify-pillar
+          fi
+          # claude-daily-narrative — 06:00 TPE = UTC 22:00 前一天
+          if [ "$SCHEDULE" = "0 22 * * *" ] || [ "$MANUAL" = "true" ]; then
+            call_cron claude-daily-narrative
           fi
 
           echo "Done."
