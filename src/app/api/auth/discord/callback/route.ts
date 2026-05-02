@@ -33,10 +33,11 @@ function buildAdminSessionCookie(email: string): string {
   return `${email}|${expiry}|${sig}`;
 }
 
+// 2026-05-02 Wave 8 cleanup:HR/招募 砍 recruiter / hr / recruit_manager
 const ADMIN_ROLES = [
   "super_admin", "ceo", "coo", "cfo", "director",
-  "brand_manager", "team_leader", "trainer", "recruiter", "hr",
-  "sales_manager", "recruit_manager", "legal_manager",
+  "brand_manager", "team_leader", "trainer",
+  "sales_manager", "legal_manager",
 ];
 
 export async function GET(req: NextRequest) {

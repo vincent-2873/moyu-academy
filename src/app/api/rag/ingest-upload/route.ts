@@ -87,8 +87,8 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (!user) return NextResponse.json({ error: "user not found" }, { status: 404 });
 
-    // 2026-04-30 末段 Vincent 反饋:RAG 上傳限定 4 role
-    //   super_admin / sales_manager / legal_manager / recruit_manager
+    // 2026-04-30 末段 Vincent 反饋:RAG 上傳限定 3 role(Wave 8 砍 recruit_manager)
+    //   super_admin / sales_manager / legal_manager
     if (!canUploadRag(user.role)) {
       return NextResponse.json({ error: uploadDeniedReason(user.role) }, { status: 403 });
     }

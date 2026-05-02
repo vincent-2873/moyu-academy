@@ -13,11 +13,12 @@ function buildAdminSessionCookie(email: string): string {
 }
 
 // 主管以上才能進後台。一般員工 + 新人只能用前台。
+// 2026-05-02 Wave 8 cleanup:HR/招募 砍 recruit_manager + hr
 const ALLOWED_ROLES = [
   'super_admin', 'ceo', 'coo', 'cfo', 'director',
   'brand_manager',
-  'sales_manager', 'recruit_manager', 'legal_manager',
-  'team_leader', 'trainer', 'mentor', 'hr',
+  'sales_manager', 'legal_manager',
+  'team_leader', 'trainer', 'mentor',
 ];
 
 export async function POST(req: NextRequest) {
