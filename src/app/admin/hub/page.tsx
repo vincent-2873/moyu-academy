@@ -73,6 +73,14 @@ export default function ClaudeReportPage() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [rejectModalId, setRejectModalId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [wantV2, setWantV2] = useState(true);
+  const [fadingId, setFadingId] = useState<string | null>(null);
+  // Toast
+  const [toast, setToast] = useState<{ type: "success" | "info" | "warn"; msg: string } | null>(null);
+  function showToast(type: "success" | "info" | "warn", msg: string) {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 4500);
+  }
 
   useEffect(() => { load(); }, []);
 
@@ -91,7 +99,7 @@ export default function ClaudeReportPage() {
     setGenerating(false);
   }
 
-  async function approveDecision(id: string) {
+  async function approveDecision(id: string, title: string) {
     setActingId(id);
     try {
       const r = await fetch(`/api/admin/decisions/${id}/approve`, {
@@ -100,26 +108,51 @@ export default function ClaudeReportPage() {
         body: JSON.stringify({ follow_up_action: "auto" }),
       });
       const j = await r.json();
-      if (j.ok) await load();
-      else alert("核准失敗:" + (j.error || "unknown"));
+      if (j.ok) {
+        // fade-out animation
+        setFadingId(id);
+        const followUps = j.follow_ups || [];
+        showToast("success", `✓ 已核准:${title.slice(0, 30)}${followUps.length > 0 ? ` · ${followUps[0]}` : ""}`);
+        setTimeout(async () => {
+          setFadingId(null);
+          await load();
+        }, 800);
+      } else {
+        showToast("warn", "核准失敗:" + (j.error || "unknown"));
+      }
     } finally { setActingId(null); }
   }
 
   async function rejectDecisionConfirm() {
     if (!rejectModalId || !rejectReason.trim()) return;
-    setActingId(rejectModalId);
+    const id = rejectModalId;
+    const title = data?.pending_decisions?.find(d => d.id === id)?.title || "";
+    setActingId(id);
     try {
-      const r = await fetch(`/api/admin/decisions/${rejectModalId}/reject`, {
+      const r = await fetch(`/api/admin/decisions/${id}/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: rejectReason }),
+        body: JSON.stringify({ reason: rejectReason, want_v2: wantV2 }),
       });
       const j = await r.json();
       if (j.ok) {
         setRejectModalId(null);
         setRejectReason("");
-        await load();
-      } else alert("駁回失敗:" + (j.error || "unknown"));
+        setFadingId(id);
+        if (j.v2_decision) {
+          showToast("success", `✓ 已駁回 · Claude 看完原因改了 v2:${j.v2_decision.title.slice(0, 35)}`);
+        } else if (wantV2) {
+          showToast("info", "已駁回 · v2 產生失敗(可能 ANTHROPIC_API_KEY 沒設或 Claude 拒答)");
+        } else {
+          showToast("success", `✓ 已駁回 · 我學到教訓,以後類似 pattern 不再提:${title.slice(0, 25)}`);
+        }
+        setTimeout(async () => {
+          setFadingId(null);
+          await load();
+        }, 800);
+      } else {
+        showToast("warn", "駁回失敗:" + (j.error || "unknown"));
+      }
     } finally { setActingId(null); }
   }
 
@@ -264,7 +297,7 @@ export default function ClaudeReportPage() {
           <div className="memo-empty">沒有待你拍板的事。我繼續看著。</div>
         )}
         {data.pending_decisions.map(d => (
-          <div key={d.id} className={`memo-decision memo-decision--${d.urgency}`}>
+          <div key={d.id} className={`memo-decision memo-decision--${d.urgency}`} data-fading={fadingId === d.id ? "true" : "false"}>
             <div className="memo-decision-head">
               <span className={`memo-urgency memo-urgency--${d.urgency}`}>
                 {d.urgency === "critical" ? <Flame size={13} /> : d.urgency === "high" ? <Clock size={13} /> : <Activity size={13} />}
@@ -288,7 +321,7 @@ export default function ClaudeReportPage() {
             )}
             <div className="memo-decision-actions">
               <button
-                onClick={() => approveDecision(d.id)}
+                onClick={() => approveDecision(d.id, d.title)}
                 disabled={actingId === d.id}
                 className="ds-btn ds-btn--primary ds-btn--sm"
               >
@@ -312,30 +345,56 @@ export default function ClaudeReportPage() {
       {rejectModalId && (
         <div className="memo-modal-backdrop" onClick={() => setRejectModalId(null)}>
           <div className="memo-modal" onClick={e => e.stopPropagation()}>
-            <h4 style={{ marginBottom: 10, fontFamily: "'Source Serif Pro', serif" }}>駁回 Claude 建議</h4>
-            <p style={{ fontSize: 13, color: "var(--ds-text-3)", marginBottom: 10 }}>
-              寫下駁回原因。我會把這個記進 RAG common pillar 當教訓,以後類似 pattern 我會避開。
+            <h4 style={{ marginBottom: 10, fontFamily: "'Source Serif Pro', serif", fontSize: 18 }}>駁回 Claude 建議</h4>
+            <p style={{ fontSize: 13, color: "var(--ds-text-3)", marginBottom: 10, lineHeight: 1.6 }}>
+              寫下駁回原因 — 越具體 Claude 改 v2 越精準。
             </p>
             <textarea
               className="ds-textarea"
               rows={4}
-              placeholder="例如:這個方向我們上季試過了,重點不是擴編而是改流程..."
+              placeholder="例如:這個方向我們上季試過了,重點不是擴編而是改流程,法務員真正卡的是案件分類沒系統化..."
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
               autoFocus
             />
-            <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+            {/* Toggle: 要不要 Claude v2 */}
+            <label className="memo-toggle">
+              <input
+                type="checkbox"
+                checked={wantV2}
+                onChange={e => setWantV2(e.target.checked)}
+              />
+              <span className="memo-toggle-text">
+                <strong>讓 Claude 看完原因再給一版 v2 提案</strong>
+                <span className="memo-toggle-hint">
+                  {wantV2
+                    ? "我會看你的原因 + 原 decision,改一版針對性的 v2(約 12 秒)"
+                    : "這個議題 dead — 我寫進教訓,以後類似 pattern 不再提"}
+                </span>
+              </span>
+            </label>
+            <div style={{ display: "flex", gap: 8, marginTop: 14, justifyContent: "flex-end" }}>
               <button onClick={() => { setRejectModalId(null); setRejectReason(""); }} className="ds-btn ds-btn--sm">取消</button>
               <button
                 onClick={rejectDecisionConfirm}
                 disabled={!rejectReason.trim() || actingId === rejectModalId}
                 className="ds-btn ds-btn--primary ds-btn--sm"
               >
-                {actingId === rejectModalId ? <Loader size={14} /> : <XCircle size={14} />}
-                確認駁回
+                {actingId === rejectModalId ? <Loader size={14} /> : (wantV2 ? <Sparkles size={14} /> : <XCircle size={14} />)}
+                {wantV2 ? "駁回並請 Claude 改 v2" : "駁回(此議題 dead)"}
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className={`memo-toast memo-toast--${toast.type}`} role="status">
+          {toast.type === "success" && <CheckCircle size={16} />}
+          {toast.type === "warn" && <AlertTriangle size={16} />}
+          {toast.type === "info" && <Sparkles size={16} />}
+          <span>{toast.msg}</span>
         </div>
       )}
 
@@ -755,9 +814,73 @@ export default function ClaudeReportPage() {
           border: 1px solid var(--ds-border);
           border-radius: 12px;
           padding: 24px;
-          max-width: 500px;
+          max-width: 540px;
           width: 100%;
           box-shadow: var(--ds-shadow-lg);
+        }
+        .memo-toggle {
+          display: flex;
+          gap: 10px;
+          margin-top: 14px;
+          padding: 12px;
+          background: var(--ds-accent-soft);
+          border: 1px solid var(--ds-accent);
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 13px;
+          line-height: 1.5;
+        }
+        .memo-toggle input[type="checkbox"] {
+          margin-top: 3px;
+          accent-color: var(--ds-primary);
+          flex-shrink: 0;
+        }
+        .memo-toggle-text {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .memo-toggle-hint {
+          font-size: 12px;
+          color: var(--ds-text-2);
+        }
+        /* Decision card fade-out */
+        .memo-decision {
+          transition: opacity 0.6s ease, transform 0.6s ease, max-height 0.6s ease;
+          overflow: hidden;
+        }
+        .memo-decision[data-fading="true"] {
+          opacity: 0.3;
+          transform: translateX(-20px);
+          pointer-events: none;
+        }
+        /* Toast */
+        .memo-toast {
+          position: fixed;
+          bottom: 24px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 20px;
+          background: var(--ds-text);
+          color: var(--ds-text-on);
+          border-radius: 999px;
+          font-size: 14px;
+          font-family: var(--ds-font-sans);
+          box-shadow: var(--ds-shadow-lg);
+          z-index: 200;
+          animation: ds-toast-in 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+          max-width: 720px;
+          line-height: 1.5;
+        }
+        .memo-toast--success { background: var(--ds-success); }
+        .memo-toast--warn { background: var(--ds-warning); }
+        .memo-toast--info { background: var(--ds-info); }
+        @keyframes ds-toast-in {
+          from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
         .memo-h3 :global(svg) {
           vertical-align: middle;
