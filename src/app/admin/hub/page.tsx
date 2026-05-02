@@ -12,8 +12,12 @@
  * 下半:等你拍板 cards + 質詢 Claude 入口 + [展開戰況] accordion
  */
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  Gavel, MessageQuote, Activity, TrendingUp, AlertTriangle, Flame, Clock,
+  CheckCircle, XCircle, Edit3, Sparkles, FileText, Send, Loader,
+} from "../_icons";
 
 interface Narrative {
   date: string;
@@ -65,6 +69,10 @@ export default function ClaudeReportPage() {
   const [askInput, setAskInput] = useState("");
   const [askResult, setAskResult] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  // decision approve/reject state
+  const [actingId, setActingId] = useState<string | null>(null);
+  const [rejectModalId, setRejectModalId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => { load(); }, []);
 
@@ -81,6 +89,38 @@ export default function ClaudeReportPage() {
     await fetch("/api/cron/claude-daily-narrative?key=manual-trigger", { method: "POST" });
     await load();
     setGenerating(false);
+  }
+
+  async function approveDecision(id: string) {
+    setActingId(id);
+    try {
+      const r = await fetch(`/api/admin/decisions/${id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ follow_up_action: "auto" }),
+      });
+      const j = await r.json();
+      if (j.ok) await load();
+      else alert("核准失敗:" + (j.error || "unknown"));
+    } finally { setActingId(null); }
+  }
+
+  async function rejectDecisionConfirm() {
+    if (!rejectModalId || !rejectReason.trim()) return;
+    setActingId(rejectModalId);
+    try {
+      const r = await fetch(`/api/admin/decisions/${rejectModalId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: rejectReason }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        setRejectModalId(null);
+        setRejectReason("");
+        await load();
+      } else alert("駁回失敗:" + (j.error || "unknown"));
+    } finally { setActingId(null); }
   }
 
   async function submitAsk() {
@@ -191,7 +231,7 @@ export default function ClaudeReportPage() {
           <div className="memo-callouts">
             {n.highlights?.map((h, i) => (
               <div key={"h" + i} className="memo-callout memo-callout--good">
-                <span className="memo-callout-icon">✦</span>
+                <span className="memo-callout-icon"><TrendingUp size={18} color="var(--ds-success)" /></span>
                 <div>
                   <div>{h.text}</div>
                   {h.cite && <div className="memo-cite">[依據:{h.cite}]</div>}
@@ -200,7 +240,11 @@ export default function ClaudeReportPage() {
             ))}
             {n.warnings?.map((w, i) => (
               <div key={"w" + i} className={`memo-callout memo-callout--${w.severity === "critical" ? "danger" : "warn"}`}>
-                <span className="memo-callout-icon">{w.severity === "critical" ? "▲" : "△"}</span>
+                <span className="memo-callout-icon">
+                  {w.severity === "critical"
+                    ? <Flame size={18} color="var(--ds-danger)" />
+                    : <AlertTriangle size={18} color="var(--ds-warning)" />}
+                </span>
                 <div>
                   <div>{w.text}</div>
                   {w.cite && <div className="memo-cite">[依據:{w.cite}]</div>}
@@ -215,14 +259,15 @@ export default function ClaudeReportPage() {
 
       {/* 等你拍板區 */}
       <section className="memo-section">
-        <h3 className="memo-h3">⌧ 我做不了的,等你拍板</h3>
+        <h3 className="memo-h3"><Gavel size={20} /> 我做不了的,等你拍板</h3>
         {data.pending_decisions.length === 0 && (
           <div className="memo-empty">沒有待你拍板的事。我繼續看著。</div>
         )}
         {data.pending_decisions.map(d => (
           <div key={d.id} className={`memo-decision memo-decision--${d.urgency}`}>
             <div className="memo-decision-head">
-              <span className={`ds-badge ${d.urgency === "critical" ? "ds-badge--danger" : d.urgency === "high" ? "ds-badge--warning" : "ds-badge"}`}>
+              <span className={`memo-urgency memo-urgency--${d.urgency}`}>
+                {d.urgency === "critical" ? <Flame size={13} /> : d.urgency === "high" ? <Clock size={13} /> : <Activity size={13} />}
                 {d.urgency === "critical" ? "急" : d.urgency === "high" ? "重要" : "一般"}
               </span>
               <span className="memo-decision-cat">{d.category}</span>
@@ -242,18 +287,63 @@ export default function ClaudeReportPage() {
               </div>
             )}
             <div className="memo-decision-actions">
-              <button className="ds-btn ds-btn--primary ds-btn--sm">核准 Claude 建議</button>
-              <button className="ds-btn ds-btn--sm">改 / 駁回</button>
+              <button
+                onClick={() => approveDecision(d.id)}
+                disabled={actingId === d.id}
+                className="ds-btn ds-btn--primary ds-btn--sm"
+              >
+                {actingId === d.id ? <Loader size={14} /> : <CheckCircle size={14} />}
+                核准 Claude 建議
+              </button>
+              <button
+                onClick={() => setRejectModalId(d.id)}
+                disabled={actingId === d.id}
+                className="ds-btn ds-btn--sm"
+              >
+                <XCircle size={14} />
+                駁回(寫原因)
+              </button>
             </div>
           </div>
         ))}
       </section>
 
+      {/* Reject modal */}
+      {rejectModalId && (
+        <div className="memo-modal-backdrop" onClick={() => setRejectModalId(null)}>
+          <div className="memo-modal" onClick={e => e.stopPropagation()}>
+            <h4 style={{ marginBottom: 10, fontFamily: "'Source Serif Pro', serif" }}>駁回 Claude 建議</h4>
+            <p style={{ fontSize: 13, color: "var(--ds-text-3)", marginBottom: 10 }}>
+              寫下駁回原因。我會把這個記進 RAG common pillar 當教訓,以後類似 pattern 我會避開。
+            </p>
+            <textarea
+              className="ds-textarea"
+              rows={4}
+              placeholder="例如:這個方向我們上季試過了,重點不是擴編而是改流程..."
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+              <button onClick={() => { setRejectModalId(null); setRejectReason(""); }} className="ds-btn ds-btn--sm">取消</button>
+              <button
+                onClick={rejectDecisionConfirm}
+                disabled={!rejectReason.trim() || actingId === rejectModalId}
+                className="ds-btn ds-btn--primary ds-btn--sm"
+              >
+                {actingId === rejectModalId ? <Loader size={14} /> : <XCircle size={14} />}
+                確認駁回
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <hr className="memo-rule" />
 
       {/* 質詢入口 */}
       <section className="memo-section">
-        <h3 className="memo-h3">⌶ 質詢我</h3>
+        <h3 className="memo-h3"><MessageQuote size={20} /> 質詢我</h3>
         <p className="memo-help">投資人 / 董事 / Vincent 都可以打字問。我會用 RAG + Metabase 真資料回答,並引用來源。</p>
         <div className="memo-ask">
           <textarea
@@ -298,7 +388,7 @@ export default function ClaudeReportPage() {
 
       {/* 自動化運作摘要 */}
       <section className="memo-section memo-ops">
-        <h3 className="memo-h3">⌬ 過去 24h 我自己處理了</h3>
+        <h3 className="memo-h3"><Activity size={20} /> 過去 24h 我自己處理了</h3>
         <div className="memo-ops-grid">
           <div className="memo-ops-stat">
             <div className="memo-ops-stat-num">{n?.worker_runs_24h ?? 0}</div>
@@ -618,6 +708,61 @@ export default function ClaudeReportPage() {
           display: flex;
           gap: 8px;
           margin-top: 12px;
+          flex-wrap: wrap;
+        }
+        .memo-decision-actions :global(.ds-btn) {
+          gap: 6px;
+        }
+        .memo-urgency {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 3px 10px;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          border-radius: 999px;
+          border: 1px solid;
+        }
+        .memo-urgency--critical {
+          background: var(--ds-danger-soft);
+          color: var(--ds-danger);
+          border-color: var(--ds-danger);
+        }
+        .memo-urgency--high {
+          background: var(--ds-warning-soft);
+          color: var(--ds-warning);
+          border-color: var(--ds-warning);
+        }
+        .memo-urgency--normal {
+          background: var(--ds-surface-2);
+          color: var(--ds-text-2);
+          border-color: var(--ds-border);
+        }
+        .memo-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(26, 24, 21, 0.5);
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          font-family: var(--ds-font-sans);
+        }
+        .memo-modal {
+          background: var(--ds-surface);
+          border: 1px solid var(--ds-border);
+          border-radius: 12px;
+          padding: 24px;
+          max-width: 500px;
+          width: 100%;
+          box-shadow: var(--ds-shadow-lg);
+        }
+        .memo-h3 :global(svg) {
+          vertical-align: middle;
+          margin-right: 6px;
+          color: var(--ds-text-2);
         }
         .memo-ask {
           background: var(--ds-surface-2);

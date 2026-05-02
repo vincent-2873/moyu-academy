@@ -651,6 +651,10 @@ p { margin: 0; }
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes ds-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
 .ds-fade-in { animation: ds-fade-in 180ms ease-out; }
 
 /* ============================================================================
