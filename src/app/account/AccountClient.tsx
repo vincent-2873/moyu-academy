@@ -12,7 +12,6 @@ const STAGE_NAMES: Record<string, string> = {
 
 const PATH_NAMES: Record<string, string> = {
   business: "業務養成",
-  recruit: "招募養成",
   legal: "法務養成",
   common: "通用養成",
 };
