@@ -150,7 +150,8 @@ export async function POST(req: NextRequest) {
           const embData = await embRes.json();
           const qEmb = embData.data?.[0]?.embedding;
           if (qEmb) {
-            const pathTypeFilter = (user as any).stage_path === "recruit" ? "recruit" : "business";
+            // 2026-05-02 Wave 8 cleanup:HR/招募 砍,stage_path 永遠不是 recruit
+            const pathTypeFilter = "business";
             // RAG 三池 (2026-04-30) — derive 該 user role 可看的 pillar 清單
             const userRole = (user as any).role || null;
             const allowedPillars = userRole ? getRolePillars(userRole) : null;

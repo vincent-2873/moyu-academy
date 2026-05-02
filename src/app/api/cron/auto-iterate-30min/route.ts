@@ -4,12 +4,12 @@ import { linePush } from "@/lib/line-notify";
 
 /**
  * /api/cron/auto-iterate-30min
- * 每 30 分鐘 — 跨 3 支柱的「主動監測 + 產命令 + 通知主管」
+ * 每 30 分鐘 — 跨 2 支柱的「主動監測 + 產命令 + 通知主管」
+ * 2026-05-02 Wave 8 cleanup:HR/招募 砍 scanRecruit 整段
  *
  *  Scan:
  *    sales   — 今日無撥打 / 低成交 / 團隊沒人出席的主管 push
  *    legal   — 逾期案件 / 本週到期 / 超過 3 天沒動作的案件 → 承辦 + 主管
- *    recruit — 有興趣 > 24h 未聯絡 → 主管
  *
  *  Actions:
  *    1. 產 v3_commands（severity 依狀況）
@@ -23,7 +23,7 @@ import { linePush } from "@/lib/line-notify";
 
 interface GeneratedCmd {
   owner_email: string;
-  pillar_id: "sales" | "legal" | "recruit";
+  pillar_id: "sales" | "legal";
   title: string;
   detail: string;
   severity: "normal" | "high" | "critical";
@@ -156,30 +156,6 @@ async function scanLegal(supabase: ReturnType<typeof getSupabaseAdmin>) {
   return { generated, counts: { overdue: overdue?.length || 0, due_soon: dueSoon?.length || 0, stale: stale?.length || 0 } };
 }
 
-async function scanRecruit(supabase: ReturnType<typeof getSupabaseAdmin>) {
-  const generated: GeneratedCmd[] = [];
-  // 有興趣超過 24h 仍未被聯絡 → 推 Lynn
-  const dayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const { data: stale } = await supabase
-    .from("outreach_104_queue")
-    .select("id, candidate_name, account, last_reply_text, reply_received_at")
-    .eq("reply_status", "interested")
-    .is("phone_contacted_at", null)
-    .lt("reply_received_at", dayAgo)
-    .limit(10);
-  if ((stale || []).length >= 3) {
-    generated.push({
-      owner_email: "lynn@xplatform.world",
-      pillar_id: "recruit",
-      title: `🎯 招聘：${stale!.length} 位求職者超過 24h 未聯絡`,
-      detail: stale!.slice(0, 5).map((r) => `${r.candidate_name}（${r.account}）`).join("、"),
-      severity: "high",
-      ai_reasoning: `recruit_cold_lead_${new Date().toISOString().slice(0, 10)}`,
-    });
-  }
-  return { generated, counts: { cold_leads: stale?.length || 0 } };
-}
-
 async function scanSales(supabase: ReturnType<typeof getSupabaseAdmin>) {
   const generated: GeneratedCmd[] = [];
   const tpToday = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
@@ -229,19 +205,17 @@ export async function GET(req: Request) {
   const supabase = getSupabaseAdmin();
   const startedAt = Date.now();
 
-  const [legal, recruit, sales] = await Promise.all([
+  const [legal, sales] = await Promise.all([
     scanLegal(supabase).catch((e) => ({ error: String(e), generated: [], counts: {} })),
-    scanRecruit(supabase).catch((e) => ({ error: String(e), generated: [], counts: {} })),
     scanSales(supabase).catch((e) => ({ error: String(e), generated: [], counts: {} })),
   ]);
   const allGenerated: GeneratedCmd[] = [
     ...("generated" in legal ? legal.generated : []),
-    ...("generated" in recruit ? recruit.generated : []),
     ...("generated" in sales ? sales.generated : []),
   ];
 
   let created = 0;
-  const pushes: Record<string, number> = { sales: 0, legal: 0, recruit: 0 };
+  const pushes: Record<string, number> = { sales: 0, legal: 0 };
   for (const cmd of allGenerated) {
     const r = await dedupedInsert(supabase, cmd);
     if (r.created) {
@@ -260,10 +234,6 @@ export async function GET(req: Request) {
     msg.push(`⚖️ 法務：逾期 ${legalCounts.overdue || 0} / 3 日到期 ${legalCounts.due_soon || 0} / 停滯 ${legalCounts.stale || 0}`);
     await pushToPillarManagers(supabase, "legal", msg.join("\n"));
   }
-  if (pushes.recruit > 0) {
-    const recruitCounts = "counts" in recruit ? recruit.counts as Record<string, number> : {};
-    await pushToPillarManagers(supabase, "recruit", `🎯 招聘：${recruitCounts.cold_leads || 0} 位求職者超過 24h 未打`);
-  }
   if (pushes.sales > 0) {
     const salesCounts = "counts" in sales ? sales.counts as Record<string, number> : {};
     await pushToPillarManagers(supabase, "sales", `💰 業務：今日 ${salesCounts.silent_today || 0} 位無撥打`);
@@ -273,10 +243,9 @@ export async function GET(req: Request) {
   await supabase.from("claude_actions").insert({
     action_type: "auto_iterate_30min",
     target: "system",
-    summary: `掃描完成：產 ${created} 條新命令（legal ${pushes.legal} + recruit ${pushes.recruit} + sales ${pushes.sales} push）`,
+    summary: `掃描完成：產 ${created} 條新命令（legal ${pushes.legal} + sales ${pushes.sales} push）`,
     details: {
       legal: "counts" in legal ? legal.counts : {},
-      recruit: "counts" in recruit ? recruit.counts : {},
       sales: "counts" in sales ? sales.counts : {},
       ms: Date.now() - startedAt,
     },
@@ -288,7 +257,6 @@ export async function GET(req: Request) {
     ms: Date.now() - startedAt,
     scanned: {
       legal: "counts" in legal ? legal.counts : null,
-      recruit: "counts" in recruit ? recruit.counts : null,
       sales: "counts" in sales ? sales.counts : null,
     },
     commands_created: created,
