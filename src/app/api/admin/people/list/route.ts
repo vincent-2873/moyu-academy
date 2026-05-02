@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   const sb = getSupabaseAdmin();
   const { data: users, error } = await sb
     .from("users")
-    .select("id, email, name, role, persona_role, brand, status, is_active, created_at, last_login_at")
+    .select("id, email, name, role, persona_role, brand, status, is_active, created_at")
     .eq("status", "active")
     .order("persona_role", { ascending: true })
     .order("created_at", { ascending: false });

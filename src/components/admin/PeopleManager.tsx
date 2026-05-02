@@ -26,7 +26,6 @@ interface UserRow {
   status: string | null;
   is_active: boolean | null;
   created_at: string;
-  last_login_at: string | null;
 }
 
 interface RoleOption {
@@ -210,13 +209,12 @@ export default function PeopleManager() {
               <th>persona_role</th>
               <th>品牌</th>
               <th>建立時間</th>
-              <th>最後登入</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: "center", padding: 24, color: "var(--ds-text-3)" }}>
+                <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "var(--ds-text-3)" }}>
                   沒有符合條件的成員
                 </td>
               </tr>
@@ -240,7 +238,6 @@ export default function PeopleManager() {
                 </td>
                 <td>{u.brand || "-"}</td>
                 <td className="people-date">{u.created_at?.slice(0, 10) || "-"}</td>
-                <td className="people-date">{u.last_login_at?.slice(0, 10) || "—"}</td>
               </tr>
             ))}
           </tbody>
