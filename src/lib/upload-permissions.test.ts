@@ -6,19 +6,17 @@ describe("upload-permissions", () => {
     expect(canUploadRag("super_admin")).toBe(true);
   });
 
-  it("3 manager 可上傳", () => {
+  it("2 manager 可上傳", () => {
     expect(canUploadRag("sales_manager")).toBe(true);
     expect(canUploadRag("legal_manager")).toBe(true);
-    expect(canUploadRag("recruit_manager")).toBe(true);
   });
 
   it("一般員工不可上傳", () => {
     expect(canUploadRag("sales_rep")).toBe(false);
-    expect(canUploadRag("recruiter")).toBe(false);
     expect(canUploadRag("legal_staff")).toBe(false);
     expect(canUploadRag("trainer")).toBe(false);
     expect(canUploadRag("brand_manager")).toBe(false);     // brand_manager 也不在允許清單
-    expect(canUploadRag("ceo")).toBe(false);                // ceo 也不在(只 4 個)
+    expect(canUploadRag("ceo")).toBe(false);                // ceo 也不在(只 3 個)
   });
 
   it("空值 / undefined 不可", () => {
@@ -27,8 +25,8 @@ describe("upload-permissions", () => {
     expect(canUploadRag("")).toBe(false);
   });
 
-  it("RAG_UPLOAD_ROLES 剛好 4 個", () => {
-    expect(RAG_UPLOAD_ROLES.size).toBe(4);
+  it("RAG_UPLOAD_ROLES 剛好 3 個(Wave 8 砍 recruit_manager)", () => {
+    expect(RAG_UPLOAD_ROLES.size).toBe(3);
   });
 
   it("uploadDeniedReason 包含 role 名", () => {

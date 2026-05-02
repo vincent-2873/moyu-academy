@@ -6,7 +6,7 @@ import { parseDateRangeQS } from "@/lib/dateRange";
 /**
  * 董事長指揮中心 — 5 個業務品牌橫向比對
  *
- * 2026-05-02 Wave 7 fix:Vincent 拍板「HR/招募全砍」
+ * 純 sales-only 視角 — nschool / xuemi / ooschool / aischool / xlab
  * 2026-05-02 Wave 8 #1:支援 ?from=&to= query(TimeRangePicker 整頁聯動)
  * - 沒帶 from/to → 維持原本 today + 過去 7 天視窗
  * - 帶了 → today_xxx 表「該區間最後一天 KPI」、week_xxx 表「整個區間累計」
@@ -194,7 +194,7 @@ export async function GET(req: NextRequest) {
       generated_at: new Date().toISOString(),
       data_source: {
         sales_kpi: "sales_metrics_daily (Metabase Q1381 incremental sync)",
-        note: "本頁 today 自動 fallback to latest workday(週末/假日資料未 finalize 時用最近一個工作日)。HR/招募系統已於 Wave 7 (2026-05-02) 砍除。",
+        note: "本頁 today 自動 fallback to latest workday(週末/假日資料未 finalize 時用最近一個工作日)。",
       },
       period: {
         from: periodFrom,

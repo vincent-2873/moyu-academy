@@ -186,7 +186,7 @@ export default function AnnouncementsEditor() {
                 <input value={draft.target_brand || ""} onChange={e => patch({ target_brand: e.target.value || null })} placeholder="如 nschool / aischool" style={inputStyle} />
               </Field>
               <Field label="目標角色(留空 = 全角色)">
-                <input value={draft.target_role || ""} onChange={e => patch({ target_role: e.target.value || null })} placeholder="如 sales_rep / recruiter" style={inputStyle} />
+                <input value={draft.target_role || ""} onChange={e => patch({ target_role: e.target.value || null })} placeholder="如 sales_rep / legal_staff" style={inputStyle} />
               </Field>
             </div>
 

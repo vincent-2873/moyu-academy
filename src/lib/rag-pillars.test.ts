@@ -14,12 +14,8 @@ describe("rag-pillars (post-2026-05-01: HR 體系已砍)", () => {
     expect(getRolePillars("trainer").sort()).toEqual(["common", "sales"]);
   });
 
-  it("recruiter 只看 common(招募 pillar 不存在,合併至 common)", () => {
-    expect(getRolePillars("recruiter")).toEqual(["common"]);
-  });
-
-  it("hr role 只看 common(HR pillar 已 deprecated)", () => {
-    expect(getRolePillars("hr")).toEqual(["common"]);
+  it("未知 role(已砍 hr/recruiter)fallback common", () => {
+    expect(getRolePillars("unknown_role")).toEqual(["common"]);
   });
 
   it("legal_staff 限 legal + common", () => {

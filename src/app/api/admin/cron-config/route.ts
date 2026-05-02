@@ -21,7 +21,6 @@ const KNOWN_CRONS = [
   { code: "line-inbound-dispatcher",    label: "LINE 入站派發",       default_schedule: "*/5 * * * *" },
   { code: "manager-care-push",          label: "主管關心推送",        default_schedule: "0 10 * * *" },
   { code: "metabase-sync",              label: "Metabase 同步",       default_schedule: "0 1,9 * * *" },
-  // 2026-05-02 Wave 7: HR/招募 全砍 — recruit-auto-outreach / recruiter-briefing-push 已下架
   { code: "rookie-training-push",       label: "新人訓練推送",        default_schedule: "0 1 * * *" },
   { code: "claude-daily-narrative",     label: "Claude 每日 memo",    default_schedule: "0 22 * * *" },
   { code: "sales-metrics-rules",        label: "業務指標規則",        default_schedule: "0 */1 * * *" },
