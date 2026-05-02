@@ -21,11 +21,6 @@ const ROLE_PILLAR_MAP: Record<string, Pillar[]> = {
   sales_rookie: ["sales", "common"],
   sales_manager: ["sales", "common"],
 
-  // 招募類 role(架構沒 HR pillar,合併至 common)
-  recruiter: ["common"],
-  hr: ["common"],
-  recruit_manager: ["common"],
-
   // 法務體系
   legal_staff: ["legal", "common"],
   legal_manager: ["legal", "common"],

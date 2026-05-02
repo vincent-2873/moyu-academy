@@ -1,13 +1,14 @@
 // Client-side store using localStorage
+// 2026-05-02 Wave 8 cleanup:HR/招募 全砍,移除 recruit CompanyType + sparringRecords (legacy)
 
-export type CompanyType = "sales" | "recruit" | "hq" | "legal";
+export type CompanyType = "sales" | "hq" | "legal";
 
 export interface User {
   email: string;
   password: string;
   name: string;
   brand: string;
-  /** "sales" = 業務公司員工 / "recruit" = 獵頭公司員工 */
+  /** "sales" = 業務公司員工 */
   companyType?: CompanyType;
   role?: string;
   joinDate: string;
@@ -24,29 +25,6 @@ export interface User {
     appointments: number;
     closures: number;
   }[];
-  sparringRecords: SparringRecord[];
-}
-
-export interface SparringRecord {
-  id: string;
-  date: string;
-  personaId: string;
-  personaName: string;
-  moduleDay?: number;
-  messages: { role: "user" | "assistant"; content: string }[];
-  scores: SparringScores;
-  feedback: string;
-  duration: number; // seconds
-}
-
-export interface SparringScores {
-  opening: number;
-  spinCoverage: number;
-  painPointDepth: number;
-  solutionMatch: number;
-  objectionHandling: number;
-  closingPush: number;
-  overall: number;
 }
 
 const STORAGE_KEY = "moyu_academy_v2";
@@ -73,7 +51,6 @@ export function getCurrentUser(): User | null {
 export function setCurrentUser(email: string) {
   // 切換登入者時先清掉所有跟前一個使用者有關的 session/cookie 殘留
   try {
-    sessionStorage.removeItem("moyu_recruit_email");
     sessionStorage.removeItem("adminSession");
     // 清 LINE OAuth / 忘記密碼流程 cookie
     document.cookie = "moyu_oauth_session=; Path=/; Max-Age=0";
@@ -109,7 +86,6 @@ export function registerUser(
     completedModules: [],
     quizScores: [],
     kpiData: [],
-    sparringRecords: [],
   };
   users.push(newUser);
   saveUsers(users);
@@ -165,7 +141,6 @@ export function restoreUserFromCloud(
       completedModules: [],
       quizScores: [],
       kpiData: [],
-      sparringRecords: [],
     });
   }
   saveUsers(users);
@@ -178,14 +153,6 @@ export function updateUser(email: string, updates: Partial<User>) {
   const idx = users.findIndex((u) => u.email === email);
   if (idx === -1) return;
   users[idx] = { ...users[idx], ...updates };
-  saveUsers(users);
-}
-
-export function addSparringRecord(email: string, record: SparringRecord) {
-  const users = getUsers();
-  const idx = users.findIndex((u) => u.email === email);
-  if (idx === -1) return;
-  users[idx].sparringRecords.push(record);
   saveUsers(users);
 }
 

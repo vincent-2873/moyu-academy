@@ -26,7 +26,6 @@ const FULL_ACCESS_ROLES = new Set([
 const BRAND_SCOPED_ROLES = new Set([
   "brand_manager",
   "sales_manager",
-  "recruit_manager",
   "legal_manager",
 ]);
 
