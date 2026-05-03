@@ -1,0 +1,76 @@
+name: Full System Audit (全面檢查)
+
+# 用法:GitHub UI → Actions → Full System Audit → Run workflow → 填 lookback_days
+# 邏輯:呼叫 /api/cron/full-system-audit,印出完整 JSON + per-section 摘要
+# 不會自動修 — 找出問題 print 出來,Vincent 看完決定動什麼
+
+on:
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "回溯天數(SMD coverage 檢查)"
+        required: true
+        default: "90"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger full system audit
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          BASE_URL: https://moyusales.zeabur.app
+          LOOKBACK: ${{ inputs.lookback_days }}
+        run: |
+          echo "Lookback days: $LOOKBACK"
+          BODY=$(printf '{"lookback_days":%s}' "$LOOKBACK")
+          curl -sS -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -d "$BODY" \
+            "${BASE_URL}/api/cron/full-system-audit" \
+            -m 200 > result.json
+          echo ""
+          echo "=== Full Result (first 15000 chars) ==="
+          cat result.json | head -c 15000
+          echo ""
+          echo ""
+          echo "=== Per-Section Summary ==="
+          node -e "
+            const r = JSON.parse(require('fs').readFileSync('result.json', 'utf-8'));
+            console.log('OK:', r.ok);
+            console.log('');
+            console.log('Issues:');
+            (r.issues || []).forEach(i => console.log('  ❌ ' + i));
+            if ((r.issues || []).length === 0) console.log('  ✅ 全綠');
+            console.log('');
+            console.log('SMD coverage (' + r.summary.smd_dates_with_data + '/' + r.summary.smd_dates_expected + ' days):');
+            console.log('  Missing (non-Sunday):', r.summary.smd_dates_missing_non_sunday);
+            console.log('  Sparse (<5 rows):', r.summary.smd_dates_sparse);
+            if ((r.smd_coverage.missing_dates_non_sunday || []).length > 0) {
+              console.log('  漏抓日期:', JSON.stringify(r.smd_coverage.missing_dates_non_sunday));
+            }
+            if ((r.smd_coverage.sparse_dates || []).length > 0) {
+              console.log('  Sparse 日期:', JSON.stringify(r.smd_coverage.sparse_dates.slice(0,10)));
+            }
+            console.log('');
+            console.log('Cron health (' + r.summary.cron_sources_tracked + ' sources, ' + r.summary.cron_failing_sources + ' failing):');
+            (r.cron_health.failing || []).forEach(f => console.log('  ❌', f.source, '(' + f.fail_rate_pct + '% fail rate)', f.last_error || ''));
+            console.log('');
+            console.log('Metabase brands synced:', r.summary.metabase_brands_synced);
+            Object.entries(r.metabase_health || {}).forEach(([brand, h]) => {
+              console.log('  ' + brand + ': runs=' + h.runs + ' success=' + h.success + ' failed=' + h.failed + ' rows=' + h.total_rows);
+            });
+            console.log('');
+            console.log('Predictions:', r.summary.predictions_total, '(filled', r.summary.predictions_filled, '/ pending', r.summary.predictions_pending, '/ old_pending', r.summary.predictions_old_pending + ')');
+            console.log('Decisions:', r.summary.decisions_total, '(pending', r.summary.decisions_pending, '/ approved', r.summary.decisions_approved, '/ rejected', r.summary.decisions_rejected + ')');
+            console.log('Knowledge chunks:', r.summary.knowledge_chunks_total, '(' + r.knowledge.embedding_pct + '% embedded)');
+          "
+          echo ""
+          # 不擋 exit — 純 diagnostic
+          if grep -q '"ok":true' result.json; then
+            echo "✅ All green"
+          else
+            echo "⚠️ Issues found — see above"
+          fi
