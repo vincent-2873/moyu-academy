@@ -92,7 +92,10 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
       const batch = candidates.slice(i, i + BATCH_SIZE);
-      const inputs = batch.map((c: any) => `${c.title || ""}\n\n${c.content || ""}`.slice(0, 8000));
+      // OpenAI text-embedding-3-small max 8192 tokens per input
+      // 中文 1 char ≈ 1 token,8000 chars 會超 → 改 4000 chars 留 headroom
+      // (Vincent 2026-05-03 根本原因:整 batch 因 1 個過長 chunk 全失敗)
+      const inputs = batch.map((c: any) => `${c.title || ""}\n\n${c.content || ""}`.slice(0, 4000));
 
       try {
         const res = await fetch("https://api.openai.com/v1/embeddings", {

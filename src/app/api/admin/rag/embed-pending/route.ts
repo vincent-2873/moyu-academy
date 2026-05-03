@@ -82,7 +82,8 @@ export async function POST(req: NextRequest) {
     // Batch 處理
     for (let i = 0; i < pending.length; i += batchSize) {
       const batch = pending.slice(i, i + batchSize);
-      const inputs = batch.map(c => `${c.title || ""}\n\n${c.content || ""}`.slice(0, 8000));
+      // OpenAI text-embedding-3-small max 8192 tokens — 中文 1 char ≈ 1 token,4000 chars 安全
+      const inputs = batch.map(c => `${c.title || ""}\n\n${c.content || ""}`.slice(0, 4000));
 
       try {
         const res = await fetch("https://api.openai.com/v1/embeddings", {
