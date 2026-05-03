@@ -5,7 +5,7 @@ import { createHmac } from 'crypto';
 
 function buildAdminSessionCookie(email: string): string {
   const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-  const expiry = Date.now() + 24 * 60 * 60 * 1000; // 24h
+  const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30d
   const sig = createHmac('sha256', secret)
     .update(`${email}|${expiry}`)
     .digest('hex');
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60,
+      maxAge: 30 * 24 * 60 * 60, // 30 天(原本 24h Vincent daily driver 太短)
       path: '/',
     });
     return res;

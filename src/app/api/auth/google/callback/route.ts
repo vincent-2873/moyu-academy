@@ -43,7 +43,7 @@ function parseCookies(req: NextRequest): Record<string, string> {
 
 function buildAdminSessionCookie(email: string): string {
   const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  const expiry = Date.now() + 24 * 60 * 60 * 1000;
+  const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30d
   const sig = createHmac("sha256", secret).update(`${email}|${expiry}`).digest("hex");
   return `${email}|${expiry}|${sig}`;
 }
@@ -169,7 +169,7 @@ export async function GET(req: NextRequest) {
   // 前台 user state 用 sessionStorage,這裡用一個 cookie 把 email 帶回去讓前端讀
   res.cookies.set("moyu_session_email", user!.email, {
     path: "/",
-    maxAge: 24 * 60 * 60,
+    maxAge: 30 * 24 * 60 * 60,
     httpOnly: false, // 前端要讀
     secure: true,
     sameSite: "lax",
@@ -179,7 +179,7 @@ export async function GET(req: NextRequest) {
   if (ADMIN_ROLES.includes(user!.role)) {
     res.cookies.set("moyu_admin_session", buildAdminSessionCookie(user!.email), {
       path: "/",
-      maxAge: 24 * 60 * 60,
+      maxAge: 30 * 24 * 60 * 60,
       httpOnly: true,
       secure: true,
       sameSite: "lax",

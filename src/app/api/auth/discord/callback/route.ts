@@ -28,7 +28,7 @@ function parseCookies(req: NextRequest): Record<string, string> {
 
 function buildAdminSessionCookie(email: string): string {
   const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  const expiry = Date.now() + 24 * 60 * 60 * 1000;
+  const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30d(原本 24h Vincent daily driver 太短)
   const sig = createHmac("sha256", secret).update(`${email}|${expiry}`).digest("hex");
   return `${email}|${expiry}|${sig}`;
 }
@@ -153,13 +153,13 @@ export async function GET(req: NextRequest) {
 
   const res = NextResponse.redirect(`${origin}/`, 302);
   res.cookies.set("moyu_session_email", user!.email, {
-    path: "/", maxAge: 24 * 60 * 60, httpOnly: false, secure: true, sameSite: "lax",
+    path: "/", maxAge: 30 * 24 * 60 * 60, httpOnly: false, secure: true, sameSite: "lax",
   });
   // 清掉 oauth_state cookie 防重放
   res.cookies.set("moyu_discord_oauth_state", "", { path: "/", maxAge: 0 });
   if (ADMIN_ROLES.includes(user!.role)) {
     res.cookies.set("moyu_admin_session", buildAdminSessionCookie(user!.email), {
-      path: "/", maxAge: 24 * 60 * 60, httpOnly: true, secure: true, sameSite: "lax",
+      path: "/", maxAge: 30 * 24 * 60 * 60, httpOnly: true, secure: true, sameSite: "lax",
     });
   }
   return res;
