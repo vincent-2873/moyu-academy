@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "text-embedding-3-small",
-        input: query.slice(0, 8000),
+        input: query.slice(0, 4000),  // OpenAI 8192 tok / 中文 1 char≈1 tok 留 headroom
       }),
     });
 
