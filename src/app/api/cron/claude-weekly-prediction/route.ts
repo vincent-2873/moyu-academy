@@ -163,7 +163,7 @@ ${(pastPreds || []).slice(0, 6).map((p) => `  ${p.target_period} ${p.metric}: ща
     const startMs = Date.now();
     const msg = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4000,
+      max_tokens: 6000,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: baseline }],
     });
