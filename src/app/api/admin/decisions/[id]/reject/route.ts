@@ -129,7 +129,7 @@ ${reason}
 請你看完駁回原因,改一個 v2 提案。要針對他的駁回直接回應,不要繞。嚴格 JSON。`;
         const msg = await client.messages.create({
           model: "claude-sonnet-4-6",
-          max_tokens: 1500,
+          max_tokens: 3000,
           system: V2_SYSTEM_PROMPT,
           messages: [{ role: "user", content: userContext }],
         });
