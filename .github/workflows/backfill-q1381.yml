@@ -1,0 +1,66 @@
+name: q1381 Manual Backfill
+
+# 手動逐日 backfill — 0 誤差 verify
+# 用法:GitHub UI → Actions → q1381 Manual Backfill → Run workflow → 填 from / to
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "起始日期 (YYYY-MM-DD)"
+        required: true
+        default: "2026-04-27"
+      to:
+        description: "結束日期 (YYYY-MM-DD)"
+        required: true
+        default: "2026-05-03"
+      do_truncate:
+        description: "先刪除範圍再 insert(0 誤差最強)"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      dry_run:
+        description: "只 query 不寫 DB(verify 用)"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Trigger Q1381 backfill
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          BASE_URL: https://moyusales.zeabur.app
+          FROM_DATE: ${{ inputs.from }}
+          TO_DATE: ${{ inputs.to }}
+          DO_TRUNCATE: ${{ inputs.do_truncate }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          echo "Backfill: $FROM_DATE → $TO_DATE / truncate=$DO_TRUNCATE / dry_run=$DRY_RUN"
+          BODY=$(printf '{"from":"%s","to":"%s","do_truncate":%s,"dry_run":%s}' "$FROM_DATE" "$TO_DATE" "$DO_TRUNCATE" "$DRY_RUN")
+          echo "Body: $BODY"
+          curl -sS -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -d "$BODY" \
+            "${BASE_URL}/api/cron/metabase-q1381-backfill" \
+            -m 800 > result.json
+          echo "=== Result ==="
+          cat result.json | head -c 5000
+          echo ""
+          # 檢查是否 success
+          if grep -q '"ok":true' result.json; then
+            echo "✅ Backfill success"
+          else
+            echo "❌ Backfill failed"
+            exit 1
+          fi
