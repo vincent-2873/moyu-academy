@@ -1,0 +1,73 @@
+name: q1381 Verify (0 誤差檢查)
+
+# 用法:GitHub UI → Actions → q1381 Verify → Run workflow → 填 from / to
+# 邏輯:逐日比對 Metabase Q1381 live vs DB sales_metrics_daily
+# Pass:全部 day match
+# Fail:任一 day rows / calls / closures / revenue diff != 0
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "起始日期 (YYYY-MM-DD)"
+        required: true
+        default: "2026-04-27"
+      to:
+        description: "結束日期 (YYYY-MM-DD)"
+        required: true
+        default: "2026-05-03"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Q1381 0-error verify
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          BASE_URL: https://moyusales.zeabur.app
+          FROM_DATE: ${{ inputs.from }}
+          TO_DATE: ${{ inputs.to }}
+        run: |
+          echo "Verify: $FROM_DATE → $TO_DATE"
+          BODY=$(printf '{"from":"%s","to":"%s"}' "$FROM_DATE" "$TO_DATE")
+          echo "Body: $BODY"
+          curl -sS -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -d "$BODY" \
+            "${BASE_URL}/api/cron/metabase-q1381-verify" \
+            -m 800 > result.json
+          echo ""
+          echo "=== Full Result ==="
+          cat result.json | head -c 10000
+          echo ""
+          echo ""
+          echo "=== Per-Day Summary ==="
+          # parse JSON 抓重要欄位 print 出來
+          node -e "
+            const r = JSON.parse(require('fs').readFileSync('result.json', 'utf-8'));
+            console.log('OK:', r.ok);
+            console.log('Range:', JSON.stringify(r.range));
+            console.log('Summary:', JSON.stringify(r.summary, null, 2));
+            console.log('');
+            console.log('=== Per-Day Detail ===');
+            (r.days || []).forEach(d => {
+              const status = d.error ? '❌ ERROR' : (d.match ? '✅ MATCH' : '❌ MISMATCH');
+              console.log(\`\${d.date} \${status}\`);
+              console.log(\`  live: rows=\${d.live.rows} calls=\${d.live.calls} closures=\${d.live.closures} revenue=\${d.live.net_revenue_daily}\`);
+              console.log(\`  db:   rows=\${d.db.rows} calls=\${d.db.calls} closures=\${d.db.closures} revenue=\${d.db.net_revenue_daily}\`);
+              if (!d.match || d.error) {
+                console.log(\`  diff: rows=\${d.diff.rows} calls=\${d.diff.calls} closures=\${d.diff.closures} revenue=\${d.diff.net_revenue_daily}\`);
+                if (d.error) console.log(\`  error: \${d.error}\`);
+              }
+            });
+          "
+          echo ""
+          # exit code:全 match → success / 任一 mismatch → fail
+          if grep -q '"ok":true' result.json; then
+            echo "✅ 0-error verify pass"
+          else
+            echo "❌ 0-error verify fail — see above for details"
+            exit 1
+          fi
