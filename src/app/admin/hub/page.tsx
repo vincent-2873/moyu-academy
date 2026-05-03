@@ -19,6 +19,8 @@ import {
   CheckCircle, XCircle, Edit3, Sparkles, FileText, Send, Loader,
 } from "../_icons";
 import { useAdminMe } from "@/components/admin/useAdminMe";
+import { useAdminDateRange } from "@/components/admin/TimeRangePicker";
+import { dateRangeQS } from "@/lib/dateRange";
 
 interface Narrative {
   date: string;
@@ -46,11 +48,19 @@ interface PendingDecision {
 interface ReportData {
   ok: boolean;
   today: string;
+  range?: { from: string; to: string; label: string; days: number };
   narrative: Narrative | null;
   north_star: {
+    // Range-scoped(picker 內)
+    range_revenue?: number;
+    range_target?: number;
+    range_closures?: number;
+    range_progress_pct?: number;
+    // Quarter-anchored(投資人 pace 用)
     quarter_revenue: number;
     quarter_target: number;
     quarter_closures: number;
+    quarter_progress_pct?: number;
     forecast: number | null;
     progress_pct: number;
     prediction_accuracy: number | null;
@@ -65,6 +75,7 @@ interface ReportData {
 
 export default function ClaudeReportPage() {
   const { data: me } = useAdminMe();
+  const { range } = useAdminDateRange();
   const canApprove = me?.permissions.can_approve ?? false;
   const isBoardAudience = me?.permissions.is_board_audience ?? false;
   const [data, setData] = useState<ReportData | null>(null);
@@ -87,11 +98,12 @@ export default function ClaudeReportPage() {
     setTimeout(() => setToast(null), 4500);
   }
 
-  useEffect(() => { load(); }, []);
+  // 跟 picker range 連動 — 切時段就重抓
+  useEffect(() => { load(); }, [range.from, range.to]);
 
   async function load() {
     setLoading(true);
-    const r = await fetch("/api/admin/claude-report", { cache: "no-store" });
+    const r = await fetch(`/api/admin/claude-report?${dateRangeQS(range)}`, { cache: "no-store" });
     const j = await r.json();
     setData(j);
     setLoading(false);
@@ -186,7 +198,13 @@ export default function ClaudeReportPage() {
   const ns = data.north_star;
   const n = data.narrative;
   const isToday = data.has_today_narrative;
-  const pacePct = ns.progress_pct;
+  // Range-scoped(picker 內)— 跟 picker 連動
+  const rangeRevenue = ns.range_revenue ?? ns.quarter_revenue;
+  const rangeTarget = ns.range_target ?? ns.quarter_target;
+  const rangeProgressPct = ns.range_progress_pct ?? ns.progress_pct;
+  const rangeLabel = data.range?.label || "本季";
+  // Quarter pace(投資人對標)
+  const qProgressPct = ns.quarter_progress_pct ?? ns.progress_pct;
   const forecastPct = ns.forecast ? Math.round((ns.forecast / ns.quarter_target) * 100) : null;
 
   return (
@@ -210,18 +228,21 @@ export default function ClaudeReportPage() {
       <section className="memo-northstar">
         <div className="ns-grid">
           <div className="ns-main">
-            <div className="ns-label">本季營收進度</div>
+            <div className="ns-label">{rangeLabel} 營收進度 · 對標季目標 {qProgressPct}%</div>
             <div className="ns-value">
-              <span className="ns-num">NT$ {Math.round(ns.quarter_revenue / 10000).toLocaleString()}</span>
+              <span className="ns-num">NT$ {Math.round(rangeRevenue / 10000).toLocaleString()}</span>
               <span className="ns-sep">/</span>
-              <span className="ns-target">{Math.round(ns.quarter_target / 10000).toLocaleString()} 萬</span>
+              <span className="ns-target">{Math.round(rangeTarget / 10000).toLocaleString()} 萬</span>
             </div>
             <div className="ns-bar">
-              <div className="ns-bar-fill" style={{ width: `${Math.min(100, pacePct)}%` }} />
+              <div className="ns-bar-fill" style={{ width: `${Math.min(100, rangeProgressPct)}%` }} />
             </div>
             <div className="ns-meta">
-              已達 <strong>{pacePct}%</strong>
-              {forecastPct !== null && <> · 我預測終值 <strong>{forecastPct}%</strong>(NT$ {Math.round((ns.forecast ?? 0) / 10000).toLocaleString()} 萬)</>}
+              範圍內達 <strong>{rangeProgressPct}%</strong>
+              <span style={{ marginLeft: 8, color: "var(--ds-text-3)" }}>
+                (季累計 NT$ {Math.round(ns.quarter_revenue / 10000).toLocaleString()} 萬 / {Math.round(ns.quarter_target / 10000).toLocaleString()} 萬 = {qProgressPct}%)
+              </span>
+              {forecastPct !== null && <> · 我預測季終 <strong>{forecastPct}%</strong>(NT$ {Math.round((ns.forecast ?? 0) / 10000).toLocaleString()} 萬)</>}
             </div>
           </div>
           <div className="ns-side">
