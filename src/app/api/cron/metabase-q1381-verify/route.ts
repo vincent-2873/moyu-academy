@@ -112,15 +112,14 @@ export async function POST(req: NextRequest) {
         day.live.appointments_show += Number(r.appointments_show || 0);
       }
 
-      // ─── DB: count + sums for this day(non-rollup only)───
+      // ─── DB: count + sums for this day(Q1381 backfill 只插 daily row,沒 rollup column 也不影響)───
       const { data: dbRows, error: dbErr } = await sb
         .from("sales_metrics_daily")
-        .select("calls, closures, net_revenue_daily, appointments_show, is_monthly_rollup")
+        .select("calls, closures, net_revenue_daily, appointments_show")
         .eq("date", date);
       if (dbErr) throw new Error(`DB query failed: ${dbErr.message}`);
-      const filtered = (dbRows || []).filter((r) => r.is_monthly_rollup !== true);
-      day.db.rows = filtered.length;
-      for (const r of filtered) {
+      day.db.rows = (dbRows || []).length;
+      for (const r of dbRows || []) {
         day.db.calls += Number(r.calls || 0);
         day.db.closures += Number(r.closures || 0);
         day.db.net_revenue_daily += Number(r.net_revenue_daily || 0);
