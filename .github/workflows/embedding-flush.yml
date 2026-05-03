@@ -1,0 +1,53 @@
+name: Embedding Flush (跑 N 次清 backlog)
+
+# Vincent 2026-05-03:audit 發現 524/629 chunks 沒 embedding
+# 一次 cron 處理 200 → 跑 4 次清完
+#
+# 用法:GitHub UI → Actions → Embedding Flush → Run workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: "跑幾次(每次 200 chunks)"
+        required: true
+        default: "4"
+
+jobs:
+  flush:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run embedding-refresh N times
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          BASE_URL: https://moyusales.zeabur.app
+          ITERATIONS: ${{ inputs.iterations }}
+        run: |
+          TOTAL_PROCESSED=0
+          TOTAL_ERRORS=0
+          for i in $(seq 1 "$ITERATIONS"); do
+            echo "=== Iteration $i / $ITERATIONS ==="
+            RESP=$(curl -sS -X POST \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              -H "Content-Type: application/json" \
+              -d '{}' \
+              "${BASE_URL}/api/cron/embedding-refresh" \
+              -m 240)
+            echo "$RESP" | head -c 1000
+            echo ""
+            PROCESSED=$(echo "$RESP" | grep -oE '"processed":[0-9]+' | head -1 | cut -d: -f2)
+            CANDIDATES=$(echo "$RESP" | grep -oE '"candidates":[0-9]+' | head -1 | cut -d: -f2)
+            ERRORS_COUNT=$(echo "$RESP" | grep -oE '"errors":\[' | wc -l)
+            TOTAL_PROCESSED=$((TOTAL_PROCESSED + ${PROCESSED:-0}))
+            echo "Iteration $i: processed=$PROCESSED candidates=$CANDIDATES"
+            # 若沒 candidate 提早結束
+            if [ "${CANDIDATES:-0}" = "0" ]; then
+              echo "✅ No more candidates — done"
+              break
+            fi
+            sleep 3
+          done
+          echo ""
+          echo "================================="
+          echo "✅ Total processed: $TOTAL_PROCESSED"

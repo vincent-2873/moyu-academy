@@ -152,16 +152,21 @@ export async function POST(req: NextRequest) {
       .gte("run_at", sevenDaysAgo)
   );
 
-  const metabaseHealth: Record<string, { runs: number; success: number; failed: number; partial: number; total_rows: number; last_run: string }> = {};
+  const metabaseHealth: Record<string, { runs: number; success: number; failed: number; partial: number; total_rows: number; last_run: string; sample_errors: string[] }> = {};
   for (const r of metabaseSyncLogs) {
     const k = r.brand || "unknown";
     if (!metabaseHealth[k]) {
-      metabaseHealth[k] = { runs: 0, success: 0, failed: 0, partial: 0, total_rows: 0, last_run: r.run_at };
+      metabaseHealth[k] = { runs: 0, success: 0, failed: 0, partial: 0, total_rows: 0, last_run: r.run_at, sample_errors: [] };
     }
     const h = metabaseHealth[k];
     h.runs += 1;
     if (r.status === "success") h.success += 1;
-    else if (r.status === "failed") h.failed += 1;
+    else if (r.status === "failed") {
+      h.failed += 1;
+      if (r.error && h.sample_errors.length < 3 && !h.sample_errors.includes(r.error)) {
+        h.sample_errors.push(r.error);
+      }
+    }
     else if (r.status === "partial") h.partial += 1;
     h.total_rows += Number(r.rows || 0);
     if (r.run_at > h.last_run) h.last_run = r.run_at;
